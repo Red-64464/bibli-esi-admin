@@ -66,3 +66,16 @@ VALUES (
   'admin'
 )
 ON CONFLICT (username) DO NOTHING;
+
+-- ─── FK CASCADE : suppression étudiant → prets ───────────────
+-- Permet de supprimer un étudiant même s'il a des prêts associés
+ALTER TABLE prets DROP CONSTRAINT IF EXISTS prets_etudiant_id_fkey;
+ALTER TABLE prets
+  ADD CONSTRAINT prets_etudiant_id_fkey
+  FOREIGN KEY (etudiant_id) REFERENCES etudiants(id) ON DELETE CASCADE;
+
+-- ─── SUPABASE STORAGE (couvertures de livres) ────────────────
+-- Créer manuellement le bucket depuis le tableau de bord Supabase :
+--   Storage → "New bucket" → Name: covers → Public: ✓ (activer)
+-- Politique RLS recommandée pour uploads publics :
+--   Storage → covers → Policies → "Allow public uploads"

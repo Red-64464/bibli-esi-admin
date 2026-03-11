@@ -2,14 +2,26 @@ import { Trash2, Pencil, History } from "lucide-react";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
+  emprunte: "bg-biblio-warning/20 text-biblio-warning",
+  // legacy accented fallbacks
   emprunté: "bg-biblio-warning/20 text-biblio-warning",
+  reserve: "bg-biblio-accent/20 text-biblio-accent",
   réservé: "bg-biblio-accent/20 text-biblio-accent",
   perdu: "bg-biblio-danger/20 text-biblio-danger",
+  en_reparation: "bg-white/10 text-biblio-muted",
   "en réparation": "bg-white/10 text-biblio-muted",
 };
 
+const STATUT_LABEL = {
+  disponible: "Disponible",
+  emprunte: "Emprunté",
+  reserve: "Réservé",
+  perdu: "Perdu",
+  en_reparation: "En réparation",
+};
+
 export default function LivreCard({ livre, onDelete, onEdit, onHistorique }) {
-  const statut = livre.statut || (livre.disponible ? "disponible" : "emprunté");
+  const statut = livre.statut || (livre.disponible ? "disponible" : "emprunte");
   const badgeClass = STATUT_STYLE[statut] || "bg-white/10 text-biblio-muted";
 
   return (
@@ -50,7 +62,8 @@ export default function LivreCard({ livre, onDelete, onEdit, onHistorique }) {
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeClass}`}
           >
-            {statut.charAt(0).toUpperCase() + statut.slice(1)}
+            {STATUT_LABEL[statut] ||
+              statut.charAt(0).toUpperCase() + statut.slice(1)}
           </span>
           <div className="flex items-center gap-1">
             {onHistorique && (

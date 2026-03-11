@@ -1,6 +1,12 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { ArrowLeftRight, Loader2, Plus, Download, AlertCircle } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Loader2,
+  Plus,
+  Download,
+  AlertCircle,
+} from "lucide-react";
 import PretRow from "../components/PretRow";
 import ExportModal from "../components/ExportModal";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
@@ -28,8 +34,12 @@ export default function Prets() {
   const [showExportModal, setShowExportModal] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
-  const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const defaultRappel = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const defaultRappel = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
 
   const [form, setForm] = useState({
     livre_id: "",
@@ -40,14 +50,22 @@ export default function Prets() {
     notes: "",
   });
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
-        supabase.from("prets").select("*, livres(titre, isbn), etudiants(nom, prenom)").order("date_pret", { ascending: false }),
-        supabase.from("livres").select("id, titre, isbn").eq("disponible", true),
+        supabase
+          .from("prets")
+          .select("*, livres(titre, isbn), etudiants(nom, prenom)")
+          .order("date_pret", { ascending: false }),
+        supabase
+          .from("livres")
+          .select("id, titre, isbn")
+          .eq("disponible", true),
         supabase.from("etudiants").select("id, nom, prenom, numero_etudiant"),
       ]);
       if (pretsRes.error) throw pretsRes.error;
@@ -67,23 +85,35 @@ export default function Prets() {
     e.preventDefault();
     if (!form.livre_id || !form.etudiant_id) return;
     try {
-      const { error: err1 } = await supabase.from("prets").insert([{
-        livre_id: form.livre_id,
-        etudiant_id: form.etudiant_id,
-        date_pret: form.date_pret,
-        date_retour_prevue: form.date_retour_prevue || null,
-        date_rappel: form.date_rappel || null,
-        notes: form.notes,
-        statut: "en_cours",
-        rendu: false,
-      }]);
+      const { error: err1 } = await supabase.from("prets").insert([
+        {
+          livre_id: form.livre_id,
+          etudiant_id: form.etudiant_id,
+          date_pret: form.date_pret,
+          date_retour_prevue: form.date_retour_prevue || null,
+          date_rappel: form.date_rappel || null,
+          notes: form.notes,
+          statut: "en_cours",
+          rendu: false,
+        },
+      ]);
       if (err1) throw err1;
 
-      const { error: err2 } = await supabase.from("livres").update({ disponible: false, statut: "emprunté" }).eq("id", form.livre_id);
+      const { error: err2 } = await supabase
+        .from("livres")
+        .update({ disponible: false, statut: "emprunté" })
+        .eq("id", form.livre_id);
       if (err2) throw err2;
 
       setShowForm(false);
-      setForm({ livre_id: "", etudiant_id: "", date_pret: today, date_retour_prevue: defaultRetour, date_rappel: defaultRappel, notes: "" });
+      setForm({
+        livre_id: "",
+        etudiant_id: "",
+        date_pret: today,
+        date_retour_prevue: defaultRetour,
+        date_rappel: defaultRappel,
+        notes: "",
+      });
       setError("");
       await fetchData();
     } catch (err) {
@@ -93,9 +123,19 @@ export default function Prets() {
 
   const handleReturn = async (pretId, livreId) => {
     try {
-      const { error: err1 } = await supabase.from("prets").update({ rendu: true, date_retour: new Date().toISOString(), statut: "retourné" }).eq("id", pretId);
+      const { error: err1 } = await supabase
+        .from("prets")
+        .update({
+          rendu: true,
+          date_retour: new Date().toISOString(),
+          statut: "retourné",
+        })
+        .eq("id", pretId);
       if (err1) throw err1;
-      const { error: err2 } = await supabase.from("livres").update({ disponible: true, statut: "disponible" }).eq("id", livreId);
+      const { error: err2 } = await supabase
+        .from("livres")
+        .update({ disponible: true, statut: "disponible" })
+        .eq("id", livreId);
       if (err2) throw err2;
       await fetchData();
     } catch (err) {
@@ -113,8 +153,12 @@ export default function Prets() {
       Étudiant: p.etudiants ? `${p.etudiants.prenom} ${p.etudiants.nom}` : "",
       Email: p.etudiants?.email || "",
       "Date de prêt": new Date(p.date_pret).toLocaleDateString("fr-FR"),
-      "Retour prévu": p.date_retour_prevue ? new Date(p.date_retour_prevue).toLocaleDateString("fr-FR") : "—",
-      "Rappel": p.date_rappel ? new Date(p.date_rappel).toLocaleDateString("fr-FR") : "—",
+      "Retour prévu": p.date_retour_prevue
+        ? new Date(p.date_retour_prevue).toLocaleDateString("fr-FR")
+        : "—",
+      Rappel: p.date_rappel
+        ? new Date(p.date_rappel).toLocaleDateString("fr-FR")
+        : "—",
       Statut: getPretStatut(p),
       Notes: p.notes || "",
     }));
@@ -132,7 +176,9 @@ export default function Prets() {
     return true;
   });
 
-  const pretsEnRetardCount = prets.filter((p) => getPretStatut(p) === "en_retard").length;
+  const pretsEnRetardCount = prets.filter(
+    (p) => getPretStatut(p) === "en_retard",
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -144,7 +190,8 @@ export default function Prets() {
             Gestion des prêts
           </h1>
           <p className="text-biblio-muted mt-1">
-            {prets.filter((p) => !p.rendu).length} prêt{prets.filter((p) => !p.rendu).length !== 1 ? "s" : ""} en cours
+            {prets.filter((p) => !p.rendu).length} prêt
+            {prets.filter((p) => !p.rendu).length !== 1 ? "s" : ""} en cours
             {pretsEnRetardCount > 0 && (
               <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
                 {pretsEnRetardCount} en retard
@@ -170,54 +217,127 @@ export default function Prets() {
 
       {/* Formulaire nouveau prêt */}
       {showForm && (
-        <form onSubmit={handleCreatePret} className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-5">
+        <form
+          onSubmit={handleCreatePret}
+          className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-5"
+        >
           <h2 className="text-lg font-semibold">Nouveau prêt</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Livre disponible *</label>
-              <select value={form.livre_id} onChange={(e) => setForm({ ...form, livre_id: e.target.value })} required className={INPUT_CLASS + " w-full"}>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Livre disponible *
+              </label>
+              <select
+                value={form.livre_id}
+                onChange={(e) => setForm({ ...form, livre_id: e.target.value })}
+                required
+                className={INPUT_CLASS + " w-full"}
+                style={{ colorScheme: "dark" }}
+              >
                 <option value="">-- Choisir un livre --</option>
                 {livres.map((l) => (
-                  <option key={l.id} value={l.id}>{l.titre} (ISBN: {l.isbn})</option>
+                  <option key={l.id} value={l.id}>
+                    {l.titre} (ISBN: {l.isbn})
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Étudiant *</label>
-              <select value={form.etudiant_id} onChange={(e) => setForm({ ...form, etudiant_id: e.target.value })} required className={INPUT_CLASS + " w-full"}>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Étudiant *
+              </label>
+              <select
+                value={form.etudiant_id}
+                onChange={(e) =>
+                  setForm({ ...form, etudiant_id: e.target.value })
+                }
+                required
+                className={INPUT_CLASS + " w-full"}
+                style={{ colorScheme: "dark" }}
+              >
                 <option value="">-- Choisir un étudiant --</option>
                 {etudiants.map((e) => (
-                  <option key={e.id} value={e.id}>{e.prenom} {e.nom} ({e.numero_etudiant || "sans numéro"})</option>
+                  <option key={e.id} value={e.id}>
+                    {e.prenom} {e.nom} ({e.numero_etudiant || "sans numéro"})
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Date du prêt</label>
-              <input type="date" value={form.date_pret} onChange={(e) => setForm({ ...form, date_pret: e.target.value })} className={INPUT_CLASS + " w-full"} />
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Date du prêt
+              </label>
+              <input
+                type="date"
+                value={form.date_pret}
+                onChange={(e) =>
+                  setForm({ ...form, date_pret: e.target.value })
+                }
+                className={INPUT_CLASS + " w-full"}
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Date de retour prévue</label>
-              <input type="date" value={form.date_retour_prevue} onChange={(e) => setForm({ ...form, date_retour_prevue: e.target.value })} className={INPUT_CLASS + " w-full"} min={form.date_pret} />
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Date de retour prévue
+              </label>
+              <input
+                type="date"
+                value={form.date_retour_prevue}
+                onChange={(e) =>
+                  setForm({ ...form, date_retour_prevue: e.target.value })
+                }
+                className={INPUT_CLASS + " w-full"}
+                min={form.date_pret}
+              />
             </div>
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Date de rappel</label>
-              <input type="date" value={form.date_rappel} onChange={(e) => setForm({ ...form, date_rappel: e.target.value })} className={INPUT_CLASS + " w-full"} />
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Date de rappel
+              </label>
+              <input
+                type="date"
+                value={form.date_rappel}
+                onChange={(e) =>
+                  setForm({ ...form, date_rappel: e.target.value })
+                }
+                className={INPUT_CLASS + " w-full"}
+              />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-biblio-muted block mb-1">Notes</label>
-              <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes sur le prêt…" className={INPUT_CLASS + " w-full resize-none"} />
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Notes
+              </label>
+              <textarea
+                rows={2}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Notes sur le prêt…"
+                className={INPUT_CLASS + " w-full resize-none"}
+              />
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors">Confirmer le prêt</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors">Annuler</button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors"
+            >
+              Confirmer le prêt
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </form>
       )}
 
       {error && (
         <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
         </div>
       )}
 
@@ -225,7 +345,10 @@ export default function Prets() {
       <div className="flex gap-2 flex-wrap">
         {[
           { key: "en_cours", label: "En cours" },
-          { key: "en_retard", label: `En retard${pretsEnRetardCount > 0 ? ` (${pretsEnRetardCount})` : ""}` },
+          {
+            key: "en_retard",
+            label: `En retard${pretsEnRetardCount > 0 ? ` (${pretsEnRetardCount})` : ""}`,
+          },
           { key: "historique", label: "Retournés" },
           { key: "tous", label: "Tous" },
         ].map(({ key, label }) => (
@@ -234,7 +357,9 @@ export default function Prets() {
             onClick={() => setFiltre(key)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filtre === key
-                ? key === "en_retard" ? "bg-biblio-danger text-white" : "bg-biblio-accent text-white"
+                ? key === "en_retard"
+                  ? "bg-biblio-danger text-white"
+                  : "bg-biblio-accent text-white"
                 : "bg-white/5 text-biblio-muted hover:bg-white/10"
             }`}
           >
@@ -245,17 +370,33 @@ export default function Prets() {
 
       {/* Tableau */}
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-biblio-accent" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
+        </div>
       ) : pretsFiltres.length === 0 ? (
-        <div className="text-center py-12 text-biblio-muted">Aucun prêt à afficher.</div>
+        <div className="text-center py-12 text-biblio-muted">
+          Aucun prêt à afficher.
+        </div>
       ) : (
         <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/10 bg-white/5">
-                  {["Livre", "Étudiant", "Date prêt", "Retour prévu", "Statut", "Action"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-biblio-muted uppercase tracking-wider">{h}</th>
+                  {[
+                    "Livre",
+                    "Étudiant",
+                    "Date prêt",
+                    "Retour prévu",
+                    "Statut",
+                    "Action",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-xs font-semibold text-biblio-muted uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
