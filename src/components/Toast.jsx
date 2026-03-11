@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { CheckCircle, XCircle, AlertTriangle, X } from "lucide-react";
 
 const ICONS = {

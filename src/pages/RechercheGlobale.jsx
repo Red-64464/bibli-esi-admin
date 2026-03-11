@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useDebounce, formatDate, getPretStatut } from "../lib/utils";
 import {
@@ -11,19 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-const SECTION_ICONS = {
-  livres: BookOpen,
-  etudiants: Users,
-  prets: ArrowLeftRight,
-};
-const SECTION_LABELS = {
-  livres: "Livres",
-  etudiants: "Étudiants",
-  prets: "Prêts",
-};
-
 export default function RechercheGlobale() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQ = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQ);

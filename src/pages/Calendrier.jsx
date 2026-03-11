@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/utils";
 import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -28,11 +28,7 @@ export default function Calendrier() {
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState(null);
 
-  useEffect(() => {
-    fetchPrets();
-  }, [year, month]);
-
-  const fetchPrets = async () => {
+  const fetchPrets = useCallback(async () => {
     try {
       setLoading(true);
       const start = new Date(year, month, 1).toISOString().slice(0, 10);
@@ -52,7 +48,11 @@ export default function Calendrier() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [year, month]);
+
+  useEffect(() => {
+    fetchPrets();
+  }, [fetchPrets]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
