@@ -78,6 +78,25 @@ const PERMISSION_LABELS = {
   reservations: "voir",
 };
 
+const PERM_FULL_LABELS = {
+  dashboard: "Tableau de bord",
+  livres_voir: "Livres – voir",
+  livres_ajouter: "Livres – ajouter",
+  livres_modifier: "Livres – modifier",
+  livres_supprimer: "Livres – supprimer",
+  etudiants_voir: "Étudiants – voir",
+  etudiants_ajouter: "Étudiants – ajouter",
+  etudiants_modifier: "Étudiants – modifier",
+  etudiants_supprimer: "Étudiants – supprimer",
+  prets_voir: "Prêts – voir",
+  prets_creer: "Prêts – créer",
+  prets_retourner: "Prêts – retourner",
+  statistiques: "Statistiques",
+  notifications: "Notifications",
+  historique: "Historique",
+  reservations: "Réservations",
+};
+
 const LIBRARIAN_PERM_KEYS = PERMISSION_CATEGORIES.flatMap((c) => c.keys);
 const DEFAULT_PERMISSIONS = Object.fromEntries(
   LIBRARIAN_PERM_KEYS.map((k) => [k, ALL_PERMISSIONS[k] ?? false]),
@@ -205,6 +224,9 @@ export default function Admins() {
   // Formulaire permissions
   const [changePermsId, setChangePermsId] = useState(null);
   const [editPerms, setEditPerms] = useState({ ...DEFAULT_PERMISSIONS });
+  const [originalPerms, setOriginalPerms] = useState({
+    ...DEFAULT_PERMISSIONS,
+  });
   const [permsLoading, setPermsLoading] = useState(false);
 
   // Formulaire profil
@@ -423,9 +445,27 @@ export default function Admins() {
       if (err) throw err;
 
       const admin = admins.find((a) => a.id === adminId);
+      const granted = LIBRARIAN_PERM_KEYS.filter(
+        (k) => editPerms[k] && !originalPerms[k],
+      );
+      const revoked = LIBRARIAN_PERM_KEYS.filter(
+        (k) => !editPerms[k] && originalPerms[k],
+      );
+      const parts = [];
+      if (granted.length)
+        parts.push(
+          `Accordées : ${granted.map((k) => PERM_FULL_LABELS[k] || k).join(", ")}`,
+        );
+      if (revoked.length)
+        parts.push(
+          `Révoquées : ${revoked.map((k) => PERM_FULL_LABELS[k] || k).join(", ")}`,
+        );
+      const description = `Permissions de "${admin?.username}" modifiées${
+        parts.length ? ` — ${parts.join(" | ")}` : " (aucun changement)"
+      }`;
       await logActivity({
         action_type: "admin_permissions_modifie",
-        description: `Permissions de "${admin?.username}" modifiées`,
+        description,
         user_info: session?.username || "",
       });
 

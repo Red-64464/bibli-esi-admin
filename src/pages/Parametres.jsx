@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   getSettings,
   saveSettings,
@@ -78,6 +78,29 @@ function Toggle({ checked, onChange, label, description }) {
   );
 }
 
+const SETTINGS_LABELS = {
+  library_name: "Nom de la bibliothèque",
+  library_email: "Email",
+  library_logo_url: "Logo URL",
+  default_loan_days: "Durée de prêt (jours)",
+  max_books_per_student: "Livres max/étudiant",
+  send_reminder_emails: "Emails automatiques",
+  reminder_days_before: "Rappel avant retour (jours)",
+  remind_on_due_date: "Rappel jour du retour",
+  notify_overdue: "Notification retard",
+  accent_color: "Couleur d'accentuation",
+  library_hours: "Horaires d'ouverture",
+  library_closed_message: "Message de fermeture",
+  library_is_closed: "Fermeture exceptionnelle",
+};
+
+function formatSettingVal(key, val) {
+  if (val === "true") return "Oui";
+  if (val === "false") return "Non";
+  if (key === "library_hours") return "(voir horaires)";
+  return val || "(vide)";
+}
+
 const ACCENT_COLORS = [
   { key: "indigo", label: "Indigo", hex: "#6366f1" },
   { key: "violet", label: "Violet", hex: "#8b5cf6" },
@@ -99,6 +122,7 @@ const JOURS = [
 
 export default function Parametres() {
   const { session } = useAuth();
+  const originalFormRef = useRef(null);
   const [form, setForm] = useState(null);
   const [hours, setHours] = useState(null); // parsed library_hours
   const [loading, setLoading] = useState(true);
@@ -111,6 +135,7 @@ export default function Parametres() {
     getSettings()
       .then((s) => {
         setForm(s);
+        originalFormRef.current = { ...s };
         applyAccentColor(s.accent_color);
         try {
           setHours(JSON.parse(s.library_hours));
@@ -139,9 +164,30 @@ export default function Parametres() {
       setError("");
       const payload = { ...form, library_hours: JSON.stringify(hours) };
       await saveSettings(payload);
+
+      // Construire une description détaillée des changements
+      const orig = originalFormRef.current || {};
+      const changed = Object.keys(SETTING_DEFAULTS).filter((key) => {
+        if (key === "library_hours")
+          return JSON.stringify(hours) !== orig.library_hours;
+        return (form[key] ?? "") !== (orig[key] ?? "");
+      });
+      let description = "Paramètres de la bibliothèque mis à jour";
+      if (changed.length > 0) {
+        const details = changed.map((k) => {
+          if (k === "library_hours") return "Horaires d'ouverture";
+          const label = SETTINGS_LABELS[k] || k;
+          const from = formatSettingVal(k, orig[k]);
+          const to = formatSettingVal(k, form[k]);
+          return `${label} : ${from} → ${to}`;
+        });
+        description = `Paramètres modifiés — ${details.join(" | ")}`;
+      }
+      originalFormRef.current = { ...payload };
+
       await logActivity({
         action_type: "settings_modifie",
-        description: "Paramètres de la bibliothèque mis à jour",
+        description,
         user_info: session?.username || "",
       });
       setSaved(true);
