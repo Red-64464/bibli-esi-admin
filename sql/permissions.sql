@@ -64,3 +64,18 @@ CREATE INDEX IF NOT EXISTS idx_reservations_statut ON reservations(statut);
 -- Profil étendu des administrateurs
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+
+-- Horaires d'ouverture et messages de fermeture
+INSERT INTO settings (key, value) VALUES
+  ('library_hours', '{
+    "lundi":    {"ouvert":true,  "debut":"08:00","fin":"17:00"},
+    "mardi":    {"ouvert":true,  "debut":"08:00","fin":"17:00"},
+    "mercredi": {"ouvert":true,  "debut":"08:00","fin":"17:00"},
+    "jeudi":    {"ouvert":true,  "debut":"08:00","fin":"17:00"},
+    "vendredi": {"ouvert":true,  "debut":"08:00","fin":"14:00"},
+    "samedi":   {"ouvert":false, "debut":"09:00","fin":"12:00"},
+    "dimanche": {"ouvert":false, "debut":"",     "fin":""}
+  }'),
+  ('library_closed_message', ''),
+  ('library_is_closed',      'false')
+ON CONFLICT (key) DO NOTHING;

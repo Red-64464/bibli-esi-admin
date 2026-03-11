@@ -1,5 +1,15 @@
 import { supabase } from "./supabase";
 
+const DEFAULT_HOURS = {
+  lundi: { ouvert: true, debut: "08:00", fin: "17:00" },
+  mardi: { ouvert: true, debut: "08:00", fin: "17:00" },
+  mercredi: { ouvert: true, debut: "08:00", fin: "17:00" },
+  jeudi: { ouvert: true, debut: "08:00", fin: "17:00" },
+  vendredi: { ouvert: true, debut: "08:00", fin: "14:00" },
+  samedi: { ouvert: false, debut: "09:00", fin: "12:00" },
+  dimanche: { ouvert: false, debut: "", fin: "" },
+};
+
 export const SETTING_DEFAULTS = {
   library_name: "Bibl'ESI",
   library_email: "",
@@ -11,7 +21,12 @@ export const SETTING_DEFAULTS = {
   remind_on_due_date: "true",
   notify_overdue: "true",
   accent_color: "indigo",
+  library_hours: JSON.stringify(DEFAULT_HOURS),
+  library_closed_message: "",
+  library_is_closed: "false",
 };
+
+export { DEFAULT_HOURS };
 
 /** Charge tous les paramètres depuis Supabase et merge les valeurs par défaut */
 export async function getSettings() {

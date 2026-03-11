@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getSettings, saveSettings, SETTING_DEFAULTS } from "../lib/settings";
+import {
+  getSettings,
+  saveSettings,
+  SETTING_DEFAULTS,
+  DEFAULT_HOURS,
+} from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import ConfirmModal from "../components/ConfirmModal";
@@ -15,6 +20,8 @@ import {
   Bell,
   Palette,
   RotateCcw,
+  CalendarDays,
+  AlertOctagon,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -79,9 +86,20 @@ const ACCENT_COLORS = [
   { key: "rose", label: "Rose", hex: "#f43f5e" },
 ];
 
+const JOURS = [
+  { key: "lundi", label: "Lundi" },
+  { key: "mardi", label: "Mardi" },
+  { key: "mercredi", label: "Mercredi" },
+  { key: "jeudi", label: "Jeudi" },
+  { key: "vendredi", label: "Vendredi" },
+  { key: "samedi", label: "Samedi" },
+  { key: "dimanche", label: "Dimanche" },
+];
+
 export default function Parametres() {
   const { session } = useAuth();
   const [form, setForm] = useState(null);
+  const [hours, setHours] = useState(null); // parsed library_hours
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -90,7 +108,14 @@ export default function Parametres() {
 
   useEffect(() => {
     getSettings()
-      .then(setForm)
+      .then((s) => {
+        setForm(s);
+        try {
+          setHours(JSON.parse(s.library_hours));
+        } catch {
+          setHours({ ...DEFAULT_HOURS });
+        }
+      })
       .catch((e) =>
         setError("Impossible de charger les paramètres : " + e.message),
       )
@@ -99,12 +124,19 @@ export default function Parametres() {
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const setHour = (jour, field, value) =>
+    setHours((prev) => ({
+      ...prev,
+      [jour]: { ...prev[jour], [field]: value },
+    }));
+
   const handleSave = async (e) => {
     e.preventDefault();
     try {
       setSaving(true);
       setError("");
-      await saveSettings(form);
+      const payload = { ...form, library_hours: JSON.stringify(hours) };
+      await saveSettings(payload);
       await logActivity({
         action_type: "settings_modifie",
         description: "Paramètres de la bibliothèque mis à jour",
@@ -125,6 +157,7 @@ export default function Parametres() {
       setError("");
       await saveSettings(SETTING_DEFAULTS);
       setForm({ ...SETTING_DEFAULTS });
+      setHours({ ...DEFAULT_HOURS });
       await logActivity({
         action_type: "settings_modifie",
         description: "Paramètres réinitialisés aux valeurs par défaut",
@@ -315,6 +348,101 @@ export default function Parametres() {
             </span>
           </p>
         </Field>
+      </Section>
+
+      {/* Section : Horaires */}
+      <Section icon={CalendarDays} title="Horaires d'ouverture">
+        {/* Fermeture exceptionnelle */}
+        <Toggle
+          checked={form.library_is_closed === "true"}
+          onChange={(v) => set("library_is_closed", String(v))}
+          label="Fermeture exceptionnelle"
+          description="Marque la bibliothèque comme fermée indépendamment des horaires habituels."
+        />
+        {form.library_is_closed === "true" && (
+          <Field
+            label="Message de fermeture"
+            hint="Affiché aux étudiants à la place des horaires."
+          >
+            <input
+              type="text"
+              value={form.library_closed_message || ""}
+              onChange={(e) => set("library_closed_message", e.target.value)}
+              placeholder="Ex : Fermée du 10 au 15 mars pour les vacances"
+              className={INPUT_CLASS}
+            />
+          </Field>
+        )}
+
+        {/* Grille 7 jours */}
+        <div className="space-y-2 mt-2">
+          <div className="hidden sm:grid grid-cols-[110px_60px_1fr_16px_1fr] gap-2 items-center mb-1">
+            <span className="text-xs text-biblio-muted">Jour</span>
+            <span className="text-xs text-biblio-muted text-center">
+              Ouvert
+            </span>
+            <span className="text-xs text-biblio-muted">Ouverture</span>
+            <span />
+            <span className="text-xs text-biblio-muted">Fermeture</span>
+          </div>
+          {hours &&
+            JOURS.map(({ key, label }) => {
+              const jour = hours[key] || { ouvert: false, debut: "", fin: "" };
+              return (
+                <div
+                  key={key}
+                  className={`grid grid-cols-[110px_60px_1fr_16px_1fr] gap-2 items-center rounded-lg px-2 py-1.5 transition-colors ${
+                    jour.ouvert ? "bg-white/5" : "opacity-50"
+                  }`}
+                >
+                  <span className="text-sm text-biblio-text font-medium">
+                    {label}
+                  </span>
+
+                  {/* Toggle ouvert */}
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setHour(key, "ouvert", !jour.ouvert)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                        jour.ouvert ? "bg-biblio-accent" : "bg-white/20"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                          jour.ouvert ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Heure début */}
+                  <input
+                    type="time"
+                    value={jour.debut}
+                    disabled={!jour.ouvert}
+                    onChange={(e) => setHour(key, "debut", e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-biblio-text text-sm focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ colorScheme: "dark" }}
+                  />
+
+                  <span className="text-biblio-muted text-center text-xs">
+                    →
+                  </span>
+
+                  {/* Heure fin */}
+                  <input
+                    type="time"
+                    value={jour.fin}
+                    disabled={!jour.ouvert}
+                    onChange={(e) => setHour(key, "fin", e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-biblio-text text-sm focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ colorScheme: "dark" }}
+                  />
+                </div>
+              );
+            })}
+        </div>
       </Section>
 
       {/* Actions */}
