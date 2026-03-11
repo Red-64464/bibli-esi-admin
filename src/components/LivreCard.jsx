@@ -1,4 +1,4 @@
-import { Trash2, Pencil, History, QrCode } from "lucide-react";
+import { Trash2, Pencil, History, QrCode, Copy, Plus } from "lucide-react";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
@@ -26,14 +26,18 @@ export default function LivreCard({
   onEdit,
   onHistorique,
   onQrCode,
+  onDuplicate,
+  onCreatePret,
+  borrowCount,
 }) {
   const statut = livre.statut || (livre.disponible ? "disponible" : "emprunte");
   const badgeClass = STATUT_STYLE[statut] || "bg-white/10 text-biblio-muted";
+  const isDisponible = livre.disponible !== false && statut === "disponible";
 
   return (
     <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden flex flex-col transition-all hover:border-white/20">
       {/* Couverture */}
-      <div className="h-48 bg-white/5 flex items-center justify-center overflow-hidden">
+      <div className="h-48 bg-white/5 flex items-center justify-center overflow-hidden relative">
         {livre.couverture_url ? (
           <img
             src={livre.couverture_url}
@@ -42,6 +46,12 @@ export default function LivreCard({
           />
         ) : (
           <div className="text-biblio-muted text-xs">Pas de couverture</div>
+        )}
+        {/* Badge nombre d'emprunts */}
+        {typeof borrowCount === "number" && (
+          <span className="absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-biblio-muted border border-white/10">
+            {borrowCount}× emprunté
+          </span>
         )}
       </div>
 
@@ -63,7 +73,7 @@ export default function LivreCard({
           <p className="text-xs text-biblio-muted">📍 {livre.emplacement}</p>
         )}
 
-        {/* Badge statut + actions */}
+        {/* Badge statut + actions icônes */}
         <div className="mt-auto pt-3 flex items-center justify-between gap-1">
           <span
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeClass}`}
@@ -90,6 +100,15 @@ export default function LivreCard({
                 <History className="w-3.5 h-3.5" />
               </button>
             )}
+            {onDuplicate && (
+              <button
+                onClick={() => onDuplicate(livre)}
+                className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+                title="Dupliquer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            )}
             {onEdit && (
               <button
                 onClick={() => onEdit(livre)}
@@ -108,6 +127,17 @@ export default function LivreCard({
             </button>
           </div>
         </div>
+
+        {/* Bouton créer un prêt (seulement si disponible) */}
+        {isDisponible && onCreatePret && (
+          <button
+            onClick={() => onCreatePret(livre)}
+            className="w-full mt-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-biblio-accent/10 hover:bg-biblio-accent/20 text-biblio-accent rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Créer un prêt
+          </button>
+        )}
       </div>
     </div>
   );

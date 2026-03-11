@@ -1,35 +1,70 @@
-import { Trash2, BookOpen, Pencil, Phone } from "lucide-react";
+import { Trash2, BookOpen, Pencil, Phone, User, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
+
+// Normalise champs_custom : supporte array [{key,value}] ou object {key:value}
+function normalizeCustomFields(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((item) => [item.key, item.value]);
+  return Object.entries(raw);
+}
 
 export default function EtudiantCard({
   etudiant,
   livresEmpruntes = [],
+  hasRetard = false,
   onDelete,
   onEdit,
+  onNouveauPret,
 }) {
-  const customFields = etudiant.champs_custom
-    ? Object.entries(etudiant.champs_custom)
-    : [];
+  const customFields = normalizeCustomFields(etudiant.champs_custom);
+  const initials =
+    (etudiant.prenom?.[0] || "").toUpperCase() +
+    (etudiant.nom?.[0] || "").toUpperCase();
 
   return (
     <div className="bg-biblio-card rounded-xl border border-white/10 p-5 space-y-3 transition-all hover:border-white/20">
       <div className="flex items-start justify-between">
-        <div className="min-w-0">
-          <h3 className="font-semibold text-biblio-text">
-            {etudiant.prenom} {etudiant.nom}
-          </h3>
-          <p className="text-sm text-biblio-muted truncate">
-            {etudiant.email || "Pas d'email"}
-          </p>
-          <p className="text-xs text-biblio-muted font-mono mt-0.5">
-            N° {etudiant.numero_etudiant || "—"}
-          </p>
-          {etudiant.telephone && (
-            <p className="text-xs text-biblio-muted flex items-center gap-1 mt-0.5">
-              <Phone className="w-3 h-3" />
-              {etudiant.telephone}
-            </p>
+        <div className="flex items-start gap-3 min-w-0">
+          {/* Avatar */}
+          {etudiant.photo ? (
+            <img
+              src={etudiant.photo}
+              alt={`${etudiant.prenom} ${etudiant.nom}`}
+              className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-biblio-accent/20 flex items-center justify-center text-biblio-accent text-sm font-bold border border-biblio-accent/20 shrink-0">
+              {initials || <User className="w-4 h-4" />}
+            </div>
           )}
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-biblio-text">
+                {etudiant.prenom} {etudiant.nom}
+              </h3>
+              {hasRetard && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium shrink-0">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  RETARD
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-biblio-muted truncate">
+              {etudiant.email || "Pas d'email"}
+            </p>
+            <p className="text-xs text-biblio-muted font-mono mt-0.5">
+              N° {etudiant.numero_etudiant || "—"}
+            </p>
+            {etudiant.telephone && (
+              <p className="text-xs text-biblio-muted flex items-center gap-1 mt-0.5">
+                <Phone className="w-3 h-3" />
+                {etudiant.telephone}
+              </p>
+            )}
+          </div>
         </div>
+
         <div className="flex items-center gap-1 shrink-0">
           {onEdit && (
             <button
@@ -92,6 +127,24 @@ export default function EtudiantCard({
           </p>
         </div>
       )}
+
+      {/* Actions bas de carte */}
+      <div className="flex gap-2 pt-2 border-t border-white/10">
+        <Link
+          to={`/etudiants/${etudiant.id}`}
+          className="flex-1 text-center px-3 py-1.5 text-xs font-medium bg-white/5 hover:bg-white/10 text-biblio-muted hover:text-biblio-text rounded-lg transition-colors"
+        >
+          Voir profil
+        </Link>
+        {onNouveauPret && (
+          <button
+            onClick={() => onNouveauPret(etudiant)}
+            className="flex-1 px-3 py-1.5 text-xs font-medium bg-biblio-accent/10 hover:bg-biblio-accent/20 text-biblio-accent rounded-lg transition-colors"
+          >
+            + Nouveau prêt
+          </button>
+        )}
+      </div>
     </div>
   );
 }

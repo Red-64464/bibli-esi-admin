@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
   const signIn = async (username, password) => {
     const { data, error } = await supabase
       .from("users")
-      .select("id, username, role, password_hash")
+      .select("id, username, role, password_hash, permissions")
       .eq("username", username)
       .single();
 
@@ -30,7 +30,12 @@ export function AuthProvider({ children }) {
     const valid = await bcrypt.compare(password, data.password_hash);
     if (!valid) throw new Error("Mot de passe incorrect.");
 
-    const sess = { id: data.id, username: data.username, role: data.role };
+    const sess = {
+      id: data.id,
+      username: data.username,
+      role: data.role,
+      permissions: data.permissions || {},
+    };
     localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
     setSession(sess);
   };
