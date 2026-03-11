@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Thème personnalisé bibliothèque */
+@theme {
+  --color-biblio-bg: #0f172a;
+  --color-biblio-card: #1e293b;
+  --color-biblio-accent: #6366f1;
+  --color-biblio-accent-hover: #818cf8;
+  --color-biblio-text: #f1f5f9;
+  --color-biblio-muted: #94a3b8;
+  --color-biblio-success: #22c55e;
+  --color-biblio-danger: #ef4444;
+  --color-biblio-warning: #f59e0b;
+}
+
+body {
+  background-color: var(--color-biblio-bg);
+  color: var(--color-biblio-text);
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
