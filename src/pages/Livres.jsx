@@ -110,6 +110,18 @@ function ImageUploadZone({
   );
 }
 
+// Defined OUTSIDE the component so React doesn't remount inputs on every keystroke
+function Field({ label, children, col2 = false }) {
+  return (
+    <div className={col2 ? "sm:col-span-2" : ""}>
+      <label className="text-xs font-medium text-biblio-muted block mb-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 export default function Livres() {
   const [livres, setLivres] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -405,16 +417,6 @@ export default function Livres() {
     );
     return matchSearch && s === filtreStatut;
   });
-
-  // Reusable field row
-  const Field = ({ label, children, col2 = false }) => (
-    <div className={col2 ? "sm:col-span-2" : ""}>
-      <label className="text-xs font-medium text-biblio-muted block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
 
   return (
     <div className="space-y-6">

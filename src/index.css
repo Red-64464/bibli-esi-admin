@@ -16,6 +16,7 @@
 body {
   background-color: var(--color-biblio-bg);
   color: var(--color-biblio-text);
+  color-scheme: dark;
   font-family:
     "Inter",
     system-ui,
