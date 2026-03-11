@@ -63,3 +63,45 @@ nav::-webkit-scrollbar-thumb {
 nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ── Print / PDF export ── */
+@media print {
+  /* Force white background and dark text */
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    color-scheme: light;
+  }
+
+  /* Hide navigation, buttons, filters */
+  aside,
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Make cards readable */
+  [class*="bg-biblio-card"],
+  [class*="bg-white\/"] {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Fix text colors */
+  [class*="text-biblio-text"],
+  [class*="text-biblio-muted"] {
+    color: #0f172a !important;
+  }
+
+  /* Recharts SVG text */
+  .recharts-text,
+  .recharts-cartesian-axis-tick-value {
+    fill: #334155 !important;
+  }
+
+  /* No page break inside cards */
+  .rounded-xl {
+    break-inside: avoid;
+  }
+}

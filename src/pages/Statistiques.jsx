@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Tag,
   RefreshCw,
+  Printer,
 } from "lucide-react";
 import {
   BarChart,
@@ -296,9 +297,9 @@ export default function Statistiques() {
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-biblio-accent/20 hover:bg-biblio-accent/30 text-biblio-accent text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-biblio-accent/20 hover:bg-biblio-accent/30 text-biblio-accent text-sm rounded-lg transition-colors print:hidden"
           >
-            <ArrowLeftRight className="w-4 h-4" />
+            <Printer className="w-4 h-4" />
             Exporter en PDF
           </button>
           <button
@@ -333,49 +334,49 @@ export default function Statistiques() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
-          title="Livres"
+          label="Livres"
           value={kpis.totalLivres}
           icon={BookOpen}
           color="text-biblio-accent"
         />
         <StatCard
-          title="Étudiants"
+          label="Étudiants"
           value={kpis.totalEtudiants}
           icon={Users}
           color="text-biblio-accent"
         />
         <StatCard
-          title="Total prêts"
+          label="Total prêts"
           value={kpis.totalPrets}
           icon={ArrowLeftRight}
           color="text-biblio-accent"
         />
         <StatCard
-          title="En cours"
+          label="En cours"
           value={kpis.enCours}
           icon={TrendingUp}
           color="text-biblio-warning"
         />
         <StatCard
-          title="En retard"
+          label="En retard"
           value={kpis.enRetard}
           icon={AlertTriangle}
           color="text-biblio-danger"
         />
         <StatCard
-          title="Ajoutés ce mois"
+          label="Ajoutés ce mois"
           value={kpis.livresAjoutees}
           icon={BookOpen}
           color="text-biblio-success"
         />
         <StatCard
-          title="Taux de rotation"
+          label="Taux de rotation"
           value={`${kpis.tauxRotation}x`}
           icon={TrendingUp}
           color="text-biblio-accent"
         />
         <StatCard
-          title="Durée moy. prêt"
+          label="Durée moy. prêt"
           value={`${kpis.dureeMoyenne}j`}
           icon={Tag}
           color="text-biblio-muted"
