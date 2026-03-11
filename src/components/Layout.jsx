@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 
-const navGroups = [
+const BASE_NAV_GROUPS = [
   {
     items: [
       { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
@@ -33,17 +33,27 @@ const navGroups = [
       { to: "/statistiques", label: "Statistiques", icon: BarChart2 },
     ],
   },
-  {
-    items: [
-      { to: "/admins", label: "Admins", icon: UserCog },
-      { to: "/parametres", label: "Paramètres", icon: Settings },
-    ],
-  },
 ];
+
+const SUPER_ADMIN_GROUP = {
+  items: [
+    { to: "/admins", label: "Admins", icon: UserCog },
+    { to: "/parametres", label: "Paramètres", icon: Settings },
+  ],
+};
+
+const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  librarian: "Bibliothécaire",
+};
 
 export default function Layout({ children }) {
   const { signOut, session } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isSuperAdmin = session?.role === "super_admin";
+  const navGroups = isSuperAdmin
+    ? [...BASE_NAV_GROUPS, SUPER_ADMIN_GROUP]
+    : BASE_NAV_GROUPS;
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
@@ -119,9 +129,14 @@ export default function Layout({ children }) {
           {session && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 mb-2">
               <Shield className="w-4 h-4 text-biblio-accent shrink-0" />
-              <span className="text-xs text-biblio-muted truncate">
-                {session.username}
-              </span>
+              <div className="min-w-0">
+                <span className="text-xs text-biblio-text truncate block">
+                  {session.username}
+                </span>
+                <span className="text-xs text-biblio-muted">
+                  {ROLE_LABELS[session.role] ?? session.role}
+                </span>
+              </div>
             </div>
           )}
           <button

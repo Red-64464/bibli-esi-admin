@@ -22,6 +22,11 @@ import {
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
 
+const ROLE_LABELS = {
+  super_admin: "Super Admin",
+  librarian: "Bibliothécaire",
+};
+
 function PasswordInput({ value, onChange, placeholder }) {
   const [show, setShow] = useState(false);
   return (
@@ -57,7 +62,7 @@ export default function Admins() {
   const [addForm, setAddForm] = useState({
     username: "",
     password: "",
-    role: "admin",
+    role: "librarian",
   });
   const [addLoading, setAddLoading] = useState(false);
 
@@ -65,6 +70,11 @@ export default function Admins() {
   const [changePwdId, setChangePwdId] = useState(null);
   const [newPwd, setNewPwd] = useState("");
   const [pwdLoading, setPwdLoading] = useState(false);
+
+  // Formulaire changement de rôle
+  const [changeRoleId, setChangeRoleId] = useState(null);
+  const [newRole, setNewRole] = useState("librarian");
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     fetchAdmins();
@@ -115,7 +125,7 @@ export default function Admins() {
         user_info: session?.username || "",
       });
 
-      setAddForm({ username: "", password: "", role: "admin" });
+      setAddForm({ username: "", password: "", role: "librarian" });
       setShowAdd(false);
       showSuccess(`Admin "${addForm.username.trim()}" créé avec succès.`);
       await fetchAdmins();
@@ -180,6 +190,38 @@ export default function Admins() {
       setError("Erreur changement mot de passe : " + err.message);
     } finally {
       setPwdLoading(false);
+    }
+  };
+
+  const handleChangeRole = async (adminId) => {
+    if (adminId === session?.id) {
+      setError("Vous ne pouvez pas modifier votre propre rôle.");
+      return;
+    }
+    try {
+      setRoleLoading(true);
+      setError("");
+      const { error: err } = await supabase
+        .from("users")
+        .update({ role: newRole })
+        .eq("id", adminId);
+      if (err) throw err;
+
+      const admin = admins.find((a) => a.id === adminId);
+      await logActivity({
+        action_type: "admin_role_modifie",
+        description: `Rôle de "${admin?.username}" modifié en ${ROLE_LABELS[newRole] ?? newRole}`,
+        user_info: session?.username || "",
+      });
+
+      setChangeRoleId(null);
+      setNewRole("librarian");
+      showSuccess("Rôle modifié avec succès.");
+      await fetchAdmins();
+    } catch (err) {
+      setError("Erreur lors de la modification du rôle : " + err.message);
+    } finally {
+      setRoleLoading(false);
     }
   };
 
@@ -282,8 +324,8 @@ export default function Admins() {
                 className={INPUT_CLASS}
                 style={{ colorScheme: "dark" }}
               >
-                <option value="admin">Admin</option>
-                <option value="superadmin">Super Admin</option>
+                <option value="librarian">Bibliothécaire</option>
+                <option value="super_admin">Super Admin</option>
               </select>
             </div>
           </div>
@@ -337,8 +379,8 @@ export default function Admins() {
                           Vous
                         </span>
                       )}
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-biblio-muted capitalize">
-                        {admin.role}
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-biblio-muted">
+                        {ROLE_LABELS[admin.role] ?? admin.role}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
@@ -364,12 +406,13 @@ export default function Admins() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => {
                       setChangePwdId(
                         changePwdId === admin.id ? null : admin.id,
                       );
+                      setChangeRoleId(null);
                       setNewPwd("");
                       setError("");
                     }}
@@ -378,6 +421,22 @@ export default function Admins() {
                     <KeyRound className="w-3.5 h-3.5" />
                     Mot de passe
                   </button>
+                  {admin.id !== session?.id && (
+                    <button
+                      onClick={() => {
+                        setChangeRoleId(
+                          changeRoleId === admin.id ? null : admin.id,
+                        );
+                        setChangePwdId(null);
+                        setNewRole(admin.role);
+                        setError("");
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <UserCog className="w-3.5 h-3.5" />
+                      Rôle
+                    </button>
+                  )}
                   {admin.id !== session?.id && (
                     <button
                       onClick={() => handleDelete(admin)}
@@ -416,6 +475,42 @@ export default function Admins() {
                     onClick={() => {
                       setChangePwdId(null);
                       setNewPwd("");
+                    }}
+                    className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Inline role change */}
+              {changeRoleId === admin.id && (
+                <div className="flex gap-2 items-center pt-1 flex-wrap">
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    className={INPUT_CLASS + " flex-1 min-w-[180px]"}
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="librarian">Bibliothécaire</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                  <button
+                    onClick={() => handleChangeRole(admin.id)}
+                    disabled={roleLoading}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    {roleLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    Appliquer
+                  </button>
+                  <button
+                    onClick={() => {
+                      setChangeRoleId(null);
+                      setNewRole("librarian");
                     }}
                     className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
                   >

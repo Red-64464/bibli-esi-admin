@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleRoute from "./components/RoleRoute";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Livres from "./pages/Livres";
@@ -31,8 +32,8 @@ function App() {
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/historique" element={<Historique />} />
                   <Route path="/statistiques" element={<Statistiques />} />
-                  <Route path="/admins" element={<Admins />} />
-                  <Route path="/parametres" element={<Parametres />} />
+                  <Route path="/admins" element={<RoleRoute requiredRole="super_admin"><Admins /></RoleRoute>} />
+                  <Route path="/parametres" element={<RoleRoute requiredRole="super_admin"><Parametres /></RoleRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>
