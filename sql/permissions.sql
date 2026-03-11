@@ -60,3 +60,7 @@ CREATE TABLE IF NOT EXISTS reservations (
 CREATE INDEX IF NOT EXISTS idx_reservations_livre_id ON reservations(livre_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_etudiant_id ON reservations(etudiant_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_statut ON reservations(statut);
+
+-- Profil étendu des administrateurs
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;

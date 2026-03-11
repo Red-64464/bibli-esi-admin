@@ -20,6 +20,8 @@ import {
   Eye,
   EyeOff,
   Clock,
+  Pencil,
+  Mail,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -32,8 +34,24 @@ const ROLE_LABELS = {
 
 const PERMISSION_CATEGORIES = [
   { label: "🏠 Dashboard", keys: ["dashboard"] },
-  { label: "📚 Livres", keys: ["livres_voir", "livres_ajouter", "livres_modifier", "livres_supprimer"] },
-  { label: "👩‍🎓 Étudiants", keys: ["etudiants_voir", "etudiants_ajouter", "etudiants_modifier", "etudiants_supprimer"] },
+  {
+    label: "📚 Livres",
+    keys: [
+      "livres_voir",
+      "livres_ajouter",
+      "livres_modifier",
+      "livres_supprimer",
+    ],
+  },
+  {
+    label: "👩‍🎓 Étudiants",
+    keys: [
+      "etudiants_voir",
+      "etudiants_ajouter",
+      "etudiants_modifier",
+      "etudiants_supprimer",
+    ],
+  },
   { label: "🔄 Prêts", keys: ["prets_voir", "prets_creer", "prets_retourner"] },
   { label: "📈 Statistiques", keys: ["statistiques"] },
   { label: "🔔 Notifications", keys: ["notifications"] },
@@ -43,9 +61,17 @@ const PERMISSION_CATEGORIES = [
 
 const PERMISSION_LABELS = {
   dashboard: "voir",
-  livres_voir: "voir", livres_ajouter: "ajouter", livres_modifier: "modifier", livres_supprimer: "supprimer",
-  etudiants_voir: "voir", etudiants_ajouter: "ajouter", etudiants_modifier: "modifier", etudiants_supprimer: "supprimer",
-  prets_voir: "voir", prets_creer: "créer", prets_retourner: "retourner",
+  livres_voir: "voir",
+  livres_ajouter: "ajouter",
+  livres_modifier: "modifier",
+  livres_supprimer: "supprimer",
+  etudiants_voir: "voir",
+  etudiants_ajouter: "ajouter",
+  etudiants_modifier: "modifier",
+  etudiants_supprimer: "supprimer",
+  prets_voir: "voir",
+  prets_creer: "créer",
+  prets_retourner: "retourner",
   statistiques: "voir",
   notifications: "voir",
   historique: "voir",
@@ -54,7 +80,7 @@ const PERMISSION_LABELS = {
 
 const LIBRARIAN_PERM_KEYS = PERMISSION_CATEGORIES.flatMap((c) => c.keys);
 const DEFAULT_PERMISSIONS = Object.fromEntries(
-  LIBRARIAN_PERM_KEYS.map((k) => [k, ALL_PERMISSIONS[k] ?? false])
+  LIBRARIAN_PERM_KEYS.map((k) => [k, ALL_PERMISSIONS[k] ?? false]),
 );
 
 function PasswordInput({ value, onChange, placeholder }) {
@@ -181,6 +207,15 @@ export default function Admins() {
   const [editPerms, setEditPerms] = useState({ ...DEFAULT_PERMISSIONS });
   const [permsLoading, setPermsLoading] = useState(false);
 
+  // Formulaire profil
+  const [changeProfileId, setChangeProfileId] = useState(null);
+  const [editProfile, setEditProfile] = useState({
+    username: "",
+    display_name: "",
+    email: "",
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+
   useEffect(() => {
     fetchAdmins();
   }, []);
@@ -190,7 +225,9 @@ export default function Admins() {
       setLoading(true);
       const { data, error: err } = await supabase
         .from("users")
-        .select("id, username, role, created_at, last_login, permissions")
+        .select(
+          "id, username, display_name, email, role, created_at, last_login, permissions",
+        )
         .order("created_at", { ascending: true });
       if (err) throw err;
       setAdmins(data || []);
@@ -232,7 +269,12 @@ export default function Admins() {
         user_info: session?.username || "",
       });
 
-      setAddForm({ username: "", password: "", role: "librarian", permissions: { ...DEFAULT_PERMISSIONS } });
+      setAddForm({
+        username: "",
+        password: "",
+        role: "librarian",
+        permissions: { ...DEFAULT_PERMISSIONS },
+      });
       setShowAdd(false);
       showSuccess(`Admin "${addForm.username.trim()}" créé avec succès.`);
       await fetchAdmins();
@@ -333,6 +375,43 @@ export default function Admins() {
     }
   };
 
+  const handleSaveProfile = async (adminId) => {
+    const newUsername = editProfile.username.trim();
+    if (!newUsername) {
+      setError("Le nom d'utilisateur ne peut pas être vide.");
+      return;
+    }
+    const admin = admins.find((a) => a.id === adminId);
+    try {
+      setProfileLoading(true);
+      setError("");
+      const payload = {
+        username: newUsername,
+        display_name: editProfile.display_name.trim() || null,
+        email: editProfile.email.trim() || null,
+      };
+      const { error: err } = await supabase
+        .from("users")
+        .update(payload)
+        .eq("id", adminId);
+      if (err) throw err;
+
+      await logActivity({
+        action_type: "admin_profil_modifie",
+        description: `Profil de "${admin?.username}" modifié`,
+        user_info: session?.username || "",
+      });
+
+      setChangeProfileId(null);
+      showSuccess("Profil modifié avec succès.");
+      await fetchAdmins();
+    } catch (err) {
+      setError("Erreur lors de la modification du profil : " + err.message);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const handleSavePermissions = async (adminId) => {
     try {
       setPermsLoading(true);
@@ -355,7 +434,7 @@ export default function Admins() {
       await fetchAdmins();
     } catch (err) {
       setError(
-        "Erreur lors de la modification des permissions : " + err.message
+        "Erreur lors de la modification des permissions : " + err.message,
       );
     } finally {
       setPermsLoading(false);
@@ -390,7 +469,12 @@ export default function Admins() {
         <button
           onClick={() => {
             setShowAdd(true);
-            setAddForm({ username: "", password: "", role: "librarian", permissions: { ...DEFAULT_PERMISSIONS } });
+            setAddForm({
+              username: "",
+              password: "",
+              role: "librarian",
+              permissions: { ...DEFAULT_PERMISSIONS },
+            });
             setError("");
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
@@ -483,7 +567,9 @@ export default function Admins() {
             <div className="border border-white/10 rounded-lg p-4">
               <PermissionsGrid
                 permissions={addForm.permissions}
-                onChange={(perms) => setAddForm({ ...addForm, permissions: perms })}
+                onChange={(perms) =>
+                  setAddForm({ ...addForm, permissions: perms })
+                }
               />
             </div>
           )}
@@ -528,10 +614,15 @@ export default function Admins() {
                     <Shield className="w-4 h-4 text-biblio-accent" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-biblio-text">
-                        {admin.username}
+                        {admin.display_name || admin.username}
                       </span>
+                      {admin.display_name && (
+                        <span className="text-xs text-biblio-muted">
+                          @{admin.username}
+                        </span>
+                      )}
                       {admin.id === session?.id && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-biblio-accent/20 text-biblio-accent">
                           Vous
@@ -541,7 +632,13 @@ export default function Admins() {
                         {ROLE_LABELS[admin.role] ?? admin.role}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5">
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      {admin.email && (
+                        <span className="text-xs text-biblio-muted flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {admin.email}
+                        </span>
+                      )}
                       {admin.created_at && (
                         <span className="text-xs text-biblio-muted">
                           Créé le{" "}
@@ -553,7 +650,7 @@ export default function Admins() {
                       {admin.last_login && (
                         <span className="text-xs text-biblio-muted flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          Dernière connexion :{" "}
+                          Connexion :{" "}
                           {new Date(admin.last_login).toLocaleDateString(
                             "fr-FR",
                           )}
@@ -567,11 +664,33 @@ export default function Admins() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => {
+                      const opening = changeProfileId !== admin.id;
+                      setChangeProfileId(opening ? admin.id : null);
+                      setChangePwdId(null);
+                      setChangeRoleId(null);
+                      setChangePermsId(null);
+                      if (opening) {
+                        setEditProfile({
+                          username: admin.username,
+                          display_name: admin.display_name || "",
+                          email: admin.email || "",
+                        });
+                      }
+                      setError("");
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Profil
+                  </button>
+                  <button
+                    onClick={() => {
                       setChangePwdId(
                         changePwdId === admin.id ? null : admin.id,
                       );
                       setChangeRoleId(null);
                       setChangePermsId(null);
+                      setChangeProfileId(null);
                       setNewPwd("");
                       setError("");
                     }}
@@ -588,6 +707,7 @@ export default function Admins() {
                         );
                         setChangePwdId(null);
                         setChangePermsId(null);
+                        setChangeProfileId(null);
                         setNewRole(admin.role);
                         setError("");
                       }}
@@ -604,6 +724,7 @@ export default function Admins() {
                         setChangePermsId(opening ? admin.id : null);
                         setChangePwdId(null);
                         setChangeRoleId(null);
+                        setChangeProfileId(null);
                         if (opening) {
                           setEditPerms({
                             ...DEFAULT_PERMISSIONS,
@@ -629,6 +750,90 @@ export default function Admins() {
                   )}
                 </div>
               </div>
+
+              {/* Inline profile edit */}
+              {changeProfileId === admin.id && (
+                <div className="pt-2 space-y-3 border border-white/10 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-biblio-text flex items-center gap-2">
+                    <Pencil className="w-4 h-4 text-biblio-accent" />
+                    Modifier le profil
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-biblio-muted block mb-1">
+                        Nom d'utilisateur (login) *
+                      </label>
+                      <input
+                        type="text"
+                        value={editProfile.username}
+                        onChange={(e) =>
+                          setEditProfile({
+                            ...editProfile,
+                            username: e.target.value,
+                          })
+                        }
+                        placeholder="login"
+                        className={INPUT_CLASS}
+                        autoComplete="username"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-biblio-muted block mb-1">
+                        Nom affiché
+                      </label>
+                      <input
+                        type="text"
+                        value={editProfile.display_name}
+                        onChange={(e) =>
+                          setEditProfile({
+                            ...editProfile,
+                            display_name: e.target.value,
+                          })
+                        }
+                        placeholder="ex : Anaïs Dupont"
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-biblio-muted block mb-1">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={editProfile.email}
+                        onChange={(e) =>
+                          setEditProfile({
+                            ...editProfile,
+                            email: e.target.value,
+                          })
+                        }
+                        placeholder="ex : anais@esi.dz"
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveProfile(admin.id)}
+                      disabled={profileLoading}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                    >
+                      {profileLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      Enregistrer
+                    </button>
+                    <button
+                      onClick={() => setChangeProfileId(null)}
+                      className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Inline password change */}
               {changePwdId === admin.id && (
@@ -703,7 +908,10 @@ export default function Admins() {
               {/* Inline permissions editor */}
               {changePermsId === admin.id && (
                 <div className="pt-2 space-y-3 border border-white/10 rounded-lg p-4">
-                  <PermissionsGrid permissions={editPerms} onChange={setEditPerms} />
+                  <PermissionsGrid
+                    permissions={editPerms}
+                    onChange={setEditPerms}
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleSavePermissions(admin.id)}
