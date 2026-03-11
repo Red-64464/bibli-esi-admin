@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { getSettings, saveSettings } from "../lib/settings";
+import { getSettings, saveSettings, SETTING_DEFAULTS } from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
+import ConfirmModal from "../components/ConfirmModal";
 import {
   Settings,
   Save,
@@ -11,8 +12,9 @@ import {
   Library,
   Mail,
   Clock,
-  Users,
-  Image,
+  Bell,
+  Palette,
+  RotateCcw,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -42,6 +44,41 @@ function Field({ label, hint, children }) {
   );
 }
 
+function Toggle({ checked, onChange, label, description }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-white/5 last:border-0">
+      <div>
+        <p className="text-sm font-medium text-biblio-text">{label}</p>
+        {description && (
+          <p className="text-xs text-biblio-muted mt-0.5">{description}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-biblio-accent focus:ring-offset-2 focus:ring-offset-biblio-bg ${
+          checked ? "bg-biblio-accent" : "bg-white/20"
+        }`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+const ACCENT_COLORS = [
+  { key: "indigo", label: "Indigo", hex: "#6366f1" },
+  { key: "violet", label: "Violet", hex: "#8b5cf6" },
+  { key: "cyan", label: "Cyan", hex: "#06b6d4" },
+  { key: "emerald", label: "Émeraude", hex: "#10b981" },
+  { key: "orange", label: "Orange", hex: "#f97316" },
+  { key: "rose", label: "Rose", hex: "#f43f5e" },
+];
+
 export default function Parametres() {
   const { session } = useAuth();
   const [form, setForm] = useState(null);
@@ -49,6 +86,7 @@ export default function Parametres() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -78,6 +116,27 @@ export default function Parametres() {
       setError("Erreur lors de la sauvegarde : " + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      setSaving(true);
+      setError("");
+      await saveSettings(SETTING_DEFAULTS);
+      setForm({ ...SETTING_DEFAULTS });
+      await logActivity({
+        action_type: "settings_modifie",
+        description: "Paramètres réinitialisés aux valeurs par défaut",
+        user_info: session?.username || "",
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError("Erreur lors de la réinitialisation : " + err.message);
+    } finally {
+      setSaving(false);
+      setShowConfirmReset(false);
     }
   };
 
@@ -187,8 +246,79 @@ export default function Parametres() {
         </Field>
       </Section>
 
+      {/* Section : Notifications */}
+      <Section icon={Bell} title="Notifications">
+        <Toggle
+          checked={form.send_reminder_emails === "true"}
+          onChange={(v) => set("send_reminder_emails", String(v))}
+          label="Activer les emails automatiques"
+          description="Envoyer des emails de rappel aux étudiants."
+        />
+
+        <Toggle
+          checked={form.remind_on_due_date === "true"}
+          onChange={(v) => set("remind_on_due_date", String(v))}
+          label="Rappel le jour du retour"
+          description="Envoyer un rappel le jour exact de la date de retour prévue."
+        />
+
+        <Toggle
+          checked={form.notify_overdue === "true"}
+          onChange={(v) => set("notify_overdue", String(v))}
+          label="Notification de retard"
+          description="Notifier quand un livre n'est pas retourné à la date prévue."
+        />
+
+        <Field
+          label="Rappel avant retour (nombre de jours)"
+          hint="Nombre de jours avant la date de retour pour envoyer un rappel."
+        >
+          <input
+            type="number"
+            min="1"
+            max="30"
+            value={form.reminder_days_before}
+            onChange={(e) => set("reminder_days_before", e.target.value)}
+            className={INPUT_CLASS + " max-w-[140px]"}
+          />
+        </Field>
+      </Section>
+
+      {/* Section : Apparence */}
+      <Section icon={Palette} title="Apparence">
+        <Field label="Couleur d'accentuation">
+          <div className="flex flex-wrap gap-3 mt-1">
+            {ACCENT_COLORS.map(({ key, label, hex }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => set("accent_color", key)}
+                title={label}
+                className={`w-9 h-9 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-biblio-bg ${
+                  form.accent_color === key
+                    ? "ring-2 ring-offset-2 ring-offset-biblio-bg scale-110"
+                    : "hover:scale-105 opacity-80 hover:opacity-100"
+                }`}
+                style={{
+                  backgroundColor: hex,
+                  outlineColor: hex,
+                  "--tw-ring-color": hex,
+                }}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-biblio-muted mt-2">
+            Couleur sélectionnée :{" "}
+            <span className="text-biblio-text font-medium capitalize">
+              {ACCENT_COLORS.find((c) => c.key === form.accent_color)?.label ||
+                form.accent_color}
+            </span>
+          </p>
+        </Field>
+      </Section>
+
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button
           type="submit"
           disabled={saving}
@@ -201,6 +331,15 @@ export default function Parametres() {
           )}
           Enregistrer
         </button>
+        <button
+          type="button"
+          onClick={() => setShowConfirmReset(true)}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-biblio-muted hover:text-biblio-text rounded-lg font-medium transition-colors text-sm disabled:opacity-60"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Réinitialiser par défaut
+        </button>
         {saved && (
           <span className="flex items-center gap-1.5 text-sm text-biblio-success">
             <CheckCircle className="w-4 h-4" />
@@ -208,6 +347,16 @@ export default function Parametres() {
           </span>
         )}
       </div>
+
+      {showConfirmReset && (
+        <ConfirmModal
+          title="Réinitialiser les paramètres"
+          message="Tous les paramètres seront remis à leurs valeurs par défaut. Cette action est irréversible."
+          danger
+          onConfirm={handleReset}
+          onCancel={() => setShowConfirmReset(false)}
+        />
+      )}
     </form>
   );
 }

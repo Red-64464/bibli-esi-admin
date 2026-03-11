@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { exportCSV as exportToCSV } from "../lib/exports";
 import {
   History,
   Search,
@@ -16,6 +17,10 @@ import {
   ArrowLeftRight,
   Shield,
   Pencil,
+  Download,
+  CalendarDays,
+  User,
+  TrendingUp,
 } from "lucide-react";
 
 const ACTION_CONFIG = {
@@ -98,38 +103,54 @@ export default function Historique() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState(ALL_FILTER);
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+  const [users, setUsers] = useState([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [statsToday, setStatsToday] = useState(null);
+  const [statsWeek, setStatsWeek] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const buildQuery = useCallback(
+    (base) => {
+      let q = base;
+      if (filter !== ALL_FILTER) q = q.eq("action_type", filter);
+      if (search.trim()) q = q.ilike("description", `%${search.trim()}%`);
+      if (dateDebut) q = q.gte("created_at", dateDebut);
+      if (dateFin) {
+        // Use start of next day (exclusive) to include all records on dateFin regardless of time
+        const nextDay = new Date(dateFin);
+        nextDay.setDate(nextDay.getDate() + 1);
+        q = q.lt("created_at", nextDay.toISOString().slice(0, 10));
+      }
+      if (userFilter) q = q.eq("user_info", userFilter);
+      return q;
+    },
+    [filter, search, dateDebut, dateFin, userFilter],
+  );
 
   const fetchLogs = useCallback(
-    async (reset = false) => {
+    async (pageNum, append = false) => {
       try {
-        if (reset) setLoading(true);
-        const currentPage = reset ? 0 : page;
-        const from = currentPage * PAGE_SIZE;
+        if (!append) setLoading(true);
+        const from = pageNum * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        let query = supabase
+        const base = supabase
           .from("activity_logs")
           .select("*", { count: "exact" })
           .order("created_at", { ascending: false })
           .range(from, to);
 
-        if (filter !== ALL_FILTER) {
-          query = query.eq("action_type", filter);
-        }
-        if (search.trim()) {
-          query = query.ilike("description", `%${search.trim()}%`);
-        }
-
-        const { data, error: err, count } = await query;
+        const { data, error: err, count } = await buildQuery(base);
         if (err) throw err;
 
-        if (reset) {
-          setLogs(data || []);
-          setPage(0);
-        } else {
+        if (append) {
           setLogs((prev) => [...prev, ...(data || [])]);
+        } else {
+          setLogs(data || []);
         }
         setHasMore(from + PAGE_SIZE < (count || 0));
       } catch (err) {
@@ -138,16 +159,86 @@ export default function Historique() {
         setLoading(false);
       }
     },
-    [filter, search, page],
+    [buildQuery],
   );
 
+  const loadStats = useCallback(async () => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - 6);
+      const weekStartStr = weekStart.toISOString().slice(0, 10);
+
+      const [{ count: todayCount }, { count: weekCount }] = await Promise.all([
+        supabase
+          .from("activity_logs")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", todayStr),
+        supabase
+          .from("activity_logs")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", weekStartStr),
+      ]);
+
+      setStatsToday(todayCount ?? 0);
+      setStatsWeek(weekCount ?? 0);
+    } catch {
+      /* stats are non-critical */
+    }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("username")
+        .order("username", { ascending: true });
+      setUsers((data || []).map((u) => u.username));
+    } catch {
+      /* non-critical */
+    }
+  }, []);
+
+  const exportCSV = async () => {
+    try {
+      setExporting(true);
+      const base = supabase
+        .from("activity_logs")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const { data, error: err } = await buildQuery(base);
+      if (err) throw err;
+
+      const rows = (data || []).map((r) => ({
+        Date: new Date(r.created_at).toLocaleString("fr-FR"),
+        Action: r.action_type,
+        Description: r.description || "",
+        Utilisateur: r.user_info || "",
+      }));
+
+      exportToCSV(rows, `historique-${new Date().toISOString().slice(0, 10)}`);
+    } catch (err) {
+      setError("Erreur lors de l'export : " + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   useEffect(() => {
-    fetchLogs(true);
-  }, [filter, search]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadUsers();
+    loadStats();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setPage(0);
+    fetchLogs(0);
+  }, [filter, search, dateDebut, dateFin, userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = () => {
-    setPage((p) => p + 1);
-    fetchLogs(false);
+    const next = page + 1;
+    setPage(next);
+    fetchLogs(next, true);
   };
 
   const filterOptions = [
@@ -172,14 +263,56 @@ export default function Historique() {
             Journal de toutes les actions du système.
           </p>
         </div>
-        <button
-          onClick={() => fetchLogs(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Actualiser
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors disabled:opacity-60"
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Exporter CSV
+          </button>
+          <button
+            onClick={() => { loadStats(); fetchLogs(0); }}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Actualiser
+          </button>
+        </div>
       </div>
+
+      {/* Statistiques rapides */}
+      {(statsToday !== null || statsWeek !== null) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-biblio-card border border-white/10 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-biblio-accent/10 rounded-lg">
+              <TrendingUp className="w-4 h-4 text-biblio-accent" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-biblio-text">
+                {statsToday ?? "—"}
+              </p>
+              <p className="text-xs text-biblio-muted">actions aujourd'hui</p>
+            </div>
+          </div>
+          <div className="bg-biblio-card border border-white/10 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-biblio-accent/10 rounded-lg">
+              <CalendarDays className="w-4 h-4 text-biblio-accent" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-biblio-text">
+                {statsWeek ?? "—"}
+              </p>
+              <p className="text-xs text-biblio-muted">cette semaine</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barre de recherche */}
       <div className="relative">
@@ -191,6 +324,51 @@ export default function Historique() {
           placeholder="Rechercher dans l'historique…"
           className="w-full bg-biblio-card border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent"
         />
+      </div>
+
+      {/* Filtres dates + utilisateur */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-biblio-muted shrink-0" />
+          <input
+            type="date"
+            value={dateDebut}
+            onChange={(e) => setDateDebut(e.target.value)}
+            title="Date de début"
+            className="bg-biblio-card border border-white/10 rounded-lg px-3 py-2 text-sm text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent"
+          />
+          <span className="text-biblio-muted text-xs">→</span>
+          <input
+            type="date"
+            value={dateFin}
+            onChange={(e) => setDateFin(e.target.value)}
+            title="Date de fin"
+            className="bg-biblio-card border border-white/10 rounded-lg px-3 py-2 text-sm text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent"
+          />
+          {(dateDebut || dateFin) && (
+            <button
+              onClick={() => { setDateDebut(""); setDateFin(""); }}
+              className="text-xs text-biblio-muted hover:text-biblio-danger transition-colors"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <User className="w-4 h-4 text-biblio-muted shrink-0" />
+          <select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="bg-biblio-card border border-white/10 rounded-lg px-3 py-2 text-sm text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent"
+          >
+            <option value="">Tous les utilisateurs</option>
+            {users.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -227,12 +405,17 @@ export default function Historique() {
         <div className="text-center py-16 text-biblio-muted">
           <History className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p>Aucune entrée dans l'historique.</p>
-          {filter !== ALL_FILTER && (
+          {(filter !== ALL_FILTER || dateDebut || dateFin || userFilter) && (
             <button
-              onClick={() => setFilter(ALL_FILTER)}
+              onClick={() => {
+                setFilter(ALL_FILTER);
+                setDateDebut("");
+                setDateFin("");
+                setUserFilter("");
+              }}
               className="mt-2 text-sm text-biblio-accent hover:underline"
             >
-              Afficher toutes les entrées
+              Réinitialiser les filtres
             </button>
           )}
         </div>
