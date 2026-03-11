@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { getSettings } from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -35,6 +36,13 @@ export default function Prets() {
   const [showForm, setShowForm] = useState(false);
   const [filtre, setFiltre] = useState("en_cours");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [settings, setSettings] = useState({
+    default_loan_days: "14",
+    allow_renewals: "false",
+    renewal_days: "7",
+    fine_per_day: "0",
+    fine_currency: "DA",
+  });
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -60,23 +68,49 @@ export default function Prets() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
-        supabase
-          .from("prets")
-          .select("*, livres(titre, isbn), etudiants(nom, prenom)")
-          .order("date_pret", { ascending: false }),
-        supabase
-          .from("livres")
-          .select("id, titre, isbn")
-          .eq("disponible", true),
-        supabase.from("etudiants").select("id, nom, prenom, numero_etudiant"),
-      ]);
+      const [pretsRes, livresRes, etudiantsRes, settingsData] =
+        await Promise.all([
+          supabase
+            .from("prets")
+            .select("*, livres(titre, isbn), etudiants(nom, prenom)")
+            .order("date_pret", { ascending: false }),
+          supabase
+            .from("livres")
+            .select("id, titre, isbn")
+            .eq("disponible", true),
+          supabase
+            .from("etudiants")
+            .select("id, nom, prenom, numero_etudiant"),
+          getSettings(),
+        ]);
       if (pretsRes.error) throw pretsRes.error;
       if (livresRes.error) throw livresRes.error;
       if (etudiantsRes.error) throw etudiantsRes.error;
       setPrets(pretsRes.data || []);
       setLivres(livresRes.data || []);
       setEtudiants(etudiantsRes.data || []);
+      setSettings(settingsData);
+
+      // Update form default dates from settings
+      const loanDays = parseInt(settingsData.default_loan_days || "14", 10);
+      const rappelDays = Math.max(0, Math.min(loanDays - 1, loanDays - 2));
+      setForm((prev) =>
+        prev.livre_id || prev.etudiant_id
+          ? prev
+          : {
+              ...prev,
+              date_retour_prevue: new Date(
+                Date.now() + loanDays * 24 * 60 * 60 * 1000,
+              )
+                .toISOString()
+                .slice(0, 10),
+              date_rappel: new Date(
+                Date.now() + rappelDays * 24 * 60 * 60 * 1000,
+              )
+                .toISOString()
+                .slice(0, 10),
+            },
+      );
     } catch (err) {
       setError("Impossible de charger les données : " + err.message);
     } finally {
@@ -119,12 +153,21 @@ export default function Prets() {
       });
 
       setShowForm(false);
+      const loanDays = parseInt(settings.default_loan_days || "14", 10);
+      const rappelDays = Math.max(0, Math.min(loanDays - 1, loanDays - 2));
+      const todayDate = new Date().toISOString().slice(0, 10);
       setForm({
         livre_id: "",
         etudiant_id: "",
-        date_pret: today,
-        date_retour_prevue: defaultRetour,
-        date_rappel: defaultRappel,
+        date_pret: todayDate,
+        date_retour_prevue: new Date(
+          Date.now() + loanDays * 24 * 60 * 60 * 1000,
+        )
+          .toISOString()
+          .slice(0, 10),
+        date_rappel: new Date(Date.now() + rappelDays * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
         notes: "",
       });
       setError("");
@@ -162,6 +205,48 @@ export default function Prets() {
       await fetchData();
     } catch (err) {
       setError("Erreur lors du retour : " + err.message);
+    }
+  };
+
+  const handleRenew = async (pretId) => {
+    try {
+      const pret = prets.find((p) => p.id === pretId);
+      if (!pret) return;
+      const renewalDays = parseInt(settings.renewal_days || "7", 10);
+      const base = pret.date_retour_prevue
+        ? new Date(pret.date_retour_prevue)
+        : new Date();
+      const newRetour = new Date(
+        base.getTime() + renewalDays * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      const newRappel = new Date(
+        new Date(newRetour).getTime() -
+          Math.min(2, renewalDays - 1) * 24 * 60 * 60 * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+
+      const { error: err } = await supabase
+        .from("prets")
+        .update({
+          date_retour_prevue: newRetour,
+          date_rappel: newRappel,
+          statut: "en_cours",
+        })
+        .eq("id", pretId);
+      if (err) throw err;
+
+      await logActivity({
+        action_type: "pret_renouvele",
+        description: `Prêt du livre « ${pret.livres?.titre || "—"} » renouvelé jusqu'au ${new Date(newRetour).toLocaleDateString("fr-FR")}`,
+        user_info: session?.username || "",
+      });
+
+      await fetchData();
+    } catch (err) {
+      setError("Erreur lors du renouvellement : " + err.message);
     }
   };
 
@@ -430,6 +515,10 @@ export default function Prets() {
                       key={pret.id}
                       pret={pret}
                       onReturn={handleReturn}
+                      onRenew={handleRenew}
+                      allowRenewals={settings.allow_renewals === "true"}
+                      finePerDay={parseFloat(settings.fine_per_day) || 0}
+                      fineCurrency={settings.fine_currency || "DA"}
                     />
                   ))}
                 </tbody>
@@ -440,7 +529,15 @@ export default function Prets() {
           {/* Mobile : cartes */}
           <div className="md:hidden space-y-3">
             {pretsFiltres.map((pret) => (
-              <PretCard key={pret.id} pret={pret} onReturn={handleReturn} />
+              <PretCard
+                key={pret.id}
+                pret={pret}
+                onReturn={handleReturn}
+                onRenew={handleRenew}
+                allowRenewals={settings.allow_renewals === "true"}
+                finePerDay={parseFloat(settings.fine_per_day) || 0}
+                fineCurrency={settings.fine_currency || "DA"}
+              />
             ))}
           </div>
         </>

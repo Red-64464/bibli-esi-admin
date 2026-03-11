@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, RefreshCcw } from "lucide-react";
 
 export const getPretStatut = (p) => {
   if (p.statut && p.statut !== "en_cours") return p.statut;
@@ -9,7 +9,18 @@ export const getPretStatut = (p) => {
   return new Date() > ref ? "en_retard" : "en_cours";
 };
 
-function StatusBadge({ statut, joursDepuisPret, pret }) {
+const getJoursEnRetard = (pret) => {
+  if (!pret.date_retour_prevue) return 0;
+  const diff = Math.floor(
+    (new Date() - new Date(pret.date_retour_prevue)) / (1000 * 60 * 60 * 24),
+  );
+  return Math.max(0, diff);
+};
+
+function StatusBadge({ statut, pret, finePerDay, fineCurrency }) {
+  const joursEnRetard = statut === "en_retard" ? getJoursEnRetard(pret) : 0;
+  const fineAmount = joursEnRetard * (finePerDay || 0);
+
   const map = {
     en_cours: (
       <span className="text-xs px-2 py-1 rounded-full bg-biblio-warning/20 text-biblio-warning">
@@ -17,8 +28,18 @@ function StatusBadge({ statut, joursDepuisPret, pret }) {
       </span>
     ),
     en_retard: (
-      <span className="text-xs px-2 py-1 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
-        Retard +{joursDepuisPret}j
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="text-xs px-2 py-1 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
+          Retard +{joursEnRetard}j
+        </span>
+        {fineAmount > 0 && (
+          <span
+            className="text-xs text-biblio-danger/80 ml-2"
+            aria-label={`Pénalité de retard : ${fineAmount.toLocaleString("fr-FR")} ${fineCurrency}`}
+          >
+            Pénalité : {fineAmount.toLocaleString("fr-FR")} {fineCurrency}
+          </span>
+        )}
       </span>
     ),
     retourné: (
@@ -45,13 +66,10 @@ function StatusBadge({ statut, joursDepuisPret, pret }) {
 }
 
 /** Carte mobile pour un prêt — visible uniquement sur petits écrans */
-export function PretCard({ pret, onReturn }) {
+export function PretCard({ pret, onReturn, onRenew, allowRenewals, finePerDay, fineCurrency }) {
   const statut = getPretStatut(pret);
   const isRetourne = statut === "retourné";
   const isRetard = statut === "en_retard";
-  const joursDepuisPret = Math.floor(
-    (new Date() - new Date(pret.date_pret)) / (1000 * 60 * 60 * 24),
-  );
 
   return (
     <div
@@ -66,8 +84,9 @@ export function PretCard({ pret, onReturn }) {
         </p>
         <StatusBadge
           statut={statut}
-          joursDepuisPret={joursDepuisPret}
           pret={pret}
+          finePerDay={finePerDay}
+          fineCurrency={fineCurrency}
         />
       </div>
 
@@ -103,28 +122,37 @@ export function PretCard({ pret, onReturn }) {
         )}
       </div>
 
-      {/* Action */}
+      {/* Actions */}
       {!isRetourne && (
-        <button
-          onClick={() => onReturn(pret.id, pret.livre_id)}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Marquer comme retourné
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onReturn(pret.id, pret.livre_id)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Retourner
+          </button>
+          {allowRenewals && onRenew && (
+            <button
+              onClick={() => onRenew(pret.id)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+              title="Renouveler le prêt"
+            >
+              <RefreshCcw className="w-3.5 h-3.5" />
+              Renouveler
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
 /** Ligne de tableau desktop */
-export default function PretRow({ pret, onReturn }) {
+export default function PretRow({ pret, onReturn, onRenew, allowRenewals, finePerDay, fineCurrency }) {
   const statut = getPretStatut(pret);
   const isRetard = statut === "en_retard";
   const isRetourne = statut === "retourné";
-  const joursDepuisPret = Math.floor(
-    (new Date() - new Date(pret.date_pret)) / (1000 * 60 * 60 * 24),
-  );
 
   return (
     <tr
@@ -149,19 +177,32 @@ export default function PretRow({ pret, onReturn }) {
       <td className="px-4 py-3">
         <StatusBadge
           statut={statut}
-          joursDepuisPret={joursDepuisPret}
           pret={pret}
+          finePerDay={finePerDay}
+          fineCurrency={fineCurrency}
         />
       </td>
       <td className="px-4 py-3">
         {!isRetourne && (
-          <button
-            onClick={() => onReturn(pret.id, pret.livre_id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Retourner
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onReturn(pret.id, pret.livre_id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retourner
+            </button>
+            {allowRenewals && onRenew && (
+              <button
+                onClick={() => onRenew(pret.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                title="Renouveler le prêt"
+              >
+                <RefreshCcw className="w-3.5 h-3.5" />
+                Renouveler
+              </button>
+            )}
+          </div>
         )}
       </td>
     </tr>
