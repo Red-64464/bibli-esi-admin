@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
+import { ALL_PERMISSIONS } from "../contexts/PermissionsContext";
+import ConfirmModal from "../components/ConfirmModal";
 import bcrypt from "bcryptjs";
 import {
   UserCog,
@@ -12,6 +14,7 @@ import {
   AlertCircle,
   CheckCircle,
   Shield,
+  ShieldCheck,
   X,
   Save,
   Eye,
@@ -26,6 +29,33 @@ const ROLE_LABELS = {
   super_admin: "Super Admin",
   librarian: "Bibliothécaire",
 };
+
+const PERMISSION_CATEGORIES = [
+  { label: "🏠 Dashboard", keys: ["dashboard"] },
+  { label: "📚 Livres", keys: ["livres_voir", "livres_ajouter", "livres_modifier", "livres_supprimer"] },
+  { label: "👩‍🎓 Étudiants", keys: ["etudiants_voir", "etudiants_ajouter", "etudiants_modifier", "etudiants_supprimer"] },
+  { label: "🔄 Prêts", keys: ["prets_voir", "prets_creer", "prets_retourner"] },
+  { label: "📈 Statistiques", keys: ["statistiques"] },
+  { label: "🔔 Notifications", keys: ["notifications"] },
+  { label: "📜 Historique", keys: ["historique"] },
+  { label: "🔖 Réservations", keys: ["reservations"] },
+];
+
+const PERMISSION_LABELS = {
+  dashboard: "voir",
+  livres_voir: "voir", livres_ajouter: "ajouter", livres_modifier: "modifier", livres_supprimer: "supprimer",
+  etudiants_voir: "voir", etudiants_ajouter: "ajouter", etudiants_modifier: "modifier", etudiants_supprimer: "supprimer",
+  prets_voir: "voir", prets_creer: "créer", prets_retourner: "retourner",
+  statistiques: "voir",
+  notifications: "voir",
+  historique: "voir",
+  reservations: "voir",
+};
+
+const LIBRARIAN_PERM_KEYS = PERMISSION_CATEGORIES.flatMap((c) => c.keys);
+const DEFAULT_PERMISSIONS = Object.fromEntries(
+  LIBRARIAN_PERM_KEYS.map((k) => [k, ALL_PERMISSIONS[k] ?? false])
+);
 
 function PasswordInput({ value, onChange, placeholder }) {
   const [show, setShow] = useState(false);
@@ -50,6 +80,69 @@ function PasswordInput({ value, onChange, placeholder }) {
   );
 }
 
+function PermissionsGrid({ permissions, onChange }) {
+  const grantAll = () =>
+    onChange(Object.fromEntries(LIBRARIAN_PERM_KEYS.map((k) => [k, true])));
+  const denyAll = () =>
+    onChange(Object.fromEntries(LIBRARIAN_PERM_KEYS.map((k) => [k, false])));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-sm font-semibold text-biblio-text flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-biblio-accent" />
+          Permissions
+        </h3>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={grantAll}
+            className="text-xs px-2.5 py-1 rounded-lg bg-biblio-success/10 text-biblio-success hover:bg-biblio-success/20 transition-colors"
+          >
+            Tout accorder
+          </button>
+          <button
+            type="button"
+            onClick={denyAll}
+            className="text-xs px-2.5 py-1 rounded-lg bg-biblio-danger/10 text-biblio-danger hover:bg-biblio-danger/20 transition-colors"
+          >
+            Tout refuser
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-2">
+        {PERMISSION_CATEGORIES.map((cat) => (
+          <div key={cat.label} className="bg-white/5 rounded-lg px-3 py-2.5">
+            <div className="text-xs font-semibold text-biblio-muted mb-2">
+              {cat.label}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {cat.keys.map((key) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-1.5 cursor-pointer select-none"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!permissions[key]}
+                    onChange={(e) =>
+                      onChange({ ...permissions, [key]: e.target.checked })
+                    }
+                    className="w-3.5 h-3.5 rounded accent-biblio-accent"
+                  />
+                  <span className="text-xs text-biblio-text">
+                    {PERMISSION_LABELS[key]}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Admins() {
   const { session } = useAuth();
   const [admins, setAdmins] = useState([]);
@@ -57,12 +150,19 @@ export default function Admins() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState({ open: false });
+  const openConfirm = ({ title, message, onConfirm, danger = false }) =>
+    setConfirmModal({ open: true, title, message, onConfirm, danger });
+  const closeConfirm = () => setConfirmModal({ open: false });
+
   // Formulaire ajout
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({
     username: "",
     password: "",
     role: "librarian",
+    permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [addLoading, setAddLoading] = useState(false);
 
@@ -76,6 +176,11 @@ export default function Admins() {
   const [newRole, setNewRole] = useState("librarian");
   const [roleLoading, setRoleLoading] = useState(false);
 
+  // Formulaire permissions
+  const [changePermsId, setChangePermsId] = useState(null);
+  const [editPerms, setEditPerms] = useState({ ...DEFAULT_PERMISSIONS });
+  const [permsLoading, setPermsLoading] = useState(false);
+
   useEffect(() => {
     fetchAdmins();
   }, []);
@@ -85,7 +190,7 @@ export default function Admins() {
       setLoading(true);
       const { data, error: err } = await supabase
         .from("users")
-        .select("id, username, role, created_at, last_login")
+        .select("id, username, role, created_at, last_login, permissions")
         .order("created_at", { ascending: true });
       if (err) throw err;
       setAdmins(data || []);
@@ -110,13 +215,15 @@ export default function Admins() {
       setError("");
 
       const hash = await bcrypt.hash(addForm.password, 10);
-      const { error: err } = await supabase.from("users").insert([
-        {
-          username: addForm.username.trim(),
-          password_hash: hash,
-          role: addForm.role,
-        },
-      ]);
+      const payload = {
+        username: addForm.username.trim(),
+        password_hash: hash,
+        role: addForm.role,
+      };
+      if (addForm.role === "librarian") {
+        payload.permissions = addForm.permissions;
+      }
+      const { error: err } = await supabase.from("users").insert([payload]);
       if (err) throw err;
 
       await logActivity({
@@ -125,7 +232,7 @@ export default function Admins() {
         user_info: session?.username || "",
       });
 
-      setAddForm({ username: "", password: "", role: "librarian" });
+      setAddForm({ username: "", password: "", role: "librarian", permissions: { ...DEFAULT_PERMISSIONS } });
       setShowAdd(false);
       showSuccess(`Admin "${addForm.username.trim()}" créé avec succès.`);
       await fetchAdmins();
@@ -141,31 +248,32 @@ export default function Admins() {
       setError("Vous ne pouvez pas supprimer votre propre compte.");
       return;
     }
-    if (
-      !window.confirm(
-        `Supprimer l'admin "${admin.username}" ? Cette action est irréversible.`,
-      )
-    )
-      return;
+    openConfirm({
+      title: "Supprimer l'administrateur",
+      message: `Supprimer l'admin "${admin.username}" ? Cette action est irréversible.`,
+      danger: true,
+      onConfirm: async () => {
+        closeConfirm();
+        try {
+          const { error: err } = await supabase
+            .from("users")
+            .delete()
+            .eq("id", admin.id);
+          if (err) throw err;
 
-    try {
-      const { error: err } = await supabase
-        .from("users")
-        .delete()
-        .eq("id", admin.id);
-      if (err) throw err;
+          await logActivity({
+            action_type: "admin_supprime",
+            description: `Admin "${admin.username}" supprimé`,
+            user_info: session?.username || "",
+          });
 
-      await logActivity({
-        action_type: "admin_supprime",
-        description: `Admin "${admin.username}" supprimé`,
-        user_info: session?.username || "",
-      });
-
-      showSuccess(`Admin "${admin.username}" supprimé.`);
-      await fetchAdmins();
-    } catch (err) {
-      setError("Erreur lors de la suppression : " + err.message);
-    }
+          showSuccess(`Admin "${admin.username}" supprimé.`);
+          await fetchAdmins();
+        } catch (err) {
+          setError("Erreur lors de la suppression : " + err.message);
+        }
+      },
+    });
   };
 
   const handleChangePassword = async (adminId) => {
@@ -225,8 +333,47 @@ export default function Admins() {
     }
   };
 
+  const handleSavePermissions = async (adminId) => {
+    try {
+      setPermsLoading(true);
+      setError("");
+      const { error: err } = await supabase
+        .from("users")
+        .update({ permissions: editPerms })
+        .eq("id", adminId);
+      if (err) throw err;
+
+      const admin = admins.find((a) => a.id === adminId);
+      await logActivity({
+        action_type: "admin_permissions_modifie",
+        description: `Permissions de "${admin?.username}" modifiées`,
+        user_info: session?.username || "",
+      });
+
+      setChangePermsId(null);
+      showSuccess("Permissions modifiées avec succès.");
+      await fetchAdmins();
+    } catch (err) {
+      setError(
+        "Erreur lors de la modification des permissions : " + err.message
+      );
+    } finally {
+      setPermsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Confirm modal */}
+      {confirmModal.open && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={closeConfirm}
+        />
+      )}
       {/* En-tête */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
@@ -243,6 +390,7 @@ export default function Admins() {
         <button
           onClick={() => {
             setShowAdd(true);
+            setAddForm({ username: "", password: "", role: "librarian", permissions: { ...DEFAULT_PERMISSIONS } });
             setError("");
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors"
@@ -330,6 +478,16 @@ export default function Admins() {
             </div>
           </div>
 
+          {/* Permissions section — librarian only */}
+          {addForm.role === "librarian" && (
+            <div className="border border-white/10 rounded-lg p-4">
+              <PermissionsGrid
+                permissions={addForm.permissions}
+                onChange={(perms) => setAddForm({ ...addForm, permissions: perms })}
+              />
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
@@ -413,6 +571,7 @@ export default function Admins() {
                         changePwdId === admin.id ? null : admin.id,
                       );
                       setChangeRoleId(null);
+                      setChangePermsId(null);
                       setNewPwd("");
                       setError("");
                     }}
@@ -428,6 +587,7 @@ export default function Admins() {
                           changeRoleId === admin.id ? null : admin.id,
                         );
                         setChangePwdId(null);
+                        setChangePermsId(null);
                         setNewRole(admin.role);
                         setError("");
                       }}
@@ -435,6 +595,27 @@ export default function Admins() {
                     >
                       <UserCog className="w-3.5 h-3.5" />
                       Rôle
+                    </button>
+                  )}
+                  {admin.role === "librarian" && (
+                    <button
+                      onClick={() => {
+                        const opening = changePermsId !== admin.id;
+                        setChangePermsId(opening ? admin.id : null);
+                        setChangePwdId(null);
+                        setChangeRoleId(null);
+                        if (opening) {
+                          setEditPerms({
+                            ...DEFAULT_PERMISSIONS,
+                            ...(admin.permissions || {}),
+                          });
+                        }
+                        setError("");
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Permissions
                     </button>
                   )}
                   {admin.id !== session?.id && (
@@ -516,6 +697,33 @@ export default function Admins() {
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
+                </div>
+              )}
+
+              {/* Inline permissions editor */}
+              {changePermsId === admin.id && (
+                <div className="pt-2 space-y-3 border border-white/10 rounded-lg p-4">
+                  <PermissionsGrid permissions={editPerms} onChange={setEditPerms} />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSavePermissions(admin.id)}
+                      disabled={permsLoading}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                    >
+                      {permsLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      Enregistrer
+                    </button>
+                    <button
+                      onClick={() => setChangePermsId(null)}
+                      className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
