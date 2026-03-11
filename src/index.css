@@ -23,3 +23,43 @@ body {
     -apple-system,
     sans-serif;
 }
+
+/* ── Responsive mobile utilities ── */
+
+/* Prevent horizontal overflow on small screens */
+@media (max-width: 640px) {
+  .space-y-6 > * {
+    min-width: 0;
+  }
+
+  /* Wrap long header buttons */
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
+}
+
+/* Smooth sidebar transition */
+aside {
+  will-change: transform;
+}
+
+/* Ensure selects look correct in dark mode */
+select option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* Scrollbar styling for sidebar */
+nav::-webkit-scrollbar {
+  width: 4px;
+}
+nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

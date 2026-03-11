@@ -6,6 +6,11 @@ import Dashboard from "./pages/Dashboard";
 import Livres from "./pages/Livres";
 import Etudiants from "./pages/Etudiants";
 import Prets from "./pages/Prets";
+import Notifications from "./pages/Notifications";
+import Historique from "./pages/Historique";
+import Statistiques from "./pages/Statistiques";
+import Admins from "./pages/Admins";
+import Parametres from "./pages/Parametres";
 import Login from "./pages/Login";
 
 function App() {
@@ -23,6 +28,11 @@ function App() {
                   <Route path="/livres" element={<Livres />} />
                   <Route path="/etudiants" element={<Etudiants />} />
                   <Route path="/prets" element={<Prets />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/historique" element={<Historique />} />
+                  <Route path="/statistiques" element={<Statistiques />} />
+                  <Route path="/admins" element={<Admins />} />
+                  <Route path="/parametres" element={<Parametres />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

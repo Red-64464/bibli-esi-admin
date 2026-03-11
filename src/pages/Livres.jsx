@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { logActivity } from "../lib/activityLog";
+import { useAuth } from "../contexts/AuthContext";
 import {
   BookOpen,
   Loader2,
@@ -11,8 +13,12 @@ import {
   AlertCircle,
   ImagePlus,
   PlusCircle,
+  Camera,
+  QrCode,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
+import ISBNScanner from "../components/ISBNScanner";
+import QRCodeModal from "../components/QRCodeModal";
 import LivreCard from "../components/LivreCard";
 import ExportModal from "../components/ExportModal";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
@@ -123,6 +129,7 @@ function Field({ label, children, col2 = false }) {
 }
 
 export default function Livres() {
+  const { session } = useAuth();
   const [livres, setLivres] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -145,6 +152,13 @@ export default function Livres() {
 
   // History modal
   const [historique, setHistorique] = useState(null);
+
+  // Camera scanner
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [scannedIsbn, setScannedIsbn] = useState(null);
+
+  // QR code modal
+  const [qrLivre, setQrLivre] = useState(null);
 
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -185,7 +199,7 @@ export default function Livres() {
     return data.publicUrl;
   };
 
-  // Add book via ISBN (called by SearchISBN)
+  // Add book via ISBN (called by SearchISBN or camera scanner)
   const handleAddBook = async (bookData) => {
     try {
       const { error: err } = await supabase.from("livres").insert([
@@ -202,11 +216,33 @@ export default function Livres() {
         else throw err;
         return;
       }
+      await logActivity({
+        action_type: "livre_ajoute",
+        description: `Livre « ${bookData.titre} » ajouté (ISBN: ${bookData.isbn || "—"})`,
+        user_info: session?.username || "",
+      });
       setError("");
       await fetchLivres();
     } catch (err) {
       setError("Erreur lors de l'ajout : " + err.message);
     }
+  };
+
+  // Camera scan handler: receives raw decoded text (ISBN or QR value)
+  const handleCameraScan = async (raw) => {
+    setShowCameraScanner(false);
+    // If it's a BiblioGest QR code (bibliogest://livre/UUID), open the book
+    if (raw.startsWith("bibliogest://livre/")) {
+      const id = raw.replace("bibliogest://livre/", "");
+      const found = livres.find((l) => l.id === id);
+      if (found) {
+        openEdit(found);
+        return;
+      }
+    }
+    // Otherwise treat as ISBN
+    const cleanIsbn = raw.replace(/[-\s]/g, "").trim();
+    setScannedIsbn(cleanIsbn);
   };
 
   // Add book manually
@@ -250,6 +286,11 @@ export default function Livres() {
       setManualForm(emptyManualForm);
       setManualImageFile(null);
       setManualImagePreview(null);
+      await logActivity({
+        action_type: "livre_ajoute",
+        description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement`,
+        user_info: session?.username || "",
+      });
       await fetchLivres();
     } catch (err) {
       setError("Erreur lors de l'ajout manuel : " + err.message);
@@ -262,11 +303,17 @@ export default function Livres() {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce livre ?"))
       return;
     try {
+      const livre = livres.find((l) => l.id === id);
       const { error: err } = await supabase
         .from("livres")
         .delete()
         .eq("id", id);
       if (err) throw err;
+      await logActivity({
+        action_type: "livre_supprime",
+        description: `Livre « ${livre?.titre || id} » supprimé`,
+        user_info: session?.username || "",
+      });
       setLivres((prev) => prev.filter((l) => l.id !== id));
     } catch (err) {
       setError("Erreur lors de la suppression : " + err.message);
@@ -340,6 +387,12 @@ export default function Livres() {
         .update(updateData)
         .eq("id", editLivre.id);
       if (err) throw err;
+
+      await logActivity({
+        action_type: "livre_modifie",
+        description: `Livre « ${editForm.titre} » modifié`,
+        user_info: session?.username || "",
+      });
 
       setEditLivre(null);
       setEditImageFile(null);
@@ -432,12 +485,18 @@ export default function Livres() {
             catalogue
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setShowExportModal(true)}
             className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
           >
             <Download className="w-4 h-4" /> Export
+          </button>
+          <button
+            onClick={() => setShowCameraScanner(true)}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+          >
+            <Camera className="w-4 h-4" /> Scanner ISBN
           </button>
           <button
             onClick={() => setShowManualForm(true)}
@@ -448,7 +507,11 @@ export default function Livres() {
         </div>
       </div>
 
-      <SearchISBN onBookFound={handleAddBook} />
+      <SearchISBN
+        onBookFound={handleAddBook}
+        defaultIsbn={scannedIsbn}
+        onDefaultIsbnUsed={() => setScannedIsbn(null)}
+      />
 
       {error && (
         <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
@@ -508,6 +571,7 @@ export default function Livres() {
               onDelete={handleDelete}
               onEdit={openEdit}
               onHistorique={openHistorique}
+              onQrCode={(l) => setQrLivre(l)}
             />
           ))}
         </div>
@@ -1054,6 +1118,20 @@ export default function Livres() {
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
         />
+      )}
+
+      {/* Scanner caméra ISBN */}
+      {showCameraScanner && (
+        <ISBNScanner
+          mode="isbn"
+          onScan={handleCameraScan}
+          onClose={() => setShowCameraScanner(false)}
+        />
+      )}
+
+      {/* QR code du livre */}
+      {qrLivre && (
+        <QRCodeModal livre={qrLivre} onClose={() => setQrLivre(null)} />
       )}
     </div>
   );

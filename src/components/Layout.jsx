@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -8,53 +9,114 @@ import {
   Library,
   LogOut,
   Shield,
+  Bell,
+  History,
+  BarChart2,
+  UserCog,
+  Settings,
+  Menu,
+  X,
 } from "lucide-react";
 
-const navItems = [
-  { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  { to: "/livres", label: "Livres", icon: BookOpen },
-  { to: "/etudiants", label: "Étudiants", icon: Users },
-  { to: "/prets", label: "Prêts", icon: ArrowLeftRight },
+const navGroups = [
+  {
+    items: [
+      { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
+      { to: "/livres", label: "Livres", icon: BookOpen },
+      { to: "/etudiants", label: "Étudiants", icon: Users },
+      { to: "/prets", label: "Prêts", icon: ArrowLeftRight },
+    ],
+  },
+  {
+    items: [
+      { to: "/notifications", label: "Notifications", icon: Bell },
+      { to: "/historique", label: "Historique", icon: History },
+      { to: "/statistiques", label: "Statistiques", icon: BarChart2 },
+    ],
+  },
+  {
+    items: [
+      { to: "/admins", label: "Admins", icon: UserCog },
+      { to: "/parametres", label: "Paramètres", icon: Settings },
+    ],
+  },
 ];
 
 export default function Layout({ children }) {
   const { signOut, session } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen relative">
+      {/* Backdrop mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+          onClick={closeSidebar}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-biblio-card border-r border-white/10 flex flex-col fixed h-full">
+      <aside
+        className={`
+          fixed h-full z-40 w-64 bg-biblio-card border-r border-white/10 flex flex-col
+          transition-transform duration-300
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0
+        `}
+      >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
-          <Library className="w-8 h-8 text-biblio-accent" />
-          <span className="text-xl font-bold text-biblio-text">BiblioGest</span>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <Library className="w-7 h-7 text-biblio-accent shrink-0" />
+            <span className="text-lg font-bold text-biblio-text">
+              BiblioGest
+            </span>
+          </div>
+          <button
+            onClick={closeSidebar}
+            className="lg:hidden text-biblio-muted hover:text-biblio-text transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-biblio-accent text-white"
-                    : "text-biblio-muted hover:bg-white/5 hover:text-biblio-text"
-                }`
-              }
-            >
-              <Icon className="w-5 h-5" />
-              {label}
-            </NavLink>
+        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
+          {navGroups.map((group, gi) => (
+            <div key={gi}>
+              {gi > 0 && <div className="border-t border-white/10 mb-3" />}
+              <div className="space-y-1">
+                {group.items.map(({ to, label, icon: Icon }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === "/"}
+                    onClick={closeSidebar}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-biblio-accent text-white"
+                          : "text-biblio-muted hover:bg-white/5 hover:text-biblio-text"
+                      }`
+                    }
+                  >
+                    <Icon
+                      className="w-4.5 h-4.5 shrink-0"
+                      style={{ width: "1.125rem", height: "1.125rem" }}
+                    />
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
         {/* Footer sidebar */}
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
-          {/* Admin badge */}
-          {session?.user && (
+          {session && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 mb-2">
               <Shield className="w-4 h-4 text-biblio-accent shrink-0" />
               <span className="text-xs text-biblio-muted truncate">
@@ -72,8 +134,22 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* Contenu principal */}
-      <main className="flex-1 ml-64 p-8 overflow-auto">{children}</main>
+      {/* Zone principale */}
+      <div className="flex-1 flex flex-col min-h-screen lg:ml-64">
+        {/* Top bar mobile */}
+        <header className="lg:hidden sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-biblio-muted hover:text-biblio-text transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <Library className="w-6 h-6 text-biblio-accent" />
+          <span className="font-bold text-biblio-text">BiblioGest</span>
+        </header>
+
+        <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
+      </div>
     </div>
   );
 }

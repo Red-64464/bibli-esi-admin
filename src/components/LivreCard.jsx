@@ -1,4 +1,4 @@
-import { Trash2, Pencil, History } from "lucide-react";
+import { Trash2, Pencil, History, QrCode } from "lucide-react";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
@@ -20,7 +20,13 @@ const STATUT_LABEL = {
   en_reparation: "En réparation",
 };
 
-export default function LivreCard({ livre, onDelete, onEdit, onHistorique }) {
+export default function LivreCard({
+  livre,
+  onDelete,
+  onEdit,
+  onHistorique,
+  onQrCode,
+}) {
   const statut = livre.statut || (livre.disponible ? "disponible" : "emprunte");
   const badgeClass = STATUT_STYLE[statut] || "bg-white/10 text-biblio-muted";
 
@@ -66,6 +72,15 @@ export default function LivreCard({ livre, onDelete, onEdit, onHistorique }) {
               statut.charAt(0).toUpperCase() + statut.slice(1)}
           </span>
           <div className="flex items-center gap-1">
+            {onQrCode && (
+              <button
+                onClick={() => onQrCode(livre)}
+                className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-accent hover:bg-biblio-accent/10 transition-colors"
+                title="QR Code"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+              </button>
+            )}
             {onHistorique && (
               <button
                 onClick={() => onHistorique(livre)}

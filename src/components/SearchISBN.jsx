@@ -1,15 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
-export default function SearchISBN({ onBookFound }) {
+export default function SearchISBN({
+  onBookFound,
+  defaultIsbn,
+  onDefaultIsbnUsed,
+}) {
   const [isbn, setIsbn] = useState("");
   const [loading, setLoading] = useState(false);
   const [bookData, setBookData] = useState(null);
   const [error, setError] = useState("");
 
-  // Rechercher un livre via l'API Open Library
-  const handleSearch = async () => {
-    const cleanIsbn = isbn.replace(/[-\s]/g, "").trim();
+  // Pré-remplir l'ISBN si scanné via caméra
+  useEffect(() => {
+    if (defaultIsbn) {
+      setIsbn(defaultIsbn);
+      onDefaultIsbnUsed?.();
+      // Lancer la recherche automatiquement
+      setTimeout(() => handleSearchByIsbn(defaultIsbn), 100);
+    }
+  }, [defaultIsbn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearchByIsbn = async (isbnValue) => {
+    const cleanIsbn = (isbnValue || isbn).replace(/[-\s]/g, "").trim();
     if (!cleanIsbn) return;
 
     setLoading(true);
@@ -60,8 +73,10 @@ export default function SearchISBN({ onBookFound }) {
 
   // Saisie clavier : Entrée pour rechercher
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearch();
+    if (e.key === "Enter") handleSearchByIsbn();
   };
+
+  const handleSearch = () => handleSearchByIsbn();
 
   return (
     <div className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-4">

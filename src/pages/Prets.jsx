@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { logActivity } from "../lib/activityLog";
+import { useAuth } from "../contexts/AuthContext";
 import {
   ArrowLeftRight,
   Loader2,
@@ -7,7 +9,7 @@ import {
   Download,
   AlertCircle,
 } from "lucide-react";
-import PretRow from "../components/PretRow";
+import PretRow, { PretCard } from "../components/PretRow";
 import ExportModal from "../components/ExportModal";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 
@@ -24,6 +26,7 @@ const getPretStatut = (p) => {
 };
 
 export default function Prets() {
+  const { session } = useAuth();
   const [prets, setPrets] = useState([]);
   const [livres, setLivres] = useState([]);
   const [etudiants, setEtudiants] = useState([]);
@@ -105,6 +108,16 @@ export default function Prets() {
         .eq("id", form.livre_id);
       if (err2) throw err2;
 
+      // Journaliser l'activité
+      const livreNom =
+        livres.find((l) => l.id === form.livre_id)?.titre || form.livre_id;
+      const etudNom = etudiants.find((e) => e.id === form.etudiant_id);
+      await logActivity({
+        action_type: "pret_cree",
+        description: `${etudNom ? `${etudNom.prenom} ${etudNom.nom}` : "Étudiant"} a emprunté « ${livreNom} »`,
+        user_info: session?.username || "",
+      });
+
       setShowForm(false);
       setForm({
         livre_id: "",
@@ -137,6 +150,15 @@ export default function Prets() {
         .update({ disponible: true, statut: "disponible" })
         .eq("id", livreId);
       if (err2) throw err2;
+
+      // Journaliser le retour
+      const pret = prets.find((p) => p.id === pretId);
+      await logActivity({
+        action_type: "pret_retourne",
+        description: `Livre « ${pret?.livres?.titre || "—"} » retourné${pret?.etudiants ? ` par ${pret.etudiants.prenom} ${pret.etudiants.nom}` : ""}`,
+        user_info: session?.username || "",
+      });
+
       await fetchData();
     } catch (err) {
       setError("Erreur lors du retour : " + err.message);
@@ -378,36 +400,50 @@ export default function Prets() {
           Aucun prêt à afficher.
         </div>
       ) : (
-        <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/5">
-                  {[
-                    "Livre",
-                    "Étudiant",
-                    "Date prêt",
-                    "Retour prévu",
-                    "Statut",
-                    "Action",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-xs font-semibold text-biblio-muted uppercase tracking-wider"
-                    >
-                      {h}
-                    </th>
+        <>
+          {/* Desktop : tableau */}
+          <div className="hidden md:block bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/10 bg-white/5">
+                    {[
+                      "Livre",
+                      "Étudiant",
+                      "Date prêt",
+                      "Retour prévu",
+                      "Statut",
+                      "Action",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-3 text-xs font-semibold text-biblio-muted uppercase tracking-wider"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pretsFiltres.map((pret) => (
+                    <PretRow
+                      key={pret.id}
+                      pret={pret}
+                      onReturn={handleReturn}
+                    />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pretsFiltres.map((pret) => (
-                  <PretRow key={pret.id} pret={pret} onReturn={handleReturn} />
-                ))}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile : cartes */}
+          <div className="md:hidden space-y-3">
+            {pretsFiltres.map((pret) => (
+              <PretCard key={pret.id} pret={pret} onReturn={handleReturn} />
+            ))}
+          </div>
+        </>
       )}
 
       {showExportModal && (

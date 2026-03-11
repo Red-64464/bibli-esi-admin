@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { logActivity } from "../lib/activityLog";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Users,
   Loader2,
@@ -78,6 +80,7 @@ const emptyForm = {
 };
 
 export default function Etudiants() {
+  const { session } = useAuth();
   const [etudiants, setEtudiants] = useState([]);
   const [pretsActifs, setPretsActifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +157,11 @@ export default function Etudiants() {
         else throw err;
         return;
       }
+      await logActivity({
+        action_type: "etudiant_cree",
+        description: `Étudiant « ${payload.prenom} ${payload.nom} » créé`,
+        user_info: session?.username || "",
+      });
       setForm(emptyForm);
       setShowForm(false);
       setError("");
@@ -171,6 +179,7 @@ export default function Etudiants() {
     )
       return;
     try {
+      const etudiant = etudiants.find((e) => e.id === id);
       // Delete related prets first to avoid FK constraint violation
       const { error: pretsErr } = await supabase
         .from("prets")
@@ -182,6 +191,11 @@ export default function Etudiants() {
         .delete()
         .eq("id", id);
       if (err) throw err;
+      await logActivity({
+        action_type: "etudiant_supprime",
+        description: `Étudiant « ${etudiant ? `${etudiant.prenom} ${etudiant.nom}` : id} » supprimé`,
+        user_info: session?.username || "",
+      });
       setEtudiants((prev) => prev.filter((e) => e.id !== id));
       setPretsActifs((prev) => prev.filter((p) => p.etudiant_id !== id));
     } catch (err) {
@@ -221,6 +235,11 @@ export default function Etudiants() {
         .update(payload)
         .eq("id", editEtudiant.id);
       if (err) throw err;
+      await logActivity({
+        action_type: "etudiant_modifie",
+        description: `Étudiant « ${payload.prenom} ${payload.nom} » modifié`,
+        user_info: session?.username || "",
+      });
       setEditEtudiant(null);
       await fetchData();
     } catch (err) {
