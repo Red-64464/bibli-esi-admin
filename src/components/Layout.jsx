@@ -1,13 +1,15 @@
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import {
   LayoutDashboard,
   BookOpen,
   Users,
   ArrowLeftRight,
   Library,
+  LogOut,
+  Shield,
 } from "lucide-react";
 
-// Liens de navigation de la sidebar
 const navItems = [
   { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/livres", label: "Livres", icon: BookOpen },
@@ -16,6 +18,8 @@ const navItems = [
 ];
 
 export default function Layout({ children }) {
+  const { signOut, session } = useAuth();
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -48,8 +52,23 @@ export default function Layout({ children }) {
         </nav>
 
         {/* Footer sidebar */}
-        <div className="px-6 py-4 border-t border-white/10 text-xs text-biblio-muted">
-          Bibliothèque étudiante
+        <div className="px-3 py-4 border-t border-white/10 space-y-1">
+          {/* Admin badge */}
+          {session?.user && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 mb-2">
+              <Shield className="w-4 h-4 text-biblio-accent shrink-0" />
+              <span className="text-xs text-biblio-muted truncate">
+                {session.user.email}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-biblio-muted hover:bg-biblio-danger/10 hover:text-biblio-danger transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            Déconnexion
+          </button>
         </div>
       </aside>
 
