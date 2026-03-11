@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionsContext";
 import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
+import { applyAccentColor } from "../lib/settings";
 import {
   LayoutDashboard,
   BookOpen,
@@ -26,19 +27,59 @@ import {
 const BASE_NAV_GROUPS = [
   {
     items: [
-      { to: "/", label: "Tableau de bord", icon: LayoutDashboard, perm: "dashboard" },
+      {
+        to: "/",
+        label: "Tableau de bord",
+        icon: LayoutDashboard,
+        perm: "dashboard",
+      },
       { to: "/livres", label: "Livres", icon: BookOpen, perm: "livres_voir" },
-      { to: "/etudiants", label: "Étudiants", icon: Users, perm: "etudiants_voir" },
-      { to: "/prets", label: "Prêts", icon: ArrowLeftRight, perm: "prets_voir" },
-      { to: "/reservations", label: "Réservations", icon: BookMarked, perm: "reservations" },
-      { to: "/calendrier", label: "Calendrier", icon: Calendar, perm: "dashboard" },
+      {
+        to: "/etudiants",
+        label: "Étudiants",
+        icon: Users,
+        perm: "etudiants_voir",
+      },
+      {
+        to: "/prets",
+        label: "Prêts",
+        icon: ArrowLeftRight,
+        perm: "prets_voir",
+      },
+      {
+        to: "/reservations",
+        label: "Réservations",
+        icon: BookMarked,
+        perm: "reservations",
+      },
+      {
+        to: "/calendrier",
+        label: "Calendrier",
+        icon: Calendar,
+        perm: "dashboard",
+      },
     ],
   },
   {
     items: [
-      { to: "/notifications", label: "Notifications", icon: Bell, perm: "notifications" },
-      { to: "/historique", label: "Historique", icon: History, perm: "historique" },
-      { to: "/statistiques", label: "Statistiques", icon: BarChart2, perm: "statistiques" },
+      {
+        to: "/notifications",
+        label: "Notifications",
+        icon: Bell,
+        perm: "notifications",
+      },
+      {
+        to: "/historique",
+        label: "Historique",
+        icon: History,
+        perm: "historique",
+      },
+      {
+        to: "/statistiques",
+        label: "Statistiques",
+        icon: BarChart2,
+        perm: "statistiques",
+      },
     ],
   },
 ];
@@ -46,7 +87,12 @@ const BASE_NAV_GROUPS = [
 const SUPER_ADMIN_GROUP = {
   items: [
     { to: "/admins", label: "Admins", icon: UserCog, perm: "admins" },
-    { to: "/parametres", label: "Paramètres", icon: Settings, perm: "parametres" },
+    {
+      to: "/parametres",
+      label: "Paramètres",
+      icon: Settings,
+      perm: "parametres",
+    },
   ],
 };
 
@@ -71,13 +117,27 @@ export default function Layout({ children }) {
     : BASE_NAV_GROUPS;
   const closeSidebar = () => setSidebarOpen(false);
 
+  // Appliquer la couleur d'accentuation sauvegardée au démarrage
+  useEffect(() => {
+    supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "accent_color")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) applyAccentColor(data.value);
+      });
+  }, []);
+
   // Charger le nombre de prêts en retard pour la cloche
   useEffect(() => {
     const fetchOverdue = async () => {
       try {
         const { data } = await supabase
           .from("prets")
-          .select("id, statut, rendu, date_pret, date_retour_prevue, livres(titre), etudiants(nom, prenom)")
+          .select(
+            "id, statut, rendu, date_pret, date_retour_prevue, livres(titre), etudiants(nom, prenom)",
+          )
           .eq("rendu", false);
         if (data) {
           const overdue = data.filter((p) => getPretStatut(p) === "en_retard");
@@ -149,7 +209,7 @@ export default function Layout({ children }) {
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
           {navGroups.map((group, gi) => {
             const visibleItems = group.items.filter(({ perm }) =>
-              perm ? can(perm) : true
+              perm ? can(perm) : true,
             );
             if (visibleItems.length === 0) return null;
             return (
@@ -226,7 +286,10 @@ export default function Layout({ children }) {
           />
 
           {/* Barre de recherche */}
-          <form onSubmit={handleSearch} className="hidden sm:flex flex-1 max-w-xs ml-auto lg:ml-0">
+          <form
+            onSubmit={handleSearch}
+            className="hidden sm:flex flex-1 max-w-xs ml-auto lg:ml-0"
+          >
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-biblio-muted pointer-events-none" />
               <input

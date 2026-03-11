@@ -4,6 +4,7 @@ import {
   saveSettings,
   SETTING_DEFAULTS,
   DEFAULT_HOURS,
+  applyAccentColor,
 } from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
@@ -110,6 +111,7 @@ export default function Parametres() {
     getSettings()
       .then((s) => {
         setForm(s);
+        applyAccentColor(s.accent_color);
         try {
           setHours(JSON.parse(s.library_hours));
         } catch {
@@ -325,7 +327,10 @@ export default function Parametres() {
               <button
                 key={key}
                 type="button"
-                onClick={() => set("accent_color", key)}
+                onClick={() => {
+                  set("accent_color", key);
+                  applyAccentColor(key);
+                }}
                 title={label}
                 className={`w-9 h-9 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-biblio-bg ${
                   form.accent_color === key

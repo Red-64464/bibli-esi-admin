@@ -50,3 +50,25 @@ export async function saveSetting(key, value) {
   const { error } = await supabase.from("settings").upsert({ key, value });
   if (error) throw error;
 }
+
+export const ACCENT_COLOR_HEX_MAP = {
+  indigo: { color: "#6366f1", hover: "#818cf8" },
+  violet: { color: "#8b5cf6", hover: "#a78bfa" },
+  cyan: { color: "#06b6d4", hover: "#22d3ee" },
+  emerald: { color: "#10b981", hover: "#34d399" },
+  orange: { color: "#f97316", hover: "#fb923c" },
+  rose: { color: "#f43f5e", hover: "#fb7185" },
+};
+
+/** Applique la couleur d'accentuation via CSS custom properties */
+export function applyAccentColor(key) {
+  const colors = ACCENT_COLOR_HEX_MAP[key] || ACCENT_COLOR_HEX_MAP.indigo;
+  document.documentElement.style.setProperty(
+    "--color-biblio-accent",
+    colors.color,
+  );
+  document.documentElement.style.setProperty(
+    "--color-biblio-accent-hover",
+    colors.hover,
+  );
+}
