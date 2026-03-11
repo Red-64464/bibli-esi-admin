@@ -156,8 +156,7 @@ export default function Statistiques() {
         pretsRendus.length > 0
           ? Math.round(
               pretsRendus.reduce((sum, p) => {
-                const diff =
-                  new Date(p.date_retour) - new Date(p.date_pret);
+                const diff = new Date(p.date_retour) - new Date(p.date_pret);
                 return sum + diff / (1000 * 60 * 60 * 24);
               }, 0) / pretsRendus.length,
             )
@@ -252,6 +251,16 @@ export default function Statistiques() {
     fetchStats();
   }, []);
 
+  // ─── Filter pretsByMonth based on period ─────────────────────────────────────
+  // Must be before any early returns to respect Rules of Hooks
+  const filteredPretsByMonth = useMemo(() => {
+    const list = data?.pretsByMonth ?? [];
+    if (periodFilter === "tout") return list;
+    const periodMap = { "7j": 1, "1m": 1, "3m": 3, "6m": 6, "1an": 12 };
+    const n = periodMap[periodFilter] ?? 12;
+    return list.slice(-n);
+  }, [data, periodFilter]);
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -269,16 +278,7 @@ export default function Statistiques() {
     );
   }
 
-  const { kpis, pretsByMonth, topLivres, topEtudiants, categories } = data;
-
-  // ─── Filter pretsByMonth based on period ─────────────────────────────────────
-  const filteredPretsByMonth = useMemo(() => {
-    if (!pretsByMonth) return [];
-    if (periodFilter === "tout") return pretsByMonth;
-    const periodMap = { "7j": 1, "1m": 1, "3m": 3, "6m": 6, "1an": 12 };
-    const n = periodMap[periodFilter] ?? 12;
-    return pretsByMonth.slice(-n);
-  }, [pretsByMonth, periodFilter]);
+  const { kpis, topLivres, topEtudiants, categories } = data;
 
   return (
     <div className="space-y-6">
@@ -384,9 +384,7 @@ export default function Statistiques() {
 
       {/* Prêts par mois */}
       <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
-        <h2 className="text-base font-semibold mb-4">
-          Prêts par mois
-        </h2>
+        <h2 className="text-base font-semibold mb-4">Prêts par mois</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={filteredPretsByMonth} barSize={22}>
             <XAxis
@@ -418,7 +416,10 @@ export default function Statistiques() {
         </h2>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={filteredPretsByMonth}>
-            <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+            <CartesianGrid
+              stroke="rgba(255,255,255,0.05)"
+              strokeDasharray="3 3"
+            />
             <XAxis
               dataKey="name"
               tick={{ fill: "#94a3b8", fontSize: 11 }}
