@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { getPretStatut, formatDate } from "../lib/utils";
 import {
   BarChart2,
   Loader2,
@@ -23,6 +24,9 @@ import {
   Pie,
   Cell,
   Legend,
+  LineChart,
+  Line,
+  CartesianGrid,
 } from "recharts";
 import StatCard from "../components/StatCard";
 
@@ -79,20 +83,11 @@ const PieTooltip = ({ active, payload }) => {
   );
 };
 
-function getPretStatut(p) {
-  if (p.statut && p.statut !== "en_cours") return p.statut;
-  if (p.rendu) return "retourné";
-  const ref = p.date_retour_prevue
-    ? new Date(p.date_retour_prevue)
-    : new Date(new Date(p.date_pret).getTime() + 30 * 86400000);
-  return new Date() > ref ? "en_retard" : "en_cours";
-}
-
-/** Retourne 12 mois : { label: "Jan 25", key: "2025-01" } */
-function getLast12Months() {
+/** Retourne N mois : { label: "Jan 25", key: "2025-01" } */
+function getLastNMonths(n) {
   const months = [];
   const now = new Date();
-  for (let i = 11; i >= 0; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     months.push({
       label: d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" }),
@@ -106,6 +101,7 @@ export default function Statistiques() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [periodFilter, setPeriodFilter] = useState("1an");
 
   const fetchStats = async () => {
     try {
@@ -148,12 +144,39 @@ export default function Statistiques() {
         );
       }).length;
 
-      // ─── Prêts par mois ─────────────────────────────────────────────────────
-      const months = getLast12Months();
+      const tauxRotation =
+        livres.length > 0
+          ? Math.round((prets.length / livres.length) * 10) / 10
+          : 0;
+
+      const pretsRendus = prets.filter(
+        (p) => p.rendu && p.date_retour && p.date_pret,
+      );
+      const dureeMoyenne =
+        pretsRendus.length > 0
+          ? Math.round(
+              pretsRendus.reduce((sum, p) => {
+                const diff =
+                  new Date(p.date_retour) - new Date(p.date_pret);
+                return sum + diff / (1000 * 60 * 60 * 24);
+              }, 0) / pretsRendus.length,
+            )
+          : 0;
+
+      // ─── Prêts par mois (12 derniers mois) ───────────────────────────────────
+      const months = getLastNMonths(12);
       const pretsByMonth = months.map(({ label, key }) => ({
         name: label,
         prêts: prets.filter((p) => {
           const d = new Date(p.date_pret);
+          return (
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
+            key
+          );
+        }).length,
+        retours: prets.filter((p) => {
+          if (!p.rendu || !p.date_retour) return false;
+          const d = new Date(p.date_retour);
           return (
             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
             key
@@ -210,6 +233,8 @@ export default function Statistiques() {
           enRetard,
           totalPrets: prets.length,
           livresAjoutees,
+          tauxRotation,
+          dureeMoyenne,
         },
         pretsByMonth,
         topLivres,
@@ -246,6 +271,15 @@ export default function Statistiques() {
 
   const { kpis, pretsByMonth, topLivres, topEtudiants, categories } = data;
 
+  // ─── Filter pretsByMonth based on period ─────────────────────────────────────
+  const filteredPretsByMonth = useMemo(() => {
+    if (!pretsByMonth) return [];
+    if (periodFilter === "tout") return pretsByMonth;
+    const periodMap = { "7j": 1, "1m": 1, "3m": 3, "6m": 6, "1an": 12 };
+    const n = periodMap[periodFilter] ?? 12;
+    return pretsByMonth.slice(-n);
+  }, [pretsByMonth, periodFilter]);
+
   return (
     <div className="space-y-6">
       {/* En-tête */}
@@ -259,17 +293,45 @@ export default function Statistiques() {
             Aperçu global de l'activité de la bibliothèque.
           </p>
         </div>
-        <button
-          onClick={fetchStats}
-          className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Actualiser
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-biblio-accent/20 hover:bg-biblio-accent/30 text-biblio-accent text-sm rounded-lg transition-colors"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+            Exporter en PDF
+          </button>
+          <button
+            onClick={fetchStats}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            Actualiser
+          </button>
+        </div>
+      </div>
+
+      {/* Filtre période */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-biblio-muted">Période :</span>
+        {["7j", "1m", "3m", "6m", "1an", "tout"].map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriodFilter(p)}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              periodFilter === p
+                ? "bg-biblio-accent text-white"
+                : "bg-white/10 text-biblio-muted hover:bg-white/20"
+            }`}
+          >
+            {p}
+          </button>
+        ))}
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="Livres"
           value={kpis.totalLivres}
@@ -306,15 +368,27 @@ export default function Statistiques() {
           icon={BookOpen}
           color="text-biblio-success"
         />
+        <StatCard
+          title="Taux de rotation"
+          value={`${kpis.tauxRotation}x`}
+          icon={TrendingUp}
+          color="text-biblio-accent"
+        />
+        <StatCard
+          title="Durée moy. prêt"
+          value={`${kpis.dureeMoyenne}j`}
+          icon={Tag}
+          color="text-biblio-muted"
+        />
       </div>
 
       {/* Prêts par mois */}
       <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
         <h2 className="text-base font-semibold mb-4">
-          Prêts par mois (12 derniers mois)
+          Prêts par mois
         </h2>
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={pretsByMonth} barSize={22}>
+          <BarChart data={filteredPretsByMonth} barSize={22}>
             <XAxis
               dataKey="name"
               tick={{ fill: "#94a3b8", fontSize: 11 }}
@@ -333,6 +407,61 @@ export default function Statistiques() {
             />
             <Bar dataKey="prêts" fill="#6366f1" radius={[4, 4, 0, 0]} />
           </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Emprunts vs Retours */}
+      <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
+        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-biblio-accent" />
+          Emprunts vs Retours
+        </h2>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={filteredPretsByMonth}>
+            <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="name"
+              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#1e293b",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "8px",
+              }}
+              labelStyle={{ color: "#94a3b8", fontSize: "12px" }}
+              itemStyle={{ color: "#f1f5f9" }}
+            />
+            <Legend
+              formatter={(v) => (
+                <span style={{ color: "#94a3b8", fontSize: "11px" }}>{v}</span>
+              )}
+            />
+            <Line
+              type="monotone"
+              dataKey="prêts"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="retours"
+              stroke="#22c55e"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4 }}
+            />
+          </LineChart>
         </ResponsiveContainer>
       </div>
 
