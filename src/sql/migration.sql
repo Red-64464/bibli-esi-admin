@@ -39,7 +39,30 @@ UPDATE prets
 SET statut = CASE WHEN rendu THEN 'retourné' ELSE 'en_cours' END
 WHERE statut IS NULL;
 
--- ─── AUTHENTIFICATION ────────────────────────────────────────
--- Les comptes admin sont créés depuis :
---   Supabase Dashboard → Authentication → Users → Invite user
--- Aucune table supplémentaire requise.
+-- ─── AUTHENTIFICATION PERSONNALISÉE ─────────────────────────
+-- Activer l'extension pgcrypto (nécessaire pour crypt/gen_salt)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Table des utilisateurs admin
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  username      TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role          TEXT DEFAULT 'admin',
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+-- Row Level Security : autoriser uniquement la lecture (pour la vérification côté client)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_select_users" ON users;
+CREATE POLICY "allow_select_users" ON users FOR SELECT USING (true);
+
+-- Compte admin par défaut
+-- username : adminCE  |  mot de passe : CE151029
+INSERT INTO users (username, password_hash, role)
+VALUES (
+  'adminCE',
+  crypt('CE151029', gen_salt('bf', 10)),
+  'admin'
+)
+ON CONFLICT (username) DO NOTHING;

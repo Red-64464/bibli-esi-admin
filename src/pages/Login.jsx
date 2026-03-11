@@ -5,24 +5,25 @@ import { Library, Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session, signIn } = useAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Already authenticated → redirect to dashboard
   if (session) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const err = await signIn(email, password);
-    if (err) {
-      setError("Email ou mot de passe incorrect. Veuillez réessayer.");
+    try {
+      await signIn(username.trim(), password);
+    } catch (err) {
+      setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -49,15 +50,15 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-biblio-muted uppercase tracking-wider">
-                Adresse email
+                Nom d'utilisateur
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@exemple.com"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="adminCE"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent transition-colors"
               />
             </div>
@@ -99,7 +100,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !password}
+              disabled={loading || !username.trim() || !password}
               className="w-full py-3 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
