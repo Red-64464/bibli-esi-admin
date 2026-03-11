@@ -1,5 +1,5 @@
 -- =============================================
--- BiblioGest v2 — Migration SQL
+-- Bibl'ESI v2 — Migration SQL
 -- À exécuter dans Supabase SQL Editor
 -- =============================================
 
@@ -32,7 +32,7 @@ CREATE POLICY "settings_admin_all" ON settings FOR ALL USING (true);
 
 -- Valeurs par défaut
 INSERT INTO settings (key, value) VALUES
-  ('library_name',          'BiblioGest'),
+  ('library_name',          'Bibl''ESI'),
   ('library_email',         ''),
   ('library_logo_url',      ''),
   ('default_loan_days',     '14'),

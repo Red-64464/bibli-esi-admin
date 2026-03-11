@@ -10,7 +10,7 @@ import { X, Download, QrCode } from "lucide-react";
 export default function QRCodeModal({ livre, onClose }) {
   const qrRef = useRef(null);
 
-  const qrValue = `bibliogest://livre/${livre.id}`;
+  const qrValue = `biblesi://livre/${livre.id}`;
 
   const handleDownload = () => {
     // Récupérer le SVG et le télécharger comme PNG via canvas

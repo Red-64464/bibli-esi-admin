@@ -116,7 +116,7 @@ export default function Parametres() {
             type="text"
             value={form.library_name}
             onChange={(e) => set("library_name", e.target.value)}
-            placeholder="BiblioGest"
+            placeholder="Bibl'ESI"
             className={INPUT_CLASS}
           />
         </Field>

@@ -231,9 +231,9 @@ export default function Livres() {
   // Camera scan handler: receives raw decoded text (ISBN or QR value)
   const handleCameraScan = async (raw) => {
     setShowCameraScanner(false);
-    // If it's a BiblioGest QR code (bibliogest://livre/UUID), open the book
-    if (raw.startsWith("bibliogest://livre/")) {
-      const id = raw.replace("bibliogest://livre/", "");
+    // If it's a Bibl'ESI QR code (biblesi://livre/UUID), open the book
+    if (raw.startsWith("biblesi://livre/")) {
+      const id = raw.replace("biblesi://livre/", "");
       const found = livres.find((l) => l.id === id);
       if (found) {
         openEdit(found);

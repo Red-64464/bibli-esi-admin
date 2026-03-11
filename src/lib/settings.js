@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 export const SETTING_DEFAULTS = {
-  library_name: "BiblioGest",
+  library_name: "Bibl'ESI",
   library_email: "",
   library_logo_url: "",
   default_loan_days: "14",

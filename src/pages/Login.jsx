@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Library, Loader2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session, signIn } = useAuth();
@@ -32,15 +32,14 @@ export default function Login() {
         <div className="bg-biblio-card rounded-2xl border border-white/10 p-8 space-y-7 shadow-2xl">
           {/* Logo */}
           <div className="flex flex-col items-center gap-3">
-            <div className="p-4 rounded-2xl bg-biblio-accent/10 border border-biblio-accent/20">
-              <Library className="w-10 h-10 text-biblio-accent" />
-            </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold">BiblioGest</h1>
-              <p className="text-sm text-biblio-muted mt-1">
-                Panneau d'administration
-              </p>
-            </div>
+            <img
+              src="/logo-full.png"
+              alt="Bibl'ESI"
+              className="h-16 w-auto object-contain"
+            />
+            <p className="text-sm text-biblio-muted">
+              Panneau d'administration
+            </p>
           </div>
 
           {/* Divider */}

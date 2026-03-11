@@ -6,7 +6,6 @@ import {
   BookOpen,
   Users,
   ArrowLeftRight,
-  Library,
   LogOut,
   Shield,
   Bell,
@@ -68,11 +67,12 @@ export default function Layout({ children }) {
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <Library className="w-7 h-7 text-biblio-accent shrink-0" />
-            <span className="text-lg font-bold text-biblio-text">
-              BiblioGest
-            </span>
+          <div className="flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="Bibl'ESI"
+              className="h-9 w-auto object-contain"
+            />
           </div>
           <button
             onClick={closeSidebar}
@@ -144,8 +144,11 @@ export default function Layout({ children }) {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <Library className="w-6 h-6 text-biblio-accent" />
-          <span className="font-bold text-biblio-text">BiblioGest</span>
+          <img
+            src="/logo.png"
+            alt="Bibl'ESI"
+            className="h-7 w-auto object-contain"
+          />
         </header>
 
         <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
