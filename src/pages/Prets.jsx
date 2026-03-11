@@ -1,29 +1,28 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
+import { getPretStatut, useDebounce, formatDate } from "../lib/utils";
+import { getSettings } from "../lib/settings";
 import {
   ArrowLeftRight,
   Loader2,
   Plus,
   Download,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import PretRow, { PretCard } from "../components/PretRow";
 import ExportModal from "../components/ExportModal";
+import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent";
 
-const getPretStatut = (p) => {
-  if (p.statut && p.statut !== "en_cours") return p.statut;
-  if (p.rendu) return "retourné";
-  const ref = p.date_retour_prevue
-    ? new Date(p.date_retour_prevue)
-    : new Date(new Date(p.date_pret).getTime() + 30 * 24 * 60 * 60 * 1000);
-  return new Date() > ref ? "en_retard" : "en_cours";
-};
+const PAGE_SIZE = 25;
+
 
 export default function Prets() {
   const { session } = useAuth();
@@ -35,6 +34,11 @@ export default function Prets() {
   const [showForm, setShowForm] = useState(false);
   const [filtre, setFiltre] = useState("en_cours");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebounce(searchInput, 300);
+  const [page, setPage] = useState(1);
+  const [confirmReturn, setConfirmReturn] = useState(null); // {pretId, livreId}
+  const [maxBooks, setMaxBooks] = useState(3);
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -55,7 +59,12 @@ export default function Prets() {
 
   useEffect(() => {
     fetchData();
+    getSettings().then((s) => setMaxBooks(parseInt(s.max_books_per_student) || 3));
   }, []);
+
+  // Reset page quand filtre ou search change
+  useEffect(() => { setPage(1); }, [filtre, search]);
+
 
   const fetchData = async () => {
     try {
@@ -88,6 +97,19 @@ export default function Prets() {
     e.preventDefault();
     if (!form.livre_id || !form.etudiant_id) return;
     try {
+      // Vérifier le quota max_books_per_student
+      const { count } = await supabase
+        .from("prets")
+        .select("id", { count: "exact", head: true })
+        .eq("etudiant_id", form.etudiant_id)
+        .eq("rendu", false);
+      if ((count || 0) >= maxBooks) {
+        setError(
+          `Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`
+        );
+        return;
+      }
+
       const { error: err1 } = await supabase.from("prets").insert([
         {
           livre_id: form.livre_id,
@@ -135,6 +157,11 @@ export default function Prets() {
   };
 
   const handleReturn = async (pretId, livreId) => {
+    // Ouvrir la modale de confirmation
+    setConfirmReturn({ pretId, livreId });
+  };
+
+  const doReturn = async (pretId, livreId) => {
     try {
       const { error: err1 } = await supabase
         .from("prets")
@@ -162,6 +189,8 @@ export default function Prets() {
       await fetchData();
     } catch (err) {
       setError("Erreur lors du retour : " + err.message);
+    } finally {
+      setConfirmReturn(null);
     }
   };
 
@@ -174,13 +203,9 @@ export default function Prets() {
       ISBN: p.livres?.isbn || "",
       Étudiant: p.etudiants ? `${p.etudiants.prenom} ${p.etudiants.nom}` : "",
       Email: p.etudiants?.email || "",
-      "Date de prêt": new Date(p.date_pret).toLocaleDateString("fr-FR"),
-      "Retour prévu": p.date_retour_prevue
-        ? new Date(p.date_retour_prevue).toLocaleDateString("fr-FR")
-        : "—",
-      Rappel: p.date_rappel
-        ? new Date(p.date_rappel).toLocaleDateString("fr-FR")
-        : "—",
+      "Date de prêt": formatDate(p.date_pret),
+      "Retour prévu": formatDate(p.date_retour_prevue),
+      Rappel: formatDate(p.date_rappel),
       Statut: getPretStatut(p),
       Notes: p.notes || "",
     }));
@@ -192,15 +217,28 @@ export default function Prets() {
 
   const pretsFiltres = prets.filter((p) => {
     const s = getPretStatut(p);
-    if (filtre === "en_cours") return s === "en_cours";
-    if (filtre === "en_retard") return s === "en_retard";
-    if (filtre === "historique") return s === "retourné";
+    // Filtre par statut
+    if (filtre === "en_cours" && s !== "en_cours") return false;
+    if (filtre === "en_retard" && s !== "en_retard") return false;
+    if (filtre === "historique" && s !== "retourné") return false;
+    // Filtre par recherche
+    if (search) {
+      const q = search.toLowerCase();
+      const livreMatch = (p.livres?.titre || "").toLowerCase().includes(q);
+      const etudMatch = p.etudiants
+        ? `${p.etudiants.prenom} ${p.etudiants.nom}`.toLowerCase().includes(q)
+        : false;
+      if (!livreMatch && !etudMatch) return false;
+    }
     return true;
   });
 
   const pretsEnRetardCount = prets.filter(
     (p) => getPretStatut(p) === "en_retard",
   ).length;
+
+  const totalPages = Math.max(1, Math.ceil(pretsFiltres.length / PAGE_SIZE));
+  const pretsPaged = pretsFiltres.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -363,6 +401,18 @@ export default function Prets() {
         </div>
       )}
 
+      {/* Barre de recherche */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-biblio-muted pointer-events-none" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Rechercher par livre ou étudiant…"
+          className={INPUT_CLASS + " w-full pl-10"}
+        />
+      </div>
+
       {/* Filtres */}
       <div className="flex gap-2 flex-wrap">
         {[
@@ -425,7 +475,7 @@ export default function Prets() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pretsFiltres.map((pret) => (
+                  {pretsPaged.map((pret) => (
                     <PretRow
                       key={pret.id}
                       pret={pret}
@@ -439,10 +489,15 @@ export default function Prets() {
 
           {/* Mobile : cartes */}
           <div className="md:hidden space-y-3">
-            {pretsFiltres.map((pret) => (
+            {pretsPaged.map((pret) => (
               <PretCard key={pret.id} pret={pret} onReturn={handleReturn} />
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+          )}
         </>
       )}
 
@@ -451,6 +506,15 @@ export default function Prets() {
           title="Exporter les prêts"
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
+        />
+      )}
+
+      {confirmReturn && (
+        <ConfirmModal
+          title="Confirmer le retour"
+          message="Marquer ce prêt comme retourné ?"
+          onConfirm={() => doReturn(confirmReturn.pretId, confirmReturn.livreId)}
+          onCancel={() => setConfirmReturn(null)}
         />
       )}
     </div>

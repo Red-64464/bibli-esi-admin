@@ -1,7 +1,10 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import Papa from "papaparse";
 import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
+import { useDebounce } from "../lib/utils";
 import {
   BookOpen,
   Loader2,
@@ -15,12 +18,19 @@ import {
   PlusCircle,
   Camera,
   QrCode,
+  LayoutGrid,
+  List,
+  Upload,
+  FileText,
+  CheckCircle2,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
 import ISBNScanner from "../components/ISBNScanner";
 import QRCodeModal from "../components/QRCodeModal";
 import LivreCard from "../components/LivreCard";
 import ExportModal from "../components/ExportModal";
+import ConfirmModal from "../components/ConfirmModal";
+import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 
 const STATUTS_LIVRE = [
@@ -31,12 +41,18 @@ const STATUTS_LIVRE = [
   { value: "en_reparation", label: "En réparation" },
 ];
 
-// Maps internal DB value → display label
 const STATUT_LABEL = Object.fromEntries(
   STATUTS_LIVRE.map((s) => [s.value, s.label]),
 );
 
-// Normalise any legacy value to the internal key
+const STATUT_STYLE = {
+  disponible: "bg-biblio-success/20 text-biblio-success",
+  emprunte: "bg-biblio-warning/20 text-biblio-warning",
+  reserve: "bg-biblio-accent/20 text-biblio-accent",
+  perdu: "bg-biblio-danger/20 text-biblio-danger",
+  en_reparation: "bg-white/10 text-biblio-muted",
+};
+
 const normaliseStatut = (raw) => {
   if (!raw) return "disponible";
   const map = {
@@ -72,7 +88,20 @@ const emptyManualForm = {
   description: "",
 };
 
-// Small reusable image drop-zone
+const PAGE_SIZE_GRID = 24;
+const PAGE_SIZE_LIST = 50;
+
+const TRI_OPTIONS = [
+  { value: "date_ajout", label: "Date ajout" },
+  { value: "titre_az", label: "Titre A→Z" },
+  { value: "titre_za", label: "Titre Z→A" },
+  { value: "auteur", label: "Auteur" },
+  { value: "statut", label: "Statut" },
+];
+
+// CSV columns expected (case-insensitive headers)
+const CSV_COLUMNS = ["titre", "auteur", "isbn", "editeur", "annee", "langue", "categorie", "emplacement"];
+
 function ImageUploadZone({
   preview,
   onFileChange,
@@ -116,7 +145,6 @@ function ImageUploadZone({
   );
 }
 
-// Defined OUTSIDE the component so React doesn't remount inputs on every keystroke
 function Field({ label, children, col2 = false }) {
   return (
     <div className={col2 ? "sm:col-span-2" : ""}>
@@ -130,11 +158,25 @@ function Field({ label, children, col2 = false }) {
 
 export default function Livres() {
   const { session } = useAuth();
+  const navigate = useNavigate();
+
   const [livres, setLivres] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [recherche, setRecherche] = useState("");
   const [filtreStatut, setFiltreStatut] = useState("tous");
+  const [filtreCategorie, setFiltreCategorie] = useState("");
+
+  // Search with debounce
+  const [searchInput, setSearchInput] = useState("");
+  const recherche = useDebounce(searchInput, 300);
+
+  // View + sort + pagination
+  const [vue, setVue] = useState("grille"); // 'grille' | 'liste'
+  const [tri, setTri] = useState("date_ajout");
+  const [page, setPage] = useState(1);
+
+  // Borrow counts
+  const [borrowCounts, setBorrowCounts] = useState({});
 
   // Edit modal
   const [editLivre, setEditLivre] = useState(null);
@@ -160,11 +202,27 @@ export default function Livres() {
   // QR code modal
   const [qrLivre, setQrLivre] = useState(null);
 
+  // Export modal
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // Confirm delete modal
+  const [confirmDelete, setConfirmDelete] = useState(null); // livre id
+
+  // CSV Import modal
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [csvRows, setCsvRows] = useState([]); // all parsed rows
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(null); // number inserted
 
   useEffect(() => {
     fetchLivres();
+    fetchBorrowCounts();
   }, []);
+
+  // Reset page when filters/search/view change
+  useEffect(() => {
+    setPage(1);
+  }, [recherche, filtreStatut, filtreCategorie, vue, tri]);
 
   const fetchLivres = async () => {
     try {
@@ -182,7 +240,19 @@ export default function Livres() {
     }
   };
 
-  // Upload to Supabase Storage bucket "covers" (must be public)
+  const fetchBorrowCounts = async () => {
+    try {
+      const { data } = await supabase.from("prets").select("livre_id");
+      const counts = {};
+      (data || []).forEach((p) => {
+        counts[p.livre_id] = (counts[p.livre_id] || 0) + 1;
+      });
+      setBorrowCounts(counts);
+    } catch {
+      // non-critical, ignore
+    }
+  };
+
   const uploadCover = async (file) => {
     const ext = file.name.split(".").pop().toLowerCase();
     const filename = `cover_${Date.now()}.${ext}`;
@@ -199,7 +269,6 @@ export default function Livres() {
     return data.publicUrl;
   };
 
-  // Add book via ISBN (called by SearchISBN or camera scanner)
   const handleAddBook = async (bookData) => {
     try {
       const { error: err } = await supabase.from("livres").insert([
@@ -228,10 +297,8 @@ export default function Livres() {
     }
   };
 
-  // Camera scan handler: receives raw decoded text (ISBN or QR value)
   const handleCameraScan = async (raw) => {
     setShowCameraScanner(false);
-    // If it's a Bibl'ESI QR code (biblesi://livre/UUID), open the book
     if (raw.startsWith("biblesi://livre/")) {
       const id = raw.replace("biblesi://livre/", "");
       const found = livres.find((l) => l.id === id);
@@ -240,12 +307,10 @@ export default function Livres() {
         return;
       }
     }
-    // Otherwise treat as ISBN
     const cleanIsbn = raw.replace(/[-\s]/g, "").trim();
     setScannedIsbn(cleanIsbn);
   };
 
-  // Add book manually
   const handleManualAdd = async (e) => {
     e.preventDefault();
     if (!manualForm.titre.trim()) return;
@@ -299,9 +364,10 @@ export default function Livres() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce livre ?"))
-      return;
+  const handleDeleteConfirmed = async () => {
+    if (!confirmDelete) return;
+    const id = confirmDelete;
+    setConfirmDelete(null);
     try {
       const livre = livres.find((l) => l.id === id);
       const { error: err } = await supabase
@@ -318,6 +384,34 @@ export default function Livres() {
     } catch (err) {
       setError("Erreur lors de la suppression : " + err.message);
     }
+  };
+
+  const handleDuplicate = async (livre) => {
+    try {
+      const { id, date_ajout, ...rest } = livre;
+      const { error: err } = await supabase.from("livres").insert([
+        {
+          ...rest,
+          titre: `${livre.titre} (Copie)`,
+          disponible: true,
+          statut: "disponible",
+          isbn: null, // avoid unique constraint collision
+        },
+      ]);
+      if (err) throw err;
+      await logActivity({
+        action_type: "livre_ajoute",
+        description: `Livre « ${livre.titre} » dupliqué`,
+        user_info: session?.username || "",
+      });
+      await fetchLivres();
+    } catch (err) {
+      setError("Erreur lors de la duplication : " + err.message);
+    }
+  };
+
+  const handleCreatePretFromLivre = (livre) => {
+    navigate("/prets", { state: { livreId: livre.id } });
   };
 
   const openEdit = (livre) => {
@@ -457,23 +551,109 @@ export default function Livres() {
     else exportJSON(rows, filename);
   };
 
-  const livresFiltres = livres.filter((l) => {
-    const q = recherche.toLowerCase();
-    const matchSearch =
-      l.titre?.toLowerCase().includes(q) ||
-      l.auteur?.toLowerCase().includes(q) ||
-      l.isbn?.includes(q) ||
-      l.categorie?.toLowerCase().includes(q);
-    if (filtreStatut === "tous") return matchSearch;
-    const s = normaliseStatut(
-      l.statut || (l.disponible ? "disponible" : "emprunte"),
-    );
-    return matchSearch && s === filtreStatut;
-  });
+  // ── CSV Import handlers ──
+  const handleCsvFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportSuccess(null);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.trim().toLowerCase(),
+      complete: (results) => {
+        setCsvRows(results.data || []);
+      },
+    });
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvRows.length) return;
+    setImportLoading(true);
+    setError("");
+    try {
+      const toInsert = csvRows.map((row) => ({
+        titre: (row.titre || "").trim() || "Sans titre",
+        auteur: row.auteur?.trim() || null,
+        isbn: row.isbn?.trim() || null,
+        editeur: row.editeur?.trim() || null,
+        annee: row.annee?.trim() || null,
+        langue: row.langue?.trim() || null,
+        categorie: row.categorie?.trim() || null,
+        emplacement: row.emplacement?.trim() || null,
+        disponible: true,
+        statut: "disponible",
+        nb_exemplaires: 1,
+      }));
+
+      // Batch insert in chunks of 100
+      const CHUNK = 100;
+      let inserted = 0;
+      for (let i = 0; i < toInsert.length; i += CHUNK) {
+        const chunk = toInsert.slice(i, i + CHUNK);
+        const { error: err } = await supabase.from("livres").insert(chunk);
+        if (err) throw err;
+        inserted += chunk.length;
+      }
+
+      await logActivity({
+        action_type: "livre_ajoute",
+        description: `Import CSV : ${inserted} livre(s) importé(s)`,
+        user_info: session?.username || "",
+      });
+      setImportSuccess(inserted);
+      setCsvRows([]);
+      await fetchLivres();
+    } catch (err) {
+      setError("Erreur lors de l'import CSV : " + err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // ── Filtering + sorting + pagination ──
+  const categories = [
+    ...new Set(livres.map((l) => l.categorie).filter(Boolean)),
+  ].sort();
+
+  const livresFiltres = livres
+    .filter((l) => {
+      const q = recherche.toLowerCase();
+      const matchSearch =
+        !q ||
+        l.titre?.toLowerCase().includes(q) ||
+        l.auteur?.toLowerCase().includes(q) ||
+        l.isbn?.includes(q) ||
+        l.categorie?.toLowerCase().includes(q);
+      const s = normaliseStatut(
+        l.statut || (l.disponible ? "disponible" : "emprunte"),
+      );
+      const matchStatut = filtreStatut === "tous" || s === filtreStatut;
+      const matchCategorie =
+        !filtreCategorie || l.categorie === filtreCategorie;
+      return matchSearch && matchStatut && matchCategorie;
+    })
+    .sort((a, b) => {
+      switch (tri) {
+        case "titre_az":
+          return (a.titre || "").localeCompare(b.titre || "", "fr");
+        case "titre_za":
+          return (b.titre || "").localeCompare(a.titre || "", "fr");
+        case "auteur":
+          return (a.auteur || "").localeCompare(b.auteur || "", "fr");
+        case "statut":
+          return (a.statut || "").localeCompare(b.statut || "");
+        default: // date_ajout — keep original (already sorted by DB)
+          return 0;
+      }
+    });
+
+  const pageSize = vue === "grille" ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
+  const totalPages = Math.ceil(livresFiltres.length / pageSize);
+  const livresPage = livresFiltres.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -491,6 +671,16 @@ export default function Livres() {
             className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
           >
             <Download className="w-4 h-4" /> Export
+          </button>
+          <button
+            onClick={() => {
+              setCsvRows([]);
+              setImportSuccess(null);
+              setShowImportModal(true);
+            }}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+          >
+            <Upload className="w-4 h-4" /> Import CSV
           </button>
           <button
             onClick={() => setShowCameraScanner(true)}
@@ -520,19 +710,19 @@ export default function Livres() {
         </div>
       )}
 
-      {/* Search + status filters */}
+      {/* ── Search + status filters ── */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-biblio-muted" />
           <input
             type="text"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Rechercher (titre, auteur, ISBN, catégorie)..."
             className="w-full bg-biblio-card border border-white/10 rounded-lg pl-10 pr-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {[{ value: "tous", label: "Tous" }, ...STATUTS_LIVRE].map(
             ({ value, label }) => (
               <button
@@ -551,30 +741,255 @@ export default function Livres() {
         </div>
       </div>
 
-      {/* Book grid */}
+      {/* ── Category pill filters ── */}
+      {categories.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setFiltreCategorie("")}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+              filtreCategorie === ""
+                ? "bg-biblio-accent/20 text-biblio-accent border-biblio-accent/30"
+                : "bg-white/5 text-biblio-muted border-white/10 hover:bg-white/10"
+            }`}
+          >
+            Toutes catégories
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() =>
+                setFiltreCategorie(filtreCategorie === cat ? "" : cat)
+              }
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                filtreCategorie === cat
+                  ? "bg-biblio-accent/20 text-biblio-accent border-biblio-accent/30"
+                  : "bg-white/5 text-biblio-muted border-white/10 hover:bg-white/10"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tri + Vue toggle ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-biblio-muted">
+          {livresFiltres.length} résultat{livresFiltres.length !== 1 ? "s" : ""}
+        </p>
+        <div className="flex items-center gap-3">
+          {/* Sort select */}
+          <div className="relative">
+            <select
+              value={tri}
+              onChange={(e) => setTri(e.target.value)}
+              className="appearance-none bg-white/5 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-sm text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent cursor-pointer"
+              style={{ colorScheme: "dark" }}
+            >
+              {TRI_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  Trier par : {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* View toggle */}
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-1 gap-1">
+            <button
+              onClick={() => setVue("grille")}
+              className={`p-1.5 rounded-md transition-colors ${
+                vue === "grille"
+                  ? "bg-biblio-accent text-white"
+                  : "text-biblio-muted hover:text-biblio-text"
+              }`}
+              title="Vue grille"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setVue("liste")}
+              className={`p-1.5 rounded-md transition-colors ${
+                vue === "liste"
+                  ? "bg-biblio-accent text-white"
+                  : "text-biblio-muted hover:text-biblio-text"
+              }`}
+              title="Vue liste"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Book display ── */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
         </div>
       ) : livresFiltres.length === 0 ? (
         <div className="text-center py-12 text-biblio-muted">
-          {recherche || filtreStatut !== "tous"
+          {searchInput || filtreStatut !== "tous" || filtreCategorie
             ? "Aucun livre ne correspond à votre recherche."
             : "Aucun livre dans le catalogue. Ajoutez-en un par ISBN ou manuellement !"}
         </div>
+      ) : vue === "grille" ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {livresPage.map((livre) => (
+              <LivreCard
+                key={livre.id}
+                livre={livre}
+                onDelete={(id) => setConfirmDelete(id)}
+                onEdit={openEdit}
+                onHistorique={openHistorique}
+                onQrCode={(l) => setQrLivre(l)}
+                onDuplicate={handleDuplicate}
+                onCreatePret={handleCreatePretFromLivre}
+                borrowCount={borrowCounts[livre.id]}
+              />
+            ))}
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        </>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {livresFiltres.map((livre) => (
-            <LivreCard
-              key={livre.id}
-              livre={livre}
-              onDelete={handleDelete}
-              onEdit={openEdit}
-              onHistorique={openHistorique}
-              onQrCode={(l) => setQrLivre(l)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="bg-biblio-card border border-white/10 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10 text-left">
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted w-12">
+                      Cover
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted">
+                      Titre
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted hidden md:table-cell">
+                      Auteur
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted hidden lg:table-cell">
+                      Catégorie
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted">
+                      Statut
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted hidden xl:table-cell">
+                      Emprunts
+                    </th>
+                    <th className="px-4 py-3 text-xs font-medium text-biblio-muted text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {livresPage.map((livre) => {
+                    const statut = normaliseStatut(
+                      livre.statut ||
+                        (livre.disponible ? "disponible" : "emprunte"),
+                    );
+                    const badgeClass =
+                      STATUT_STYLE[statut] || "bg-white/10 text-biblio-muted";
+                    return (
+                      <tr
+                        key={livre.id}
+                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                      >
+                        {/* Mini cover */}
+                        <td className="px-4 py-2">
+                          {livre.couverture_url ? (
+                            <img
+                              src={livre.couverture_url}
+                              alt=""
+                              className="w-8 h-10 object-contain rounded"
+                            />
+                          ) : (
+                            <div className="w-8 h-10 bg-white/5 rounded flex items-center justify-center">
+                              <BookOpen className="w-3.5 h-3.5 text-biblio-muted" />
+                            </div>
+                          )}
+                        </td>
+                        {/* Titre */}
+                        <td className="px-4 py-2">
+                          <p className="font-medium text-biblio-text line-clamp-1">
+                            {livre.titre}
+                          </p>
+                          {livre.isbn && (
+                            <p className="text-xs text-biblio-muted font-mono">
+                              {livre.isbn}
+                            </p>
+                          )}
+                        </td>
+                        {/* Auteur */}
+                        <td className="px-4 py-2 text-biblio-muted hidden md:table-cell">
+                          {livre.auteur || "—"}
+                        </td>
+                        {/* Catégorie */}
+                        <td className="px-4 py-2 hidden lg:table-cell">
+                          {livre.categorie ? (
+                            <span className="text-xs text-biblio-accent">
+                              {livre.categorie}
+                            </span>
+                          ) : (
+                            <span className="text-biblio-muted">—</span>
+                          )}
+                        </td>
+                        {/* Statut */}
+                        <td className="px-4 py-2">
+                          <span
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeClass}`}
+                          >
+                            {STATUT_LABEL[statut] ||
+                              statut.charAt(0).toUpperCase() +
+                                statut.slice(1)}
+                          </span>
+                        </td>
+                        {/* Emprunts */}
+                        <td className="px-4 py-2 text-biblio-muted hidden xl:table-cell text-center">
+                          {borrowCounts[livre.id] ?? 0}×
+                        </td>
+                        {/* Actions */}
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              onClick={() => setQrLivre(livre)}
+                              className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-accent hover:bg-biblio-accent/10 transition-colors"
+                              title="QR Code"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicate(livre)}
+                              className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+                              title="Dupliquer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => openEdit(livre)}
+                              className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+                              title="Modifier"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(livre.id)}
+                              className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-danger hover:bg-biblio-danger/10 transition-colors"
+                              title="Supprimer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        </>
       )}
 
       {/* ── MODAL : Ajout manuel ── */}
@@ -598,7 +1013,6 @@ export default function Livres() {
               </button>
             </div>
             <form onSubmit={handleManualAdd} className="p-6 space-y-5">
-              {/* Cover upload */}
               <div>
                 <label className="text-xs font-medium text-biblio-muted block mb-2">
                   Image de couverture
@@ -825,7 +1239,6 @@ export default function Livres() {
               </button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-5">
-              {/* Cover */}
               <div>
                 <label className="text-xs font-medium text-biblio-muted block mb-2">
                   Image de couverture
@@ -1112,6 +1525,157 @@ export default function Livres() {
         </div>
       )}
 
+      {/* ── MODAL : Import CSV ── */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-3xl shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Upload className="w-5 h-5 text-biblio-accent" /> Import CSV
+              </h2>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setCsvRows([]);
+                  setImportSuccess(null);
+                }}
+                className="text-biblio-muted hover:text-biblio-text"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              {importSuccess !== null ? (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <CheckCircle2 className="w-12 h-12 text-biblio-success" />
+                  <p className="text-lg font-semibold text-biblio-text">
+                    {importSuccess} livre{importSuccess !== 1 ? "s" : ""} importé
+                    {importSuccess !== 1 ? "s" : ""} avec succès !
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setCsvRows([]);
+                      setImportSuccess(null);
+                    }}
+                    className="mt-2 px-6 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg font-medium transition-colors"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm text-biblio-muted">
+                      Le fichier CSV doit avoir les colonnes (insensible à la
+                      casse) :{" "}
+                      <span className="font-mono text-biblio-accent">
+                        {CSV_COLUMNS.join(", ")}
+                      </span>
+                    </p>
+                    <label className="flex items-center gap-3 px-4 py-3 bg-white/5 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:border-biblio-accent/50 hover:bg-biblio-accent/5 transition-colors w-full">
+                      <Upload className="w-5 h-5 text-biblio-muted shrink-0" />
+                      <span className="text-sm text-biblio-muted">
+                        {csvRows.length > 0
+                          ? `${csvRows.length} ligne(s) chargée(s) — cliquer pour changer`
+                          : "Cliquer pour sélectionner un fichier CSV"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={handleCsvFileChange}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Preview */}
+                  {csvRows.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-biblio-muted mb-2">
+                        Aperçu (5 premières lignes sur {csvRows.length}) :
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-white/10">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-white/5 border-b border-white/10">
+                              {CSV_COLUMNS.map((col) => (
+                                <th
+                                  key={col}
+                                  className="px-3 py-2 text-left text-biblio-muted font-medium capitalize"
+                                >
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvRows.slice(0, 5).map((row, i) => (
+                              <tr
+                                key={i}
+                                className="border-b border-white/5 hover:bg-white/5"
+                              >
+                                {CSV_COLUMNS.map((col) => (
+                                  <td
+                                    key={col}
+                                    className="px-3 py-2 text-biblio-text max-w-[140px] truncate"
+                                  >
+                                    {row[col] || "—"}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleCsvImport}
+                      disabled={csvRows.length === 0 || importLoading}
+                      className="flex-1 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {importLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      {importLoading
+                        ? "Import en cours…"
+                        : `Importer ${csvRows.length} livre${csvRows.length !== 1 ? "s" : ""}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowImportModal(false);
+                        setCsvRows([]);
+                        setImportSuccess(null);
+                      }}
+                      className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm delete ── */}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Supprimer le livre"
+          message="Êtes-vous sûr de vouloir supprimer ce livre ? Cette action est irréversible."
+          danger
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       {showExportModal && (
         <ExportModal
           title="Exporter le catalogue"
@@ -1120,7 +1684,6 @@ export default function Livres() {
         />
       )}
 
-      {/* Scanner caméra ISBN */}
       {showCameraScanner && (
         <ISBNScanner
           mode="isbn"
@@ -1129,7 +1692,6 @@ export default function Livres() {
         />
       )}
 
-      {/* QR code du livre */}
       {qrLivre && (
         <QRCodeModal livre={qrLivre} onClose={() => setQrLivre(null)} />
       )}

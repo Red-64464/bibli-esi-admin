@@ -1,15 +1,11 @@
 import { RotateCcw } from "lucide-react";
+import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 
-export const getPretStatut = (p) => {
-  if (p.statut && p.statut !== "en_cours") return p.statut;
-  if (p.rendu) return "retourné";
-  const ref = p.date_retour_prevue
-    ? new Date(p.date_retour_prevue)
-    : new Date(new Date(p.date_pret).getTime() + 30 * 24 * 60 * 60 * 1000);
-  return new Date() > ref ? "en_retard" : "en_cours";
-};
+// Re-export pour la compatibilité avec les imports existants
+export { getPretStatut };
 
-function StatusBadge({ statut, joursDepuisPret, pret }) {
+function StatusBadge({ statut, pret }) {
+  const jours = joursRetard(pret);
   const map = {
     en_cours: (
       <span className="text-xs px-2 py-1 rounded-full bg-biblio-warning/20 text-biblio-warning">
@@ -18,15 +14,13 @@ function StatusBadge({ statut, joursDepuisPret, pret }) {
     ),
     en_retard: (
       <span className="text-xs px-2 py-1 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
-        Retard +{joursDepuisPret}j
+        Retard +{jours}j
       </span>
     ),
     retourné: (
       <span className="text-xs px-2 py-1 rounded-full bg-biblio-success/20 text-biblio-success">
         Rendu{" "}
-        {pret.date_retour
-          ? new Date(pret.date_retour).toLocaleDateString("fr-FR")
-          : ""}
+        {pret.date_retour ? formatDate(pret.date_retour) : ""}
       </span>
     ),
     perdu: (
@@ -49,9 +43,6 @@ export function PretCard({ pret, onReturn }) {
   const statut = getPretStatut(pret);
   const isRetourne = statut === "retourné";
   const isRetard = statut === "en_retard";
-  const joursDepuisPret = Math.floor(
-    (new Date() - new Date(pret.date_pret)) / (1000 * 60 * 60 * 24),
-  );
 
   return (
     <div
@@ -64,11 +55,7 @@ export function PretCard({ pret, onReturn }) {
         <p className="text-sm font-semibold text-biblio-text leading-snug">
           {pret.livres?.titre || "—"}
         </p>
-        <StatusBadge
-          statut={statut}
-          joursDepuisPret={joursDepuisPret}
-          pret={pret}
-        />
+        <StatusBadge statut={statut} pret={pret} />
       </div>
 
       {/* Infos */}
@@ -83,16 +70,12 @@ export function PretCard({ pret, onReturn }) {
         </div>
         <div>
           <span className="block text-biblio-muted/60">Date prêt</span>
-          <span className="text-biblio-text">
-            {new Date(pret.date_pret).toLocaleDateString("fr-FR")}
-          </span>
+          <span className="text-biblio-text">{formatDate(pret.date_pret)}</span>
         </div>
         <div>
           <span className="block text-biblio-muted/60">Retour prévu</span>
           <span className="text-biblio-text">
-            {pret.date_retour_prevue
-              ? new Date(pret.date_retour_prevue).toLocaleDateString("fr-FR")
-              : "—"}
+            {formatDate(pret.date_retour_prevue)}
           </span>
         </div>
         {pret.notes && (
@@ -122,9 +105,6 @@ export default function PretRow({ pret, onReturn }) {
   const statut = getPretStatut(pret);
   const isRetard = statut === "en_retard";
   const isRetourne = statut === "retourné";
-  const joursDepuisPret = Math.floor(
-    (new Date() - new Date(pret.date_pret)) / (1000 * 60 * 60 * 24),
-  );
 
   return (
     <tr
@@ -139,19 +119,13 @@ export default function PretRow({ pret, onReturn }) {
           : "—"}
       </td>
       <td className="px-4 py-3 text-sm text-biblio-muted">
-        {new Date(pret.date_pret).toLocaleDateString("fr-FR")}
+        {formatDate(pret.date_pret)}
       </td>
       <td className="px-4 py-3 text-sm text-biblio-muted">
-        {pret.date_retour_prevue
-          ? new Date(pret.date_retour_prevue).toLocaleDateString("fr-FR")
-          : "—"}
+        {formatDate(pret.date_retour_prevue)}
       </td>
       <td className="px-4 py-3">
-        <StatusBadge
-          statut={statut}
-          joursDepuisPret={joursDepuisPret}
-          pret={pret}
-        />
+        <StatusBadge statut={statut} pret={pret} />
       </td>
       <td className="px-4 py-3">
         {!isRetourne && (

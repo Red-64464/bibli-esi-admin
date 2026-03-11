@@ -8,4 +8,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ Variables Supabase manquantes dans .env");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: { schema: "public" },
+  global: {
+    headers: { "x-client-info": "bibli-esi" },
+  },
+});

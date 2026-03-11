@@ -1,5 +1,6 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 import {
   LayoutDashboard,
   BookOpen,
@@ -14,6 +15,10 @@ import {
   X,
   TrendingUp,
   Tag,
+  RefreshCw,
+  Clock,
+  Bell,
+  Percent,
 } from "lucide-react";
 import StatCard from "../components/StatCard";
 import ExportModal from "../components/ExportModal";
@@ -90,22 +95,6 @@ const PieTooltip = ({ active, payload }) => {
   return null;
 };
 
-const getPretStatut = (p) => {
-  if (p.statut && p.statut !== "en_cours") return p.statut;
-  if (p.rendu) return "retourne";
-  const ref = p.date_retour_prevue
-    ? new Date(p.date_retour_prevue)
-    : new Date(new Date(p.date_pret).getTime() + 30 * 24 * 60 * 60 * 1000);
-  return new Date() > ref ? "en_retard" : "en_cours";
-};
-
-const joursRetard = (p) => {
-  const ref = p.date_retour_prevue
-    ? new Date(p.date_retour_prevue)
-    : new Date(new Date(p.date_pret).getTime() + 30 * 24 * 60 * 60 * 1000);
-  return Math.max(0, Math.floor((new Date() - ref) / (1000 * 60 * 60 * 24)));
-};
-
 export default function Dashboard() {
   const [livres, setLivres] = useState([]);
   const [etudiants, setEtudiants] = useState([]);
@@ -115,6 +104,7 @@ export default function Dashboard() {
   const [activeCard, setActiveCard] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportType, setExportType] = useState(null);
+  const [periodFilter, setPeriodFilter] = useState("6m");
 
   useEffect(() => {
     fetchDashboard();
@@ -166,6 +156,10 @@ export default function Dashboard() {
     (l) =>
       (l.statut || (l.disponible ? "disponible" : "emprunte")) === "disponible",
   );
+  const tauxOccupation =
+    livres.length > 0
+      ? Math.round((pretsEnCours.length / livres.length) * 100)
+      : 0;
   const stats = {
     totalLivres: livres.length,
     livresDisponibles: livresDisponibles.length,
@@ -173,25 +167,111 @@ export default function Dashboard() {
     totalEtudiants: etudiants.length,
     pretsEnRetard: retards.length,
     pretsCeMois: pretsCeMois.length,
+    tauxOccupation,
   };
 
-  // ---------- Chart Data ----------
-  const pretsMensuels = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - (5 - i));
-    const label = d.toLocaleDateString("fr-FR", {
-      month: "short",
-      year: "2-digit",
-    });
-    const count = prets.filter((p) => {
-      const dp = new Date(p.date_pret);
-      return (
-        dp.getMonth() === d.getMonth() && dp.getFullYear() === d.getFullYear()
-      );
-    }).length;
-    return { label, count };
-  });
+  // ---------- Prochains retours & rappels ----------
+  const prochainsRetours = useMemo(() => {
+    const in3Days = new Date(now.getTime() + 3 * 86400000);
+    return prets
+      .filter((p) => {
+        if (p.rendu) return false;
+        const retourDate = p.date_retour_prevue
+          ? new Date(p.date_retour_prevue)
+          : new Date(new Date(p.date_pret).getTime() + 30 * 86400000);
+        return retourDate >= now && retourDate <= in3Days;
+      })
+      .sort((a, b) => {
+        const ra = a.date_retour_prevue
+          ? new Date(a.date_retour_prevue)
+          : new Date(new Date(a.date_pret).getTime() + 30 * 86400000);
+        const rb = b.date_retour_prevue
+          ? new Date(b.date_retour_prevue)
+          : new Date(new Date(b.date_pret).getTime() + 30 * 86400000);
+        return ra - rb;
+      })
+      .slice(0, 5);
+  }, [prets]);
+
+  const rappelsDuJour = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return prets.filter(
+      (p) => !p.rendu && p.date_rappel && p.date_rappel.slice(0, 10) === today,
+    );
+  }, [prets]);
+
+  // ---------- Chart Data (period-filtered) ----------
+  const chartData = useMemo(() => {
+    if (periodFilter === "7j") {
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(now);
+        d.setDate(d.getDate() - (6 - i));
+        const label = d.toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+        });
+        const count = prets.filter((p) => {
+          const dp = new Date(p.date_pret);
+          return dp.toDateString() === d.toDateString();
+        }).length;
+        return { label, count };
+      });
+    }
+    const monthsCount =
+      periodFilter === "1m"
+        ? 1
+        : periodFilter === "3m"
+          ? 3
+          : periodFilter === "6m"
+            ? 6
+            : periodFilter === "1an"
+              ? 12
+              : null;
+    if (monthsCount !== null) {
+      return Array.from({ length: monthsCount }, (_, i) => {
+        const d = new Date(
+          now.getFullYear(),
+          now.getMonth() - (monthsCount - 1 - i),
+          1,
+        );
+        const label = d.toLocaleDateString("fr-FR", {
+          month: "short",
+          year: "2-digit",
+        });
+        const count = prets.filter((p) => {
+          const dp = new Date(p.date_pret);
+          return (
+            dp.getMonth() === d.getMonth() &&
+            dp.getFullYear() === d.getFullYear()
+          );
+        }).length;
+        return { label, count };
+      });
+    }
+    // "tout" — group by month from earliest pret
+    if (!prets.length) return [];
+    const minDate = prets.reduce((min, p) => {
+      const d = new Date(p.date_pret);
+      return d < min ? d : min;
+    }, now);
+    const result = [];
+    let d = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    while (d <= now) {
+      const label = d.toLocaleDateString("fr-FR", {
+        month: "short",
+        year: "2-digit",
+      });
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const count = prets.filter((p) => {
+        const dp = new Date(p.date_pret);
+        return dp.getFullYear() === year && dp.getMonth() === month;
+      }).length;
+      result.push({ label, count });
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+    return result;
+  }, [prets, periodFilter]);
 
   const topLivresMap = {};
   prets.forEach((p) => {
@@ -582,7 +662,7 @@ export default function Dashboard() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-white/10">
-                    {["Livre", "Etudiant", "Email", "Date pret", "Retard"].map(
+                    {["Livre", "Etudiant", "Date pret", "Retour prevu", "Retard"].map(
                       (h) => (
                         <th
                           key={h}
@@ -606,10 +686,17 @@ export default function Dashboard() {
                           : "-"}
                       </td>
                       <td className="px-3 py-2 text-sm text-biblio-muted">
-                        {p.etudiants?.email || "-"}
+                        {formatDate(p.date_pret)}
                       </td>
                       <td className="px-3 py-2 text-sm text-biblio-muted">
-                        {new Date(p.date_pret).toLocaleDateString("fr-FR")}
+                        {p.date_retour_prevue
+                          ? formatDate(p.date_retour_prevue)
+                          : formatDate(
+                              new Date(
+                                new Date(p.date_pret).getTime() +
+                                  30 * 86400000,
+                              ).toISOString(),
+                            )}
                       </td>
                       <td className="px-3 py-2">
                         <span className="text-xs px-2 py-1 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
@@ -734,6 +821,14 @@ export default function Dashboard() {
         </div>
         <div className="flex gap-3">
           <button
+            onClick={fetchDashboard}
+            disabled={loading}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            Actualiser
+          </button>
+          <button
             onClick={() => {
               setExportType("livres");
               setShowExportModal(true);
@@ -760,8 +855,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 6 stat cards - all clickable */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 7 stat cards - all clickable */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <StatCard
           icon={BookOpen}
           label="Total livres"
@@ -790,6 +885,12 @@ export default function Dashboard() {
           onClick={() =>
             setActiveCard(activeCard === "empruntes" ? null : "empruntes")
           }
+        />
+        <StatCard
+          icon={Percent}
+          label="Taux d'occupation"
+          value={`${stats.tauxOccupation}%`}
+          color="text-biblio-accent"
         />
         <StatCard
           icon={Users}
@@ -826,12 +927,29 @@ export default function Dashboard() {
       {/* Charts row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-biblio-card rounded-xl border border-white/10 p-6">
-          <h2 className="text-base font-semibold mb-5 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-biblio-accent" /> Prets par mois
-            (6 derniers mois)
-          </h2>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-biblio-accent" /> Prets par
+              periode
+            </h2>
+            <div className="flex gap-1 flex-wrap">
+              {["7j", "1m", "3m", "6m", "1an", "tout"].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriodFilter(p)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    periodFilter === p
+                      ? "bg-biblio-accent text-white"
+                      : "bg-white/10 text-biblio-muted hover:bg-white/20"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={pretsMensuels} barCategoryGap="30%">
+            <BarChart data={chartData} barCategoryGap="30%">
               <XAxis
                 dataKey="label"
                 tick={{ fill: "#94a3b8", fontSize: 12 }}
@@ -947,7 +1065,7 @@ export default function Dashboard() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/10">
-                  {["Livre", "Etudiant", "Date pret", "Retard"].map((h) => (
+                  {["Livre", "Etudiant", "Date pret", "Retour prevu", "Retard"].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-xs font-semibold text-biblio-muted uppercase"
@@ -969,7 +1087,16 @@ export default function Dashboard() {
                         : "-"}
                     </td>
                     <td className="px-4 py-3 text-sm text-biblio-muted">
-                      {new Date(p.date_pret).toLocaleDateString("fr-FR")}
+                      {formatDate(p.date_pret)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-biblio-muted">
+                      {p.date_retour_prevue
+                        ? formatDate(p.date_retour_prevue)
+                        : formatDate(
+                            new Date(
+                              new Date(p.date_pret).getTime() + 30 * 86400000,
+                            ).toISOString(),
+                          )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-1 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
@@ -981,6 +1108,84 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Prochains retours attendus & Rappels du jour */}
+      {(prochainsRetours.length > 0 || rappelsDuJour.length > 0) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {prochainsRetours.length > 0 && (
+            <div className="bg-biblio-card rounded-xl border border-white/10 p-6">
+              <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-biblio-warning" /> Prochains
+                retours attendus{" "}
+                <span className="text-biblio-muted text-xs font-normal">
+                  (dans les 3 prochains jours)
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {prochainsRetours.map((p) => {
+                  const retourDate = p.date_retour_prevue
+                    ? new Date(p.date_retour_prevue)
+                    : new Date(
+                        new Date(p.date_pret).getTime() + 30 * 86400000,
+                      );
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {p.livres?.titre || "-"}
+                        </p>
+                        <p className="text-xs text-biblio-muted">
+                          {p.etudiants
+                            ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                            : "-"}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full bg-biblio-warning/20 text-biblio-warning shrink-0">
+                        {formatDate(retourDate.toISOString())}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {rappelsDuJour.length > 0 && (
+            <div className="bg-biblio-card rounded-xl border border-white/10 p-6">
+              <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+                <Bell className="w-4 h-4 text-biblio-accent" /> Rappels du jour
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-biblio-accent/20 text-biblio-accent text-xs font-bold">
+                  {rappelsDuJour.length}
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {rappelsDuJour.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {p.livres?.titre || "-"}
+                      </p>
+                      <p className="text-xs text-biblio-muted">
+                        {p.etudiants
+                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                          : "-"}
+                      </p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full bg-biblio-accent/20 text-biblio-accent shrink-0">
+                      {p.etudiants?.email || "rappel"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

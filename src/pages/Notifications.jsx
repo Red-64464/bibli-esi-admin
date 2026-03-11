@@ -12,6 +12,9 @@ import {
   Info,
   CalendarCheck,
   RefreshCw,
+  Send,
+  CalendarClock,
+  ClipboardCheck,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -50,9 +53,16 @@ export default function Notifications() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
+  // Rappels du jour (date_rappel = today)
+  const [todayReminders, setTodayReminders] = useState([]);
+  const [todayLoading, setTodayLoading] = useState(false);
+
   // Prêts bientôt dus / en retard pour la prévisualisation
   const [previewLoans, setPreviewLoans] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Feedback de copie presse-papiers
+  const [copiedId, setCopiedId] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -63,11 +73,32 @@ export default function Notifications() {
       setLoading(true);
       const s = await getSettings();
       setSettings(s);
-      await loadPreview(parseInt(s.reminder_days_before, 10) || 3);
+      await Promise.all([
+        loadTodayReminders(),
+        loadPreview(parseInt(s.reminder_days_before, 10) || 3),
+      ]);
     } catch (err) {
       setError("Impossible de charger les paramètres : " + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTodayReminders = async () => {
+    try {
+      setTodayLoading(true);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("prets")
+        .select("*, livres(titre), etudiants(nom, prenom, email)")
+        .eq("rendu", false)
+        .eq("date_rappel", todayStr)
+        .order("date_retour_prevue", { ascending: true });
+      setTodayReminders(data || []);
+    } catch {
+      /* silently ignore if date_rappel column doesn't exist */
+    } finally {
+      setTodayLoading(false);
     }
   };
 
@@ -124,6 +155,35 @@ export default function Notifications() {
     }
   };
 
+  const buildReminderMessage = (loan) => {
+    const student = loan.etudiants;
+    const book = loan.livres;
+    const dueDate = loan.date_retour_prevue
+      ? new Date(loan.date_retour_prevue).toLocaleDateString("fr-FR")
+      : "—";
+    return `Bonjour ${student?.prenom || ""} ${student?.nom || ""},\n\nNous vous rappelons que le livre "${book?.titre || "—"}" devait être retourné le ${dueDate}.\n\nMerci de le retourner dès que possible.\n\nCordialement,\nLa Bibliothèque ESI`;
+  };
+
+  const sendManualReminder = async (loan) => {
+    const message = buildReminderMessage(loan);
+    const email = loan.etudiants?.email;
+    const title = loan.livres?.titre || "livre";
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedId(loan.id);
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {
+      /* clipboard not available, fall through to mailto */
+    }
+
+    if (email) {
+      const subject = encodeURIComponent(`Rappel de retour : ${title}`);
+      const body = encodeURIComponent(message);
+      window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+    }
+  };
+
   const set = (key, value) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
 
@@ -154,6 +214,76 @@ export default function Notifications() {
           {error}
         </div>
       )}
+
+      {/* Rappels du jour */}
+      <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-biblio-accent" />
+            Rappels du jour
+            {todayReminders.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-biblio-accent/20 text-biblio-accent text-xs rounded-full font-semibold">
+                {todayReminders.length}
+              </span>
+            )}
+          </h2>
+          <button
+            onClick={loadTodayReminders}
+            className="text-biblio-muted hover:text-biblio-text transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+
+        {todayLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-biblio-accent" />
+          </div>
+        ) : todayReminders.length === 0 ? (
+          <p className="text-center text-biblio-muted text-sm py-4">
+            Aucun rappel programmé pour aujourd'hui.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {todayReminders.map((loan) => (
+              <div
+                key={loan.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-lg bg-biblio-accent/10"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-biblio-text truncate">
+                    {loan.livres?.titre || "—"}
+                  </p>
+                  <p className="text-xs text-biblio-muted">
+                    {loan.etudiants
+                      ? `${loan.etudiants.prenom} ${loan.etudiants.nom}`
+                      : "—"}
+                    {loan.etudiants?.email ? ` · ${loan.etudiants.email}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => sendManualReminder(loan)}
+                  title="Envoyer un rappel manuel"
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-biblio-accent/20 hover:bg-biblio-accent/40 text-biblio-accent text-xs font-medium rounded-lg transition-colors"
+                >
+                  {copiedId === loan.id ? (
+                    <>
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                      Copié !
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Rappel
+                    </>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Bloc : Email général */}
       <div className="bg-biblio-card rounded-xl border border-white/10 p-5 space-y-2">
@@ -302,8 +432,8 @@ export default function Notifications() {
                     : "bg-biblio-warning/10"
                 }`}
               >
-                <div>
-                  <p className="text-sm font-medium text-biblio-text">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-biblio-text truncate">
                     {p.livres?.titre || "—"}
                   </p>
                   <p className="text-xs text-biblio-muted">
@@ -313,7 +443,29 @@ export default function Notifications() {
                     {p.etudiants?.email ? ` · ${p.etudiants.email}` : ""}
                   </p>
                 </div>
-                <div className="text-right shrink-0 ml-3">
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <button
+                    type="button"
+                    onClick={() => sendManualReminder(p)}
+                    title="Envoyer un rappel manuel"
+                    className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      p._type === "overdue"
+                        ? "bg-biblio-danger/20 hover:bg-biblio-danger/40 text-biblio-danger"
+                        : "bg-biblio-warning/20 hover:bg-biblio-warning/40 text-biblio-warning"
+                    }`}
+                  >
+                    {copiedId === p.id ? (
+                      <>
+                        <ClipboardCheck className="w-3 h-3" />
+                        Copié !
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3 h-3" />
+                        Rappel
+                      </>
+                    )}
+                  </button>
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${
                       p._type === "overdue"

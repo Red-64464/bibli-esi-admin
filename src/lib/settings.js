@@ -10,6 +10,7 @@ export const SETTING_DEFAULTS = {
   reminder_days_before: "3",
   remind_on_due_date: "true",
   notify_overdue: "true",
+  accent_color: "indigo",
 };
 
 /** Charge tous les paramètres depuis Supabase et merge les valeurs par défaut */
