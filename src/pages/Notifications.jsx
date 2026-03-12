@@ -700,8 +700,6 @@ export default function Notifications() {
                 {composerError}
               </p>
             )}
-              </p>
-            )}
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-1">

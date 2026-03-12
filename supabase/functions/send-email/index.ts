@@ -8,7 +8,11 @@
 // Déploiement :
 //   supabase functions deploy send-email --no-verify-jwt
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const Deno: {
+  serve: (fn: (req: Request) => Promise<Response> | Response) => void;
+  env: { get: (key: string) => string | undefined };
+};
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +20,7 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Preflight CORS
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
