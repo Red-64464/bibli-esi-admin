@@ -40,8 +40,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const apiKey = Deno.env.get("RESEND_API_KEY");
-    const fromEmail =
-      Deno.env.get("FROM_EMAIL") ?? "noreply@bibliotheque-esi.dz";
+    const fromEmail = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
 
     if (!apiKey) {
       return new Response(
