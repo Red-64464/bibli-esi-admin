@@ -1,61 +1,82 @@
 import { useState, useEffect } from "react";
 import { Search, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
+const isIsbn = (q) => /^[\d\-\s]{9,17}$/.test(q.trim());
+
+const extractBook = (item, fallbackIsbn = "") => {
+  const info = item.volumeInfo;
+  const isbn13 = info.industryIdentifiers?.find(
+    (i) => i.type === "ISBN_13",
+  )?.identifier;
+  const isbn10 = info.industryIdentifiers?.find(
+    (i) => i.type === "ISBN_10",
+  )?.identifier;
+  return {
+    isbn: isbn13 || isbn10 || fallbackIsbn,
+    titre: info.title || "Titre inconnu",
+    auteur: info.authors?.join(", ") || "",
+    editeur: info.publisher || "",
+    couverture_url:
+      info.imageLinks?.thumbnail?.replace("http://", "https://") ||
+      info.imageLinks?.smallThumbnail?.replace("http://", "https://") ||
+      "",
+    annee: info.publishedDate?.slice(0, 4) || "",
+  };
+};
+
 export default function SearchISBN({
   onBookFound,
   defaultIsbn,
   onDefaultIsbnUsed,
 }) {
-  const [isbn, setIsbn] = useState("");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [bookData, setBookData] = useState(null);
+  const [bookData, setBookData] = useState(null); // résultat unique (ISBN)
+  const [results, setResults] = useState([]); // liste (titre)
   const [error, setError] = useState("");
 
   // Pré-remplir l'ISBN si scanné via caméra
   useEffect(() => {
     if (defaultIsbn) {
-      setIsbn(defaultIsbn);
+      setQuery(defaultIsbn);
       onDefaultIsbnUsed?.();
-      // Lancer la recherche automatiquement
-      setTimeout(() => handleSearchByIsbn(defaultIsbn), 100);
+      setTimeout(() => handleSearch(defaultIsbn), 100);
     }
   }, [defaultIsbn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearchByIsbn = async (isbnValue) => {
-    const cleanIsbn = (isbnValue || isbn).replace(/[-\s]/g, "").trim();
-    if (!cleanIsbn) return;
+  const handleSearch = async (override) => {
+    const q = (override ?? query).trim();
+    if (!q) return;
 
     setLoading(true);
     setError("");
     setBookData(null);
+    setResults([]);
 
     try {
-      // Google Books API — base de données très complète, gratuite, sans clé
-      const response = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanIsbn)}`,
-      );
+      let url;
+      if (isIsbn(q)) {
+        const cleanIsbn = q.replace(/[-\s]/g, "");
+        url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanIsbn)}&maxResults=1`;
+      } else {
+        url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=8&langRestrict=fr`;
+      }
+
+      const response = await fetch(url);
       const data = await response.json();
 
       if (!data.items?.length) {
         setError(
-          "Aucun livre trouvé pour cet ISBN. Vous pouvez l'ajouter manuellement.",
+          "Aucun livre trouvé. Essayez un autre terme ou ajoutez manuellement.",
         );
         return;
       }
 
-      const info = data.items[0].volumeInfo;
-      const result = {
-        isbn: cleanIsbn,
-        titre: info.title || "Titre inconnu",
-        auteur: info.authors?.join(", ") || "",
-        editeur: info.publisher || "",
-        couverture_url:
-          info.imageLinks?.thumbnail?.replace("http://", "https://") ||
-          info.imageLinks?.smallThumbnail?.replace("http://", "https://") ||
-          "",
-        annee: info.publishedDate?.slice(0, 4) || "",
-      };
-      setBookData(result);
+      if (isIsbn(q)) {
+        setBookData(extractBook(data.items[0], q.replace(/[-\s]/g, "")));
+      } else {
+        setResults(data.items.map((item) => extractBook(item)));
+      }
     } catch {
       setError(
         "Erreur de connexion à Google Books. Vérifiez votre connexion internet.",
@@ -65,42 +86,37 @@ export default function SearchISBN({
     }
   };
 
-  // Confirmer l'ajout du livre trouvé
-  const handleConfirm = () => {
-    if (bookData) {
-      onBookFound(bookData);
-      setBookData(null);
-      setIsbn("");
-    }
+  const handleConfirm = (book) => {
+    onBookFound(book ?? bookData);
+    setBookData(null);
+    setResults([]);
+    setQuery("");
   };
 
-  // Saisie clavier : Entrée pour rechercher
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearchByIsbn();
+    if (e.key === "Enter") handleSearch();
   };
-
-  const handleSearch = () => handleSearchByIsbn();
 
   return (
     <div className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-4">
       <h2 className="text-lg font-semibold flex items-center gap-2">
         <Search className="w-5 h-5 text-biblio-accent" />
-        Ajouter un livre par ISBN
+        Ajouter un livre par ISBN ou titre
       </h2>
 
       {/* Champ de recherche */}
       <div className="flex gap-3">
         <input
           type="text"
-          value={isbn}
-          onChange={(e) => setIsbn(e.target.value)}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Entrez un ISBN (ex: 9782070360024)"
+          placeholder="ISBN (ex: 9782070360024) ou titre du livre"
           className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent"
         />
         <button
-          onClick={handleSearch}
-          disabled={loading || !isbn.trim()}
+          onClick={() => handleSearch()}
+          disabled={loading || !query.trim()}
           className="px-6 py-3 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
         >
           {loading ? (
@@ -120,7 +136,7 @@ export default function SearchISBN({
         </div>
       )}
 
-      {/* Aperçu du livre trouvé */}
+      {/* Résultat unique (recherche ISBN) */}
       {bookData && (
         <div className="flex gap-4 bg-white/5 p-4 rounded-lg border border-biblio-accent/30">
           {bookData.couverture_url && (
@@ -150,12 +166,51 @@ export default function SearchISBN({
             </p>
           </div>
           <button
-            onClick={handleConfirm}
+            onClick={() => handleConfirm()}
             className="self-center px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
             Ajouter
           </button>
+        </div>
+      )}
+
+      {/* Liste de résultats (recherche par titre) */}
+      {results.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-biblio-muted">
+            {results.length} résultat(s) — cliquez sur un livre pour l'ajouter :
+          </p>
+          {results.map((book, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 bg-white/5 hover:bg-white/10 p-3 rounded-lg border border-white/10 cursor-pointer transition-colors"
+              onClick={() => handleConfirm(book)}
+            >
+              {book.couverture_url ? (
+                <img
+                  src={book.couverture_url}
+                  alt={book.titre}
+                  className="w-10 h-14 object-contain rounded shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-14 bg-white/10 rounded shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-biblio-text text-sm truncate">
+                  {book.titre}
+                </p>
+                <p className="text-xs text-biblio-muted truncate">
+                  {book.auteur || "Auteur inconnu"}
+                </p>
+                <p className="text-xs text-biblio-muted">
+                  {book.annee}
+                  {book.editeur ? ` · ${book.editeur}` : ""}
+                </p>
+              </div>
+              <CheckCircle className="w-5 h-5 text-biblio-success shrink-0" />
+            </div>
+          ))}
         </div>
       )}
     </div>
