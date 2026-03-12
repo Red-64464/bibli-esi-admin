@@ -7,8 +7,15 @@ import { supabase } from "./supabase";
 export async function sendEmail({ to, subject, text }) {
   if (!to) throw new Error("Adresse email manquante.");
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const { error, data } = await supabase.functions.invoke("send-email", {
     body: { to, subject, text },
+    headers: session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {},
   });
 
   if (error) throw new Error(error.message || "Erreur Edge Function.");
