@@ -4,6 +4,7 @@ import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import { getPretStatut, useDebounce, formatDate } from "../lib/utils";
 import { getSettings } from "../lib/settings";
+import { sendEmail, buildLoanConfirmationEmail } from "../lib/email";
 import {
   ArrowLeftRight,
   Loader2,
@@ -22,7 +23,6 @@ const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent";
 
 const PAGE_SIZE = 25;
-
 
 export default function Prets() {
   const { session } = useAuth();
@@ -59,12 +59,15 @@ export default function Prets() {
 
   useEffect(() => {
     fetchData();
-    getSettings().then((s) => setMaxBooks(parseInt(s.max_books_per_student) || 3));
+    getSettings().then((s) =>
+      setMaxBooks(parseInt(s.max_books_per_student) || 3),
+    );
   }, []);
 
   // Reset page quand filtre ou search change
-  useEffect(() => { setPage(1); }, [filtre, search]);
-
+  useEffect(() => {
+    setPage(1);
+  }, [filtre, search]);
 
   const fetchData = async () => {
     try {
@@ -78,7 +81,9 @@ export default function Prets() {
           .from("livres")
           .select("id, titre, isbn")
           .eq("disponible", true),
-        supabase.from("etudiants").select("id, nom, prenom, numero_etudiant"),
+        supabase
+          .from("etudiants")
+          .select("id, nom, prenom, email, numero_etudiant"),
       ]);
       if (pretsRes.error) throw pretsRes.error;
       if (livresRes.error) throw livresRes.error;
@@ -105,7 +110,7 @@ export default function Prets() {
         .eq("rendu", false);
       if ((count || 0) >= maxBooks) {
         setError(
-          `Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`
+          `Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`,
         );
         return;
       }
@@ -139,6 +144,18 @@ export default function Prets() {
         description: `${etudNom ? `${etudNom.prenom} ${etudNom.nom}` : "Étudiant"} a emprunté « ${livreNom} »`,
         user_info: session?.username || "",
       });
+
+      // Envoyer email de confirmation si l'étudiant a un email
+      if (etudNom?.email) {
+        const { subject, text } = buildLoanConfirmationEmail({
+          prenom: etudNom.prenom,
+          nom: etudNom.nom,
+          titre: livreNom,
+          datePret: form.date_pret,
+          dateRetour: form.date_retour_prevue,
+        });
+        sendEmail({ to: etudNom.email, subject, text }); // fire & forget
+      }
 
       setShowForm(false);
       setForm({
@@ -238,7 +255,10 @@ export default function Prets() {
   ).length;
 
   const totalPages = Math.max(1, Math.ceil(pretsFiltres.length / PAGE_SIZE));
-  const pretsPaged = pretsFiltres.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pretsPaged = pretsFiltres.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   return (
     <div className="space-y-6">
@@ -513,7 +533,9 @@ export default function Prets() {
         <ConfirmModal
           title="Confirmer le retour"
           message="Marquer ce prêt comme retourné ?"
-          onConfirm={() => doReturn(confirmReturn.pretId, confirmReturn.livreId)}
+          onConfirm={() =>
+            doReturn(confirmReturn.pretId, confirmReturn.livreId)
+          }
           onCancel={() => setConfirmReturn(null)}
         />
       )}

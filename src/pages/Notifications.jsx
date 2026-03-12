@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { getSettings, saveSettings } from "../lib/settings";
+import { sendEmail, buildReminderEmail } from "../lib/email";
 import {
   Bell,
   Mail,
@@ -15,6 +16,10 @@ import {
   Send,
   CalendarClock,
   ClipboardCheck,
+  PenLine,
+  X,
+  Search,
+  User,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -61,8 +66,15 @@ export default function Notifications() {
   const [previewLoans, setPreviewLoans] = useState([]);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Feedback de copie presse-papiers
-  const [copiedId, setCopiedId] = useState(null);
+  // Composer un rappel manuel
+  const [showComposer, setShowComposer] = useState(false);
+  const [composerSearch, setComposerSearch] = useState("");
+  const [composerStudents, setComposerStudents] = useState([]);
+  const [composerStudent, setComposerStudent] = useState(null); // {id, nom, prenom, email}
+  const [composerSubject, setComposerSubject] = useState("");
+  const [composerBody, setComposerBody] = useState("");
+  const [composerSending, setComposerSending] = useState(false);
+  const [composerSent, setComposerSent] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -155,33 +167,62 @@ export default function Notifications() {
     }
   };
 
-  const buildReminderMessage = (loan) => {
-    const student = loan.etudiants;
-    const book = loan.livres;
-    const dueDate = loan.date_retour_prevue
-      ? new Date(loan.date_retour_prevue).toLocaleDateString("fr-FR")
-      : "—";
-    return `Bonjour ${student?.prenom || ""} ${student?.nom || ""},\n\nNous vous rappelons que le livre "${book?.titre || "—"}" devait être retourné le ${dueDate}.\n\nMerci de le retourner dès que possible.\n\nCordialement,\nLa Bibliothèque ESI`;
+  const sendManualReminder = async (loan) => {
+    openComposer(loan);
   };
 
-  const sendManualReminder = async (loan) => {
-    const message = buildReminderMessage(loan);
-    const email = loan.etudiants?.email;
-    const title = loan.livres?.titre || "livre";
-
-    try {
-      await navigator.clipboard.writeText(message);
-      setCopiedId(loan.id);
-      setTimeout(() => setCopiedId(null), 2500);
-    } catch {
-      /* clipboard not available, fall through to mailto */
+  // Search students for composer
+  useEffect(() => {
+    if (!composerSearch.trim()) {
+      setComposerStudents([]);
+      return;
     }
+    const q = composerSearch.toLowerCase();
+    supabase
+      .from("etudiants")
+      .select("id, nom, prenom, email")
+      .or(`nom.ilike.%${q}%,prenom.ilike.%${q}%,email.ilike.%${q}%`)
+      .limit(8)
+      .then(({ data }) => setComposerStudents(data || []));
+  }, [composerSearch]);
 
-    if (email) {
-      const subject = encodeURIComponent(`Rappel de retour : ${title}`);
-      const body = encodeURIComponent(message);
-      window.open(`mailto:${email}?subject=${subject}&body=${body}`);
+  const openComposer = (prefillLoan = null) => {
+    if (prefillLoan) {
+      const s = prefillLoan.etudiants;
+      setComposerStudent({ id: prefillLoan.etudiant_id, ...s });
+      const { subject, text } = buildReminderEmail({
+        prenom: s?.prenom || "",
+        nom: s?.nom || "",
+        titre: prefillLoan.livres?.titre || "",
+        dateRetour: prefillLoan.date_retour_prevue,
+      });
+      setComposerSubject(subject);
+      setComposerBody(text);
+    } else {
+      setComposerStudent(null);
+      setComposerSubject("");
+      setComposerBody("");
     }
+    setComposerSearch("");
+    setComposerStudents([]);
+    setComposerSent(false);
+    setShowComposer(true);
+  };
+
+  const handleComposerSend = async () => {
+    if (!composerStudent?.email || !composerSubject.trim()) return;
+    setComposerSending(true);
+    await sendEmail({
+      to: composerStudent.email,
+      subject: composerSubject,
+      text: composerBody,
+    });
+    setComposerSending(false);
+    setComposerSent(true);
+    setTimeout(() => {
+      setShowComposer(false);
+      setComposerSent(false);
+    }, 1500);
   };
 
   const set = (key, value) =>
@@ -198,14 +239,23 @@ export default function Notifications() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       {/* En-tête */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
-          <Bell className="w-7 h-7 text-biblio-accent" />
-          Notifications
-        </h1>
-        <p className="text-biblio-muted mt-1 text-sm">
-          Configurez les rappels automatiques pour les prêts.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+            <Bell className="w-7 h-7 text-biblio-accent" />
+            Notifications
+          </h1>
+          <p className="text-biblio-muted mt-1 text-sm">
+            Configurez les rappels automatiques pour les prêts.
+          </p>
+        </div>
+        <button
+          onClick={() => openComposer()}
+          className="flex items-center gap-2 px-4 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors shrink-0"
+        >
+          <PenLine className="w-4 h-4" />
+          Nouveau rappel
+        </button>
       </div>
 
       {error && (
@@ -267,17 +317,8 @@ export default function Notifications() {
                   title="Envoyer un rappel manuel"
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-biblio-accent/20 hover:bg-biblio-accent/40 text-biblio-accent text-xs font-medium rounded-lg transition-colors"
                 >
-                  {copiedId === loan.id ? (
-                    <>
-                      <ClipboardCheck className="w-3.5 h-3.5" />
-                      Copié !
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      Rappel
-                    </>
-                  )}
+                  <Send className="w-3.5 h-3.5" />
+                  Rappel
                 </button>
               </div>
             ))}
@@ -454,17 +495,8 @@ export default function Notifications() {
                         : "bg-biblio-warning/20 hover:bg-biblio-warning/40 text-biblio-warning"
                     }`}
                   >
-                    {copiedId === p.id ? (
-                      <>
-                        <ClipboardCheck className="w-3 h-3" />
-                        Copié !
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3 h-3" />
-                        Rappel
-                      </>
-                    )}
+                    <Send className="w-3 h-3" />
+                    Rappel
                   </button>
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${
@@ -492,27 +524,204 @@ export default function Notifications() {
         </h2>
         <ol className="text-sm text-biblio-muted space-y-2 list-decimal list-inside">
           <li>
-            Créer une Edge Function Supabase :{" "}
+            Créer un compte gratuit sur{" "}
+            <code className="text-biblio-accent text-xs">resend.com</code> et
+            récupérer votre clé API.
+          </li>
+          <li>
+            Dans Supabase Dashboard → Settings → Edge Functions → Secrets,
+            ajouter{" "}
+            <code className="text-biblio-accent text-xs">RESEND_API_KEY</code>{" "}
+            et <code className="text-biblio-accent text-xs">FROM_EMAIL</code>.
+          </li>
+          <li>
+            Déployer la fonction :{" "}
             <code className="text-biblio-accent text-xs">
-              supabase functions new send-reminders
+              supabase functions deploy send-email --no-verify-jwt
             </code>
           </li>
-          <li>Connecter à un service email (Resend, SendGrid, Mailgun).</li>
           <li>
-            Configurer un <strong className="text-biblio-text">Cron Job</strong>{" "}
-            dans Supabase (Dashboard → Edge Functions → Cron) pour exécuter la
-            fonction chaque jour à minuit.
-          </li>
-          <li>
-            La fonction lit les prêts en{" "}
-            <code className="text-biblio-accent text-xs">prets</code> dont la{" "}
-            <code className="text-biblio-accent text-xs">
-              date_retour_prevue
-            </code>{" "}
-            correspond aux paramètres ci-dessus.
+            Une fois déployée, les boutons « Rappel » et « Nouveau rappel »
+            envoient de vrais emails. Sans déploiement, ils ouvrent votre client
+            mail natif (mailto:).
           </li>
         </ol>
       </div>
+
+      {/* Composer modal */}
+      {showComposer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold flex items-center gap-2">
+                <Mail className="w-4 h-4 text-biblio-accent" />
+                Composer un rappel
+              </h2>
+              <button
+                onClick={() => setShowComposer(false)}
+                className="text-biblio-muted hover:text-biblio-text transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Destinataire */}
+            <div>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Destinataire
+              </label>
+              {composerStudent ? (
+                <div className="flex items-center justify-between gap-2 bg-biblio-accent/10 border border-biblio-accent/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-biblio-accent shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-biblio-text">
+                        {composerStudent.prenom} {composerStudent.nom}
+                      </p>
+                      <p className="text-xs text-biblio-muted">
+                        {composerStudent.email || (
+                          <span className="text-biblio-danger">
+                            Pas d'email
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setComposerStudent(null);
+                      setComposerSearch("");
+                    }}
+                    className="text-biblio-muted hover:text-biblio-text"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-biblio-muted" />
+                  <input
+                    type="text"
+                    value={composerSearch}
+                    onChange={(e) => setComposerSearch(e.target.value)}
+                    placeholder="Rechercher un étudiant..."
+                    className="bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm"
+                    autoFocus
+                  />
+                  {composerStudents.length > 0 && (
+                    <div className="absolute top-full mt-1 left-0 right-0 bg-biblio-card border border-white/10 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
+                      {composerStudents.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            setComposerStudent(s);
+                            setComposerSearch("");
+                            setComposerStudents([]);
+                            if (!composerSubject)
+                              setComposerSubject(
+                                "Rappel de la bibliothèque ESI",
+                              );
+                            if (!composerBody)
+                              setComposerBody(
+                                `Bonjour ${s.prenom} ${s.nom},\n\n`,
+                              );
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 text-left transition-colors"
+                        >
+                          <User className="w-4 h-4 text-biblio-muted shrink-0" />
+                          <div>
+                            <p className="text-sm text-biblio-text">
+                              {s.prenom} {s.nom}
+                            </p>
+                            <p className="text-xs text-biblio-muted">
+                              {s.email || (
+                                <span className="text-biblio-danger">
+                                  pas d'email
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Sujet */}
+            <div>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Sujet
+              </label>
+              <input
+                type="text"
+                value={composerSubject}
+                onChange={(e) => setComposerSubject(e.target.value)}
+                placeholder="Rappel de retour..."
+                className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm"
+              />
+            </div>
+
+            {/* Message */}
+            <div>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Message
+              </label>
+              <textarea
+                value={composerBody}
+                onChange={(e) => setComposerBody(e.target.value)}
+                rows={7}
+                className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm resize-none font-mono"
+                placeholder="Votre message..."
+              />
+            </div>
+
+            {!composerStudent?.email && composerStudent && (
+              <p className="text-xs text-biblio-danger flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Cet étudiant n'a pas d'email enregistré. Ajoutez-en un dans sa
+                fiche.
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                onClick={() => setShowComposer(false)}
+                className="px-4 py-2 text-sm text-biblio-muted hover:text-biblio-text transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleComposerSend}
+                disabled={
+                  composerSending ||
+                  !composerStudent?.email ||
+                  !composerSubject.trim() ||
+                  composerSent
+                }
+                className="flex items-center gap-2 px-5 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {composerSent ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" /> Envoyé !
+                  </>
+                ) : composerSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Envoi...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" /> Envoyer
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
