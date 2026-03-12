@@ -2,26 +2,19 @@ import { supabase } from "./supabase";
 
 /**
  * Envoie un email via la Supabase Edge Function "send-email".
- * Si la fonction n'est pas déployée, ouvre un lien mailto: en fallback.
- *
- * @returns {{ ok: boolean, method: "edge_function" | "mailto" | "no_email" }}
+ * Lance une exception en cas d'erreur (ne redirige plus vers mailto:).
  */
 export async function sendEmail({ to, subject, text }) {
-  if (!to) return { ok: false, method: "no_email" };
+  if (!to) throw new Error("Adresse email manquante.");
 
-  try {
-    const { error } = await supabase.functions.invoke("send-email", {
-      body: { to, subject, text },
-    });
-    if (error) throw error;
-    return { ok: true, method: "edge_function" };
-  } catch {
-    // Fallback : ouvre le client mail natif
-    const sub = encodeURIComponent(subject || "");
-    const body = encodeURIComponent(text || "");
-    window.open(`mailto:${to}?subject=${sub}&body=${body}`);
-    return { ok: false, method: "mailto" };
-  }
+  const { error, data } = await supabase.functions.invoke("send-email", {
+    body: { to, subject, text },
+  });
+
+  if (error) throw new Error(error.message || "Erreur Edge Function.");
+  if (data?.error) throw new Error(JSON.stringify(data.error));
+
+  return { ok: true };
 }
 
 /** Construit le message de confirmation de prêt */

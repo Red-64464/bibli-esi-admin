@@ -75,6 +75,7 @@ export default function Notifications() {
   const [composerBody, setComposerBody] = useState("");
   const [composerSending, setComposerSending] = useState(false);
   const [composerSent, setComposerSent] = useState(false);
+  const [composerError, setComposerError] = useState("");
 
   useEffect(() => {
     loadAll();
@@ -212,17 +213,24 @@ export default function Notifications() {
   const handleComposerSend = async () => {
     if (!composerStudent?.email || !composerSubject.trim()) return;
     setComposerSending(true);
-    await sendEmail({
-      to: composerStudent.email,
-      subject: composerSubject,
-      text: composerBody,
-    });
-    setComposerSending(false);
-    setComposerSent(true);
-    setTimeout(() => {
-      setShowComposer(false);
-      setComposerSent(false);
-    }, 1500);
+    setComposerError("");
+    try {
+      await sendEmail({
+        to: composerStudent.email,
+        subject: composerSubject,
+        text: composerBody,
+      });
+      setComposerSent(true);
+      setTimeout(() => {
+        setShowComposer(false);
+        setComposerSent(false);
+        setComposerError("");
+      }, 1500);
+    } catch (err) {
+      setComposerError(err.message || "Erreur inconnue.");
+    } finally {
+      setComposerSending(false);
+    }
   };
 
   const set = (key, value) =>
@@ -683,6 +691,15 @@ export default function Notifications() {
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Cet étudiant n'a pas d'email enregistré. Ajoutez-en un dans sa
                 fiche.
+              </p>
+            )}
+
+            {composerError && (
+              <p className="text-xs text-biblio-danger flex items-center gap-2 bg-biblio-danger/10 rounded-lg px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {composerError}
+              </p>
+            )}
               </p>
             )}
 
