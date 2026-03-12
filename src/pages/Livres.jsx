@@ -100,7 +100,16 @@ const TRI_OPTIONS = [
 ];
 
 // CSV columns expected (case-insensitive headers)
-const CSV_COLUMNS = ["titre", "auteur", "isbn", "editeur", "annee", "langue", "categorie", "emplacement"];
+const CSV_COLUMNS = [
+  "titre",
+  "auteur",
+  "isbn",
+  "editeur",
+  "annee",
+  "langue",
+  "categorie",
+  "emplacement",
+];
 
 function ImageUploadZone({
   preview,
@@ -258,7 +267,7 @@ export default function Livres() {
     const filename = `cover_${Date.now()}.${ext}`;
     const { error } = await supabase.storage
       .from("covers")
-      .upload(filename, file, { upsert: true });
+      .upload(filename, file);
     if (error)
       throw new Error(
         "Upload image échoué : " +
@@ -649,7 +658,10 @@ export default function Livres() {
 
   const pageSize = vue === "grille" ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
   const totalPages = Math.ceil(livresFiltres.length / pageSize);
-  const livresPage = livresFiltres.slice((page - 1) * pageSize, page * pageSize);
+  const livresPage = livresFiltres.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
 
   return (
     <div className="space-y-6">
@@ -940,8 +952,7 @@ export default function Livres() {
                             className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeClass}`}
                           >
                             {STATUT_LABEL[statut] ||
-                              statut.charAt(0).toUpperCase() +
-                                statut.slice(1)}
+                              statut.charAt(0).toUpperCase() + statut.slice(1)}
                           </span>
                         </td>
                         {/* Emprunts */}
@@ -1549,7 +1560,8 @@ export default function Livres() {
                 <div className="flex flex-col items-center gap-3 py-6">
                   <CheckCircle2 className="w-12 h-12 text-biblio-success" />
                   <p className="text-lg font-semibold text-biblio-text">
-                    {importSuccess} livre{importSuccess !== 1 ? "s" : ""} importé
+                    {importSuccess} livre{importSuccess !== 1 ? "s" : ""}{" "}
+                    importé
                     {importSuccess !== 1 ? "s" : ""} avec succès !
                   </p>
                   <button
