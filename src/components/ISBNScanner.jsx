@@ -1,95 +1,52 @@
-import { useEffect, useRef, useState } from "react";
-import { Camera, X, Loader2, AlertCircle } from "lucide-react";
+﻿import { useRef, useState } from "react";
+import { Camera, X, Loader2, AlertCircle, ImagePlus } from "lucide-react";
 
 /**
- * Scanner caméra pour codes-barres ISBN et QR codes.
- * Utilise html5-qrcode (chargé dynamiquement).
+ * Scanner ISBN/QR par prise de photo.
+ * Compatible tous appareils, y compris iPhone Safari.
  *
  * @param {function} onScan   - Appelé avec la valeur scannée (string)
- * @param {function} onClose  - Appelé quand l'utilisateur ferme le scanner
+ * @param {function} onClose  - Appelé quand l utilisateur ferme le scanner
  * @param {"isbn"|"qr"} mode  - "isbn" = code-barre, "qr" = QR code
  */
 export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
-  const [status, setStatus] = useState("loading"); // loading | scanning | error
+  const [status, setStatus] = useState("idle"); // idle | loading | error
   const [errorMsg, setErrorMsg] = useState("");
-  const [scanned, setScanned] = useState(false);
-
-  // ID unique pour éviter les conflits si le composant est monté plusieurs fois
+  const fileInputRef = useRef(null);
   const containerId = useRef(
     "isbn-scanner-" + Math.random().toString(36).slice(2, 8),
   );
-  const scannerRef = useRef(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const startScanner = async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        if (!mounted) return;
+    setStatus("loading");
+    setErrorMsg("");
 
-        const scanner = new Html5Qrcode(containerId.current);
-        scannerRef.current = scanner;
-
-        const config = {
-          fps: 10,
-          qrbox:
-            mode === "isbn"
-              ? { width: 300, height: 100 }
-              : { width: 250, height: 250 },
-        };
-
-        await scanner.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => {
-            if (scanned) return;
-            setScanned(true);
-            // Arrêter le scanner après succès
-            scanner
-              .stop()
-              .then(() => {
-                if (mounted) onScan(decodedText);
-              })
-              .catch(() => {
-                if (mounted) onScan(decodedText);
-              });
-          },
-          () => {}, // ignore erreurs de décodage (normales)
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode(containerId.current);
+      const result = await scanner.scanFile(file, false);
+      onScan(result);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (msg.includes("No MultiFormat") || msg.includes("No barcode")) {
+        setErrorMsg(
+          "Aucun code détecté sur cette photo. Réessayez en vous rapprochant.",
         );
-
-        if (mounted) setStatus("scanning");
-      } catch (err) {
-        if (!mounted) return;
-        const msg = err?.message || String(err);
-        if (msg.includes("Permission") || msg.includes("NotAllowed")) {
-          setErrorMsg(
-            "Accès à la caméra refusé. Autorisez la caméra dans votre navigateur.",
-          );
-        } else if (
-          msg.includes("NotFound") ||
-          msg.includes("DevicesNotFound")
-        ) {
-          setErrorMsg("Aucune caméra détectée sur cet appareil.");
-        } else {
-          setErrorMsg("Impossible d'ouvrir la caméra : " + msg);
-        }
-        setStatus("error");
+      } else {
+        setErrorMsg("Impossible de lire le code : " + msg);
       }
-    };
-
-    startScanner();
-
-    return () => {
-      mounted = false;
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {});
-      }
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      setStatus("error");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      {/* Conteneur html5-qrcode caché (requis par la lib) */}
+      <div id={containerId.current} className="hidden" />
+
       <div className="bg-biblio-card rounded-xl border border-white/10 w-full max-w-sm space-y-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5">
@@ -107,37 +64,56 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
           </button>
         </div>
 
-        <p className="text-xs text-biblio-muted px-5">
-          {mode === "isbn"
-            ? "Pointez la caméra vers le code-barre du livre."
-            : "Pointez la caméra vers le QR code du livre."}
-        </p>
-
-        {/* Zone de scan */}
-        <div className="px-5">
+        <div className="px-5 space-y-4">
           {status === "loading" && (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
               <span className="text-sm text-biblio-muted">
-                Initialisation de la caméra…
+                Analyse de la photo…
               </span>
             </div>
           )}
 
           {status === "error" && (
-            <div className="flex flex-col items-center gap-3 py-6">
+            <div className="flex flex-col items-center gap-3 py-4">
               <AlertCircle className="w-8 h-8 text-biblio-danger" />
               <p className="text-sm text-biblio-danger text-center">
                 {errorMsg}
               </p>
+              <button
+                onClick={() => {
+                  setStatus("idle");
+                  fileInputRef.current.value = "";
+                }}
+                className="text-sm text-biblio-accent underline"
+              >
+                Réessayer
+              </button>
             </div>
           )}
 
-          {/* Conteneur html5-qrcode */}
-          <div
-            id={containerId.current}
-            className={`rounded-lg overflow-hidden ${status !== "scanning" ? "hidden" : ""}`}
-          />
+          {status === "idle" && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-3 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <ImagePlus className="w-5 h-5" />
+                Prendre une photo
+              </button>
+              <p className="text-xs text-biblio-muted text-center pb-1">
+                Photographiez le code-barre du livre pour le scanner automatiquement.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="px-5 pb-5">
