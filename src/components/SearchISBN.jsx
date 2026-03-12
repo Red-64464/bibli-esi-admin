@@ -30,32 +30,35 @@ export default function SearchISBN({
     setBookData(null);
 
     try {
+      // Google Books API — base de données très complète, gratuite, sans clé
       const response = await fetch(
-        `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(cleanIsbn)}&format=json&jscmd=data`,
+        `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanIsbn)}`,
       );
       const data = await response.json();
-      const key = `ISBN:${cleanIsbn}`;
 
-      if (!data[key]) {
+      if (!data.items?.length) {
         setError(
           "Aucun livre trouvé pour cet ISBN. Vous pouvez l'ajouter manuellement.",
         );
         return;
       }
 
-      const book = data[key];
+      const info = data.items[0].volumeInfo;
       const result = {
         isbn: cleanIsbn,
-        titre: book.title || "Titre inconnu",
-        auteur: book.authors?.map((a) => a.name).join(", ") || "",
-        editeur: book.publishers?.map((p) => p.name).join(", ") || "",
-        couverture_url: book.cover?.medium || book.cover?.large || "",
-        annee: book.publish_date || "",
+        titre: info.title || "Titre inconnu",
+        auteur: info.authors?.join(", ") || "",
+        editeur: info.publisher || "",
+        couverture_url:
+          info.imageLinks?.thumbnail?.replace("http://", "https://") ||
+          info.imageLinks?.smallThumbnail?.replace("http://", "https://") ||
+          "",
+        annee: info.publishedDate?.slice(0, 4) || "",
       };
       setBookData(result);
     } catch {
       setError(
-        "Erreur de connexion à Open Library. Vérifiez votre connexion internet.",
+        "Erreur de connexion à Google Books. Vérifiez votre connexion internet.",
       );
     } finally {
       setLoading(false);
