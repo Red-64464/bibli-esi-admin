@@ -3,6 +3,29 @@ import { Search, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 const isIsbn = (q) => /^[\d\-\s]{9,17}$/.test(q.trim());
 
+const LANG_MAP = {
+  fr: "Français",
+  en: "Anglais",
+  ar: "Arabe",
+  es: "Espagnol",
+  de: "Allemand",
+  it: "Italien",
+  pt: "Portugais",
+  zh: "Chinois",
+  ja: "Japonais",
+  ru: "Russe",
+  nl: "Néerlandais",
+  pl: "Polonais",
+  tr: "Turc",
+  ko: "Coréen",
+  sv: "Suédois",
+  da: "Danois",
+  fi: "Finnois",
+  no: "Norvégien",
+  cs: "Tchèque",
+  hu: "Hongrois",
+};
+
 const extractBook = (item, fallbackIsbn = "") => {
   const info = item.volumeInfo;
   const isbn13 = info.industryIdentifiers?.find(
@@ -11,16 +34,26 @@ const extractBook = (item, fallbackIsbn = "") => {
   const isbn10 = info.industryIdentifiers?.find(
     (i) => i.type === "ISBN_10",
   )?.identifier;
+
+  const langCode = info.language || "";
+  const langue = LANG_MAP[langCode] || langCode || "";
+
   return {
-    isbn: isbn13 || isbn10 || fallbackIsbn,
-    titre: info.title || "Titre inconnu",
-    auteur: info.authors?.join(", ") || "",
-    editeur: info.publisher || "",
+    isbn:          isbn13 || isbn10 || fallbackIsbn,
+    titre:         info.title || "Titre inconnu",
+    auteur:        info.authors?.join(", ") || "",
+    editeur:       info.publisher || "",
     couverture_url:
+      info.imageLinks?.large?.replace("http://", "https://") ||
       info.imageLinks?.thumbnail?.replace("http://", "https://") ||
       info.imageLinks?.smallThumbnail?.replace("http://", "https://") ||
       "",
-    annee: info.publishedDate?.slice(0, 4) || "",
+    annee:         info.publishedDate?.slice(0, 4) || "",
+    // Nouveaux champs
+    resume:        info.description || "",
+    langue:        langue,
+    categorie:     info.categories?.[0] || "",
+    nb_pages:      info.pageCount || null,
   };
 };
 
