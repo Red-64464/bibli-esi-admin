@@ -128,37 +128,139 @@ export default function SearchISBN({
     };
   };
 
-  // ── Fusion intelligente : prend le meilleur de chaque source ──
-  const mergeBooks = (gb, ol) => {
-    if (!gb && !ol) return null;
-    if (!gb) return { ...ol, titre: ol.titre || "Titre inconnu" };
-    if (!ol) return gb;
+  // ── Fetch BnF (Bibliothèque nationale de France) par ISBN → book object ou null ──
+  // Meilleure couverture pour les livres techniques français (Eyrolles, Dunod, etc.)
+  const fetchBnF = async (isbn) => {
+    const query = encodeURIComponent(`bib.isbn all "${isbn}"`);
+    const url = `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${query}&recordSchema=dublincore&maximumRecords=1`;
+    const res = await fetch(url);
+    const text = await res.text();
 
-    // Pour une chaîne : choisit la valeur non vide, préfère gb en cas d'égalité
-    const pick = (a, b) => (a && a !== "Titre inconnu" ? a : b) || a || b || "";
-    // Pour un texte long : garde le plus complet
-    const longest = (a, b) =>
-      ((a?.length || 0) >= (b?.length || 0) ? a : b) || "";
-    // Pour la catégorie : évite "Autre" si l'autre source est plus précise
-    const bestCat = (a, b) => {
-      if (!a || a === "Autre") return b || a || "";
-      if (!b || b === "Autre") return a;
-      return a; // les deux sont précises → préférer Google
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "text/xml");
+
+    const countEl = xml.getElementsByTagName("numberOfRecords")[0];
+    if (!countEl || countEl.textContent.trim() === "0") return null;
+
+    // Helpers pour extraire les champs en ignorant le préfixe de namespace (dc:title, etc.)
+    const getFirst = (localName) =>
+      [...xml.getElementsByTagName("*")]
+        .find((n) => n.localName === localName)
+        ?.textContent?.trim() || "";
+    const getAll = (localName) =>
+      [...xml.getElementsByTagName("*")]
+        .filter((n) => n.localName === localName)
+        .map((n) => n.textContent.trim());
+
+    // Titre : "Les réseaux : édition 2011 (7e éd.) Guy Pujolle..."
+    // On garde uniquement la partie avant " : " ou " / "
+    const rawTitle = getFirst("title");
+    const titre = rawTitle.split(/\s+[:/]\s+/)[0].trim() || rawTitle;
+
+    // Auteur : "Pujolle, Guy (1949-....). Auteur du texte" → "Guy Pujolle"
+    const rawCreator = getFirst("creator");
+    let auteur = rawCreator
+      .replace(/\s*\(\d{4}[^)]*\)[^,)]*$/g, "") // retirer "(1949-....)"
+      .replace(
+        /\.\s*(Auteur|Éditeur|Directeur|Traducteur|Collaborateur)[^,]*$/i,
+        "",
+      )
+      .trim();
+    if (auteur.includes(",")) {
+      const [last, first] = auteur.split(",").map((s) => s.trim());
+      auteur = first ? `${first} ${last}` : last;
+    }
+
+    // Éditeur : "Eyrolles (Paris)" → "Eyrolles"
+    const rawPublisher = getFirst("publisher");
+    const editeur = rawPublisher.replace(/\s*\([^)]+\)\s*$/, "").trim();
+
+    // Langue : la BnF renvoie ["fre", "français"]
+    const langs = getAll("language");
+    const BNF_LANG_MAP = {
+      fre: "Français",
+      fra: "Français",
+      fren: "Français",
+      eng: "Anglais",
+      ara: "Arabe",
+      spa: "Espagnol",
+      deu: "Allemand",
+      ger: "Allemand",
+    };
+    const langue = BNF_LANG_MAP[langs[0]] || langs[1] || langs[0] || "";
+
+    const annee = getFirst("date").match(/\d{4}/)?.[0] || "";
+
+    // Sujets (souvent vides pour la BnF mais on essaie quand même)
+    const rawSubject = getAll("subject").join(" ");
+
+    // Couverture via l'ARK BnF
+    const identifiers = getAll("identifier");
+    const arkUrl = identifiers.find((id) => id.includes("ark:")) || "";
+    const arkPath = arkUrl
+      .replace("http://catalogue.bnf.fr/", "")
+      .replace("https://catalogue.bnf.fr/", "");
+    const couverture_url = arkPath
+      ? `https://catalogue.bnf.fr/couverture?appName=NE&idArk=${arkPath}&couverture=1`
+      : "";
+
+    return {
+      isbn,
+      titre: titre || "Titre inconnu",
+      auteur,
+      editeur,
+      couverture_url,
+      annee,
+      resume: "",
+      langue,
+      categorie: normalizeCategory(rawSubject),
+      nb_pages: null,
+    };
+  };
+
+  // ── Fusion intelligente des 3 sources : prend le meilleur champ par champ ──
+  const mergeBooks = (gb, ol, bnf) => {
+    const sources = [gb, ol, bnf].filter(Boolean);
+    if (!sources.length) return null;
+
+    // Pick : première valeur non vide et non "Titre inconnu", dans l'ordre de priorité
+    const pick = (...vals) =>
+      vals.find((v) => v && v !== "Titre inconnu" && v !== "") || vals[0] || "";
+    // Longest : texte le plus long (résumé, auteur)
+    const longest = (...vals) =>
+      vals.reduce(
+        (best, v) => ((v?.length || 0) > (best?.length || 0) ? v : best),
+        "",
+      );
+    // bestCat : évite "Autre" si une source plus précise existe
+    const bestCat = (...vals) => {
+      const precise = vals.find((v) => v && v !== "Autre" && v !== "");
+      return precise || vals.find(Boolean) || "";
     };
 
     return {
-      isbn: gb.isbn || ol.isbn,
-      titre: pick(gb.titre, ol.titre),
-      auteur: longest(gb.auteur, ol.auteur),
-      editeur: gb.editeur || ol.editeur,
-      // Google Books : couvertures généralement plus haute résolution
-      couverture_url: gb.couverture_url || ol.couverture_url,
-      annee: gb.annee || ol.annee,
-      // Google Books : résumés généralement plus complets
-      resume: longest(gb.resume, ol.resume),
-      langue: gb.langue || ol.langue,
-      categorie: bestCat(gb.categorie, ol.categorie),
-      nb_pages: gb.nb_pages || ol.nb_pages,
+      isbn: pick(gb?.isbn, ol?.isbn, bnf?.isbn),
+      // Titre : BnF le plus propre pour les livres FR, puis Google, puis OL
+      titre: pick(bnf?.titre, gb?.titre, ol?.titre),
+      // Auteur : Google le plus propre (format naturel), puis BnF nettoyé, puis OL
+      auteur: pick(gb?.auteur, bnf?.auteur, ol?.auteur),
+      // Éditeur : BnF référence officielle française, puis Google, puis OL
+      editeur: pick(bnf?.editeur, gb?.editeur, ol?.editeur),
+      // Couverture : Google HD, puis OL, puis BnF
+      couverture_url: pick(
+        gb?.couverture_url,
+        ol?.couverture_url,
+        bnf?.couverture_url,
+      ),
+      // Année : BnF précis, puis Google, puis OL
+      annee: pick(bnf?.annee, gb?.annee, ol?.annee),
+      // Résumé : Google le plus complet, puis OL
+      resume: longest(gb?.resume, ol?.resume, bnf?.resume),
+      // Langue : BnF référence, puis Google, puis OL
+      langue: pick(bnf?.langue, gb?.langue, ol?.langue),
+      // Catégorie : la plus précise des 3
+      categorie: bestCat(gb?.categorie, ol?.categorie, bnf?.categorie),
+      nb_pages: gb?.nb_pages || ol?.nb_pages || null,
     };
   };
 
@@ -175,16 +277,18 @@ export default function SearchISBN({
       if (isIsbn(q)) {
         const cleanIsbn = q.replace(/[-\s]/g, "");
 
-        // Appel PARALLÈLE Google Books + Open Library simultanément
-        const [gbResult, olResult] = await Promise.allSettled([
+        // Appel PARALLÈLE des 3 sources simultanément
+        const [gbResult, olResult, bnfResult] = await Promise.allSettled([
           fetchGoogleBooks(cleanIsbn),
           fetchOpenLibrary(cleanIsbn),
+          fetchBnF(cleanIsbn),
         ]);
 
         const gb = gbResult.status === "fulfilled" ? gbResult.value : null;
         const ol = olResult.status === "fulfilled" ? olResult.value : null;
+        const bnf = bnfResult.status === "fulfilled" ? bnfResult.value : null;
 
-        const merged = mergeBooks(gb, ol);
+        const merged = mergeBooks(gb, ol, bnf);
         if (merged) {
           setBookData(merged);
           return;
