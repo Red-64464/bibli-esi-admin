@@ -25,6 +25,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
+import { CATEGORIES, normalizeCategory } from "../lib/categories";
 import ISBNScanner from "../components/ISBNScanner";
 import QRCodeModal from "../components/QRCodeModal";
 import LivreCard from "../components/LivreCard";
@@ -587,7 +588,10 @@ export default function Livres() {
         editeur: row.editeur?.trim() || null,
         annee: row.annee?.trim() || null,
         langue: row.langue?.trim() || null,
-        categorie: row.categorie?.trim() || null,
+        categorie:
+          normalizeCategory(row.categorie?.trim() || "") ||
+          row.categorie?.trim() ||
+          null,
         emplacement: row.emplacement?.trim() || null,
         disponible: true,
         statut: "disponible",
@@ -1125,7 +1129,7 @@ export default function Livres() {
                   />
                 </Field>
                 <Field label="Catégorie">
-                  <input
+                  <select
                     value={manualForm.categorie}
                     onChange={(e) =>
                       setManualForm({
@@ -1133,9 +1137,16 @@ export default function Livres() {
                         categorie: e.target.value,
                       })
                     }
-                    placeholder="ex: Roman, Informatique…"
                     className={INPUT_CLASS}
-                  />
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="">— Choisir une catégorie —</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="Tags (séparés par virgules)">
                   <input
@@ -1376,14 +1387,21 @@ export default function Livres() {
                   />
                 </Field>
                 <Field label="Catégorie">
-                  <input
+                  <select
                     value={editForm.categorie}
                     onChange={(e) =>
                       setEditForm({ ...editForm, categorie: e.target.value })
                     }
-                    placeholder="ex: Informatique, Roman…"
                     className={INPUT_CLASS}
-                  />
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="">— Choisir une catégorie —</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="Tags (séparés par virgules)">
                   <input
