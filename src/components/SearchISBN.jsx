@@ -79,11 +79,14 @@ export default function SearchISBN({
   }, [defaultIsbn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetch Google Books par ISBN → book object ou null ──
+  // Utilise la clé API si disponible (40 000 req/jour) sinon mode anonyme (1 000/jour)
   const fetchGoogleBooks = async (isbn) => {
-    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=1`;
+    const apiKey = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY;
+    const keyParam = apiKey ? `&key=${apiKey}` : "";
+    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=1${keyParam}`;
     const res = await fetch(url);
     const data = await res.json();
-    if (!data.items?.length) return null;
+    if (data.error || !data.items?.length) return null;
     return extractBook(data.items[0], isbn);
   };
 

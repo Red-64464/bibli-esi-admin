@@ -21,6 +21,8 @@ import {
   CalendarDays,
   User,
   TrendingUp,
+  MoreHorizontal,
+  X,
 } from "lucide-react";
 
 const ACTION_CONFIG = {
@@ -112,6 +114,7 @@ export default function Historique() {
   const [statsToday, setStatsToday] = useState(null);
   const [statsWeek, setStatsWeek] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
 
   const buildQuery = useCallback(
     (base) => {
@@ -277,7 +280,10 @@ export default function Historique() {
             Exporter CSV
           </button>
           <button
-            onClick={() => { loadStats(); fetchLogs(0); }}
+            onClick={() => {
+              loadStats();
+              fetchLogs(0);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-sm text-biblio-text rounded-lg transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
@@ -347,7 +353,10 @@ export default function Historique() {
           />
           {(dateDebut || dateFin) && (
             <button
-              onClick={() => { setDateDebut(""); setDateFin(""); }}
+              onClick={() => {
+                setDateDebut("");
+                setDateFin("");
+              }}
               className="text-xs text-biblio-muted hover:text-biblio-danger transition-colors"
             >
               ✕
@@ -450,7 +459,8 @@ export default function Historique() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-biblio-text leading-snug">
-                      {log.description}
+                      {/* Affiche uniquement la partie avant la première parenthèse pour garder la ligne courte */}
+                      {log.description?.split(" (")[0] || log.description}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       {log.user_info && (
@@ -466,12 +476,21 @@ export default function Historique() {
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs text-biblio-muted shrink-0 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">
-                    {new Date(log.created_at).toLocaleTimeString("fr-FR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-xs text-biblio-muted hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">
+                      {new Date(log.created_at).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <button
+                      onClick={() => setSelectedLog(log)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-white/10 text-biblio-muted hover:text-biblio-text"
+                      title="Voir les détails"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -489,6 +508,126 @@ export default function Historique() {
           )}
         </div>
       )}
+
+      {/* ── MODAL : Détails d'un log ── */}
+      {selectedLog &&
+        (() => {
+          const conf =
+            ACTION_CONFIG[selectedLog.action_type] ||
+            ACTION_CONFIG["settings_modifie"];
+          const Icon = conf.icon;
+          // Décompose la description : titre avant la parenthèse, détails dedans
+          const parenIdx = selectedLog.description?.indexOf(" (");
+          const mainDesc =
+            parenIdx > -1
+              ? selectedLog.description.slice(0, parenIdx)
+              : selectedLog.description;
+          const detailsRaw =
+            parenIdx > -1
+              ? selectedLog.description.slice(parenIdx + 2).replace(/\)$/, "")
+              : "";
+          // Convertit "Clé: val | Clé: val" en tableau [{key, val}]
+          const details = detailsRaw
+            ? detailsRaw.split(" | ").map((part) => {
+                const sep = part.indexOf(": ");
+                return sep > -1
+                  ? { key: part.slice(0, sep), val: part.slice(sep + 2) }
+                  : { key: part, val: "" };
+              })
+            : [];
+
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+              onClick={() => setSelectedLog(null)}
+            >
+              <div
+                className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-md shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center ${conf.color}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="font-semibold text-biblio-text">
+                      {conf.label}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedLog(null)}
+                    className="text-biblio-muted hover:text-biblio-text"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-biblio-text font-medium">
+                    {mainDesc}
+                  </p>
+
+                  {details.length > 0 && (
+                    <div className="bg-white/5 rounded-xl divide-y divide-white/5">
+                      {details.map(({ key, val }) => (
+                        <div
+                          key={key}
+                          className="flex items-center justify-between px-4 py-2.5 gap-3"
+                        >
+                          <span className="text-xs text-biblio-muted shrink-0">
+                            {key}
+                          </span>
+                          <span className="text-xs text-biblio-text text-right font-mono break-all">
+                            {val || "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="bg-white/5 rounded-xl divide-y divide-white/5">
+                    <div className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <span className="text-xs text-biblio-muted">
+                        Utilisateur
+                      </span>
+                      <span className="text-xs text-biblio-text">
+                        {selectedLog.user_info || "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <span className="text-xs text-biblio-muted">
+                        Date exacte
+                      </span>
+                      <span className="text-xs text-biblio-text">
+                        {new Date(selectedLog.created_at).toLocaleString(
+                          "fr-FR",
+                          {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          },
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <span className="text-xs text-biblio-muted">Type</span>
+                      <span className="text-xs font-mono text-biblio-muted">
+                        {selectedLog.action_type}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

@@ -297,7 +297,7 @@ export default function Livres() {
       }
       await logActivity({
         action_type: "livre_ajoute",
-        description: `Livre « ${bookData.titre} » ajouté (ISBN: ${bookData.isbn || "—"})`,
+        description: `Livre « ${bookData.titre} » ajouté (ISBN: ${bookData.isbn || "—"} | Auteur: ${bookData.auteur || "—"} | Catégorie: ${bookData.categorie || "—"} | Langue: ${bookData.langue || "—"} | Année: ${bookData.annee || "—"})`,
         user_info: session?.username || "",
       });
       setError("");
@@ -363,7 +363,7 @@ export default function Livres() {
       setManualImagePreview(null);
       await logActivity({
         action_type: "livre_ajoute",
-        description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement`,
+        description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement (ISBN: ${manualForm.isbn || "—"} | Auteur: ${manualForm.auteur || "—"} | Catégorie: ${manualForm.categorie || "—"} | Langue: ${manualForm.langue || "—"} | Année: ${manualForm.annee || "—"} | Éditeur: ${manualForm.editeur || "—"} | Exemplaires: ${manualForm.nb_exemplaires || 1})`,
         user_info: session?.username || "",
       });
       await fetchLivres();
@@ -387,7 +387,7 @@ export default function Livres() {
       if (err) throw err;
       await logActivity({
         action_type: "livre_supprime",
-        description: `Livre « ${livre?.titre || id} » supprimé`,
+        description: `Livre « ${livre?.titre || id} » supprimé (ISBN: ${livre?.isbn || "—"} | Auteur: ${livre?.auteur || "—"} | Catégorie: ${livre?.categorie || "—"} | Éditeur: ${livre?.editeur || "—"} | Année: ${livre?.annee || "—"} | Exemplaires: ${livre?.nb_exemplaires || "—"})`,
         user_info: session?.username || "",
       });
       setLivres((prev) => prev.filter((l) => l.id !== id));
@@ -494,7 +494,7 @@ export default function Livres() {
 
       await logActivity({
         action_type: "livre_modifie",
-        description: `Livre « ${editForm.titre} » modifié`,
+        description: `Livre « ${editForm.titre} » modifié (ISBN: ${editForm.isbn || "—"} | Auteur: ${editForm.auteur || "—"} | Catégorie: ${editForm.categorie || "—"} | Éditeur: ${editForm.editeur || "—"} | Année: ${editForm.annee || "—"} | Statut: ${editForm.statut || "—"})`,
         user_info: session?.username || "",
       });
 
