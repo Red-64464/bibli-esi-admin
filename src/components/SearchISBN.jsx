@@ -78,6 +78,90 @@ export default function SearchISBN({
     }
   }, [defaultIsbn]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Fetch Google Books par ISBN → book object ou null ──
+  const fetchGoogleBooks = async (isbn) => {
+    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=1`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.items?.length) return null;
+    return extractBook(data.items[0], isbn);
+  };
+
+  // ── Fetch Open Library par ISBN → book object ou null ──
+  const fetchOpenLibrary = async (isbn) => {
+    const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const entry = data[`ISBN:${isbn}`];
+    if (!entry) return null;
+
+    const langRaw = entry.languages?.[0]?.key?.split("/").pop() || "";
+    const OL_LANG_MAP = {
+      fre: "Français",
+      fra: "Français",
+      eng: "Anglais",
+      ara: "Arabe",
+      spa: "Espagnol",
+      deu: "Allemand",
+      ita: "Italien",
+      por: "Portugais",
+      zho: "Chinois",
+      jpn: "Japonais",
+      rus: "Russe",
+    };
+    const rawCat =
+      entry.subjects?.[0]?.name || entry.subject_places?.[0]?.name || "";
+    const notes = entry.notes;
+
+    return {
+      isbn,
+      titre: entry.title || "",
+      auteur: entry.authors?.map((a) => a.name).join(", ") || "",
+      editeur: entry.publishers?.[0]?.name || "",
+      couverture_url:
+        entry.cover?.large || entry.cover?.medium || entry.cover?.small || "",
+      annee: entry.publish_date?.match(/\d{4}/)?.[0] || "",
+      resume: typeof notes === "string" ? notes : notes?.value || "",
+      langue: OL_LANG_MAP[langRaw] || "",
+      categorie: normalizeCategory(rawCat),
+      nb_pages: entry.number_of_pages || null,
+    };
+  };
+
+  // ── Fusion intelligente : prend le meilleur de chaque source ──
+  const mergeBooks = (gb, ol) => {
+    if (!gb && !ol) return null;
+    if (!gb) return { ...ol, titre: ol.titre || "Titre inconnu" };
+    if (!ol) return gb;
+
+    // Pour une chaîne : choisit la valeur non vide, préfère gb en cas d'égalité
+    const pick = (a, b) => (a && a !== "Titre inconnu" ? a : b) || a || b || "";
+    // Pour un texte long : garde le plus complet
+    const longest = (a, b) =>
+      ((a?.length || 0) >= (b?.length || 0) ? a : b) || "";
+    // Pour la catégorie : évite "Autre" si l'autre source est plus précise
+    const bestCat = (a, b) => {
+      if (!a || a === "Autre") return b || a || "";
+      if (!b || b === "Autre") return a;
+      return a; // les deux sont précises → préférer Google
+    };
+
+    return {
+      isbn: gb.isbn || ol.isbn,
+      titre: pick(gb.titre, ol.titre),
+      auteur: longest(gb.auteur, ol.auteur),
+      editeur: gb.editeur || ol.editeur,
+      // Google Books : couvertures généralement plus haute résolution
+      couverture_url: gb.couverture_url || ol.couverture_url,
+      annee: gb.annee || ol.annee,
+      // Google Books : résumés généralement plus complets
+      resume: longest(gb.resume, ol.resume),
+      langue: gb.langue || ol.langue,
+      categorie: bestCat(gb.categorie, ol.categorie),
+      nb_pages: gb.nb_pages || ol.nb_pages,
+    };
+  };
+
   const handleSearch = async (override) => {
     const q = (override ?? query).trim();
     if (!q) return;
@@ -88,33 +172,42 @@ export default function SearchISBN({
     setResults([]);
 
     try {
-      let url;
       if (isIsbn(q)) {
         const cleanIsbn = q.replace(/[-\s]/g, "");
-        url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanIsbn)}&maxResults=1`;
-      } else {
-        url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=8&langRestrict=fr`;
-      }
 
-      const response = await fetch(url);
-      const data = await response.json();
+        // Appel PARALLÈLE Google Books + Open Library simultanément
+        const [gbResult, olResult] = await Promise.allSettled([
+          fetchGoogleBooks(cleanIsbn),
+          fetchOpenLibrary(cleanIsbn),
+        ]);
 
-      if (!data.items?.length) {
+        const gb = gbResult.status === "fulfilled" ? gbResult.value : null;
+        const ol = olResult.status === "fulfilled" ? olResult.value : null;
+
+        const merged = mergeBooks(gb, ol);
+        if (merged) {
+          setBookData(merged);
+          return;
+        }
+
         setError(
-          "Aucun livre trouvé. Essayez un autre terme ou ajoutez manuellement.",
+          "Aucun livre trouvé pour cet ISBN. Vérifiez le numéro ou ajoutez manuellement.",
         );
-        return;
-      }
-
-      if (isIsbn(q)) {
-        setBookData(extractBook(data.items[0], q.replace(/[-\s]/g, "")));
       } else {
+        const url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=8&langRestrict=fr`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!data.items?.length) {
+          setError(
+            "Aucun livre trouvé. Essayez un autre terme ou ajoutez manuellement.",
+          );
+          return;
+        }
         setResults(data.items.map((item) => extractBook(item)));
       }
     } catch {
-      setError(
-        "Erreur de connexion à Google Books. Vérifiez votre connexion internet.",
-      );
+      setError("Erreur de connexion. Vérifiez votre connexion internet.");
     } finally {
       setLoading(false);
     }
