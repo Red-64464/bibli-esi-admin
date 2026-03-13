@@ -293,6 +293,10 @@ export default function SearchISBN({
         const ol = olResult.status === "fulfilled" ? olResult.value : null;
         const bnf = bnfResult.status === "fulfilled" ? bnfResult.value : null;
 
+        console.log("[ISBN Search] GB:", gb, "| OL:", ol, "| BnF:", bnf);
+        if (bnfResult.status === "rejected")
+          console.error("[BnF] erreur:", bnfResult.reason);
+
         const merged = mergeBooks(gb, ol, bnf);
         if (merged) {
           setBookData(merged);
