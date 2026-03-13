@@ -129,40 +129,45 @@ export default function SearchISBN({
   };
 
   // ── Fetch BnF (Bibliothèque nationale de France) par ISBN → book object ou null ──
-  // Meilleure couverture pour les livres techniques français (Eyrolles, Dunod, etc.)
+  // Parsing par regex sur le XML brut : contourne les problèmes de namespace DOMParser
   const fetchBnF = async (isbn) => {
     const query = encodeURIComponent(`bib.isbn all "${isbn}"`);
     const url = `https://catalogue.bnf.fr/api/SRU?version=1.2&operation=searchRetrieve&query=${query}&recordSchema=dublincore&maximumRecords=1`;
     const res = await fetch(url);
     const text = await res.text();
 
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, "text/xml");
+    // Vérifier qu'il y a bien un résultat
+    const countMatch = text.match(
+      /<[^>]*numberOfRecords[^>]*>(\d+)<\/[^>]*numberOfRecords>/,
+    );
+    if (!countMatch || countMatch[1] === "0") return null;
 
-    const countEl = xml.getElementsByTagName("numberOfRecords")[0];
-    if (!countEl || countEl.textContent.trim() === "0") return null;
+    // Extrait la première valeur d'un tag XML quel que soit son préfixe (dc:title, srw:title…)
+    const getTag = (tag) => {
+      const m = text.match(
+        new RegExp(`<[^>]*:${tag}[^>]*>([^<]+)<\/[^>]*:${tag}>`, "i"),
+      );
+      return m ? m[1].trim() : "";
+    };
+    // Extrait toutes les valeurs d'un tag
+    const getAllTags = (tag) => {
+      const re = new RegExp(`<[^>]*:${tag}[^>]*>([^<]+)<\/[^>]*:${tag}>`, "gi");
+      const results = [];
+      let m;
+      while ((m = re.exec(text)) !== null) results.push(m[1].trim());
+      return results;
+    };
 
-    // Helpers pour extraire les champs en ignorant le préfixe de namespace (dc:title, etc.)
-    const getFirst = (localName) =>
-      [...xml.getElementsByTagName("*")]
-        .find((n) => n.localName === localName)
-        ?.textContent?.trim() || "";
-    const getAll = (localName) =>
-      [...xml.getElementsByTagName("*")]
-        .filter((n) => n.localName === localName)
-        .map((n) => n.textContent.trim());
-
-    // Titre : "Les réseaux : édition 2011 (7e éd.) Guy Pujolle..."
-    // On garde uniquement la partie avant " : " ou " / "
-    const rawTitle = getFirst("title");
+    // Titre : "Les réseaux : édition 2011 (7e éd.) Guy Pujolle..." → "Les réseaux"
+    const rawTitle = getTag("title");
     const titre = rawTitle.split(/\s+[:/]\s+/)[0].trim() || rawTitle;
 
     // Auteur : "Pujolle, Guy (1949-....). Auteur du texte" → "Guy Pujolle"
-    const rawCreator = getFirst("creator");
+    const rawCreator = getTag("creator");
     let auteur = rawCreator
-      .replace(/\s*\(\d{4}[^)]*\)[^,)]*$/g, "") // retirer "(1949-....)"
+      .replace(/\s*\([^)]*\)\s*/g, "")
       .replace(
-        /\.\s*(Auteur|Éditeur|Directeur|Traducteur|Collaborateur)[^,]*$/i,
+        /\.\s*(Auteur|Éditeur|Directeur|Traducteur|Collaborateur)[^,]*/i,
         "",
       )
       .trim();
@@ -172,11 +177,12 @@ export default function SearchISBN({
     }
 
     // Éditeur : "Eyrolles (Paris)" → "Eyrolles"
-    const rawPublisher = getFirst("publisher");
-    const editeur = rawPublisher.replace(/\s*\([^)]+\)\s*$/, "").trim();
+    const editeur = getTag("publisher")
+      .replace(/\s*\([^)]+\)\s*$/, "")
+      .trim();
 
-    // Langue : la BnF renvoie ["fre", "français"]
-    const langs = getAll("language");
+    // Langue
+    const langs = getAllTags("language");
     const BNF_LANG_MAP = {
       fre: "Français",
       fra: "Français",
@@ -189,19 +195,18 @@ export default function SearchISBN({
     };
     const langue = BNF_LANG_MAP[langs[0]] || langs[1] || langs[0] || "";
 
-    const annee = getFirst("date").match(/\d{4}/)?.[0] || "";
+    const annee = getTag("date").match(/\d{4}/)?.[0] || "";
 
-    // Sujets (souvent vides pour la BnF mais on essaie quand même)
-    const rawSubject = getAll("subject").join(" ");
+    // Sujets : ex. "Réseaux d'ordinateurs"
+    const rawSubject = getAllTags("subject").join(" ");
 
-    // Couverture via l'ARK BnF
-    const identifiers = getAll("identifier");
-    const arkUrl = identifiers.find((id) => id.includes("ark:")) || "";
-    const arkPath = arkUrl
-      .replace("http://catalogue.bnf.fr/", "")
-      .replace("https://catalogue.bnf.fr/", "");
-    const couverture_url = arkPath
-      ? `https://catalogue.bnf.fr/couverture?appName=NE&idArk=${arkPath}&couverture=1`
+    // Couverture via ARK BnF
+    const identifiers = getAllTags("identifier");
+    const arkEntry = identifiers.find((id) => id.includes("ark:")) || "";
+    // arkEntry ressemble à "http://catalogue.bnf.fr/ark:/12148/cb42347060n"
+    const arkMatch = arkEntry.match(/ark:\/[^"'\s]+/);
+    const couverture_url = arkMatch
+      ? `https://catalogue.bnf.fr/couverture?appName=NE&idArk=ark:/${arkMatch[0].replace("ark:/", "")}&couverture=1`
       : "";
 
     return {
