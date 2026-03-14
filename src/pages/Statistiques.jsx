@@ -240,6 +240,47 @@ export default function Statistiques() {
         topLivres,
         topEtudiants,
         categories,
+        // ─── Heatmap: prêts par jour de la semaine ──────────────────────────
+        heatmapJours: (() => {
+          const jourLabels = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+          const counts = new Array(7).fill(0);
+          prets.forEach((p) => {
+            const day = new Date(p.date_pret).getDay();
+            // JS: 0=Sun → 6=Sat. Convert to 0=Mon → 6=Sun
+            counts[day === 0 ? 6 : day - 1]++;
+          });
+          return jourLabels.map((name, i) => ({ name, prêts: counts[i] }));
+        })(),
+        // ─── Heatmap: prêts par heure ──────────────────────────────────────
+        heatmapHeures: (() => {
+          const heures = Array.from({ length: 24 }, (_, i) => ({
+            name: `${i}h`,
+            prêts: 0,
+          }));
+          prets.forEach((p) => {
+            const h = new Date(p.date_pret).getHours();
+            heures[h].prêts++;
+          });
+          return heures.filter(
+            (h) =>
+              h.prêts > 0 || (parseInt(h.name) >= 8 && parseInt(h.name) <= 18),
+          );
+        })(),
+        // ─── Livres dormants (jamais empruntés) ────────────────────────────
+        dormantBooks: (() => {
+          const empruntes = new Set(
+            prets.map((p) => p.livres?.id).filter(Boolean),
+          );
+          return livres
+            .filter((l) => !empruntes.has(l.id))
+            .map((l) => ({
+              id: l.id,
+              titre: l.titre,
+              categorie: l.categorie || "—",
+              ajout: l.created_at,
+            }))
+            .slice(0, 20);
+        })(),
       });
     } catch (err) {
       setError("Impossible de charger les statistiques : " + err.message);
@@ -279,7 +320,15 @@ export default function Statistiques() {
     );
   }
 
-  const { kpis, topLivres, topEtudiants, categories } = data;
+  const {
+    kpis,
+    topLivres,
+    topEtudiants,
+    categories,
+    heatmapJours,
+    heatmapHeures,
+    dormantBooks,
+  } = data;
 
   return (
     <div className="space-y-6">
@@ -594,6 +643,108 @@ export default function Statistiques() {
           </div>
         )}
       </div>
+
+      {/* Heatmap: prêts par jour */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
+          <h2 className="text-base font-semibold mb-4">
+            Prêts par jour de la semaine
+          </h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={heatmapJours} barSize={30}>
+              <XAxis
+                dataKey="name"
+                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                content={<DarkTooltip />}
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              />
+              <Bar dataKey="prêts" radius={[4, 4, 0, 0]}>
+                {heatmapJours.map((entry, i) => {
+                  const max = Math.max(...heatmapJours.map((d) => d.prêts), 1);
+                  const intensity = entry.prêts / max;
+                  const r = Math.round(99 + (34 - 99) * intensity);
+                  const g = Math.round(102 + (197 - 102) * intensity);
+                  const b = Math.round(241 + (94 - 241) * intensity);
+                  return <Cell key={i} fill={`rgb(${r},${g},${b})`} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
+          <h2 className="text-base font-semibold mb-4">Prêts par heure</h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={heatmapHeures} barSize={16}>
+              <XAxis
+                dataKey="name"
+                tick={{ fill: "#94a3b8", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                content={<DarkTooltip />}
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              />
+              <Bar dataKey="prêts" fill="#a855f7" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Livres dormants */}
+      {dormantBooks.length > 0 && (
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
+          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-biblio-warning" />
+            Livres dormants (jamais empruntés)
+            <span className="ml-auto text-xs text-biblio-muted font-normal">
+              {dormantBooks.length} livre{dormantBooks.length !== 1 ? "s" : ""}
+            </span>
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-biblio-muted border-b border-white/10">
+                  <th className="py-2 text-left font-medium">Titre</th>
+                  <th className="py-2 text-left font-medium">Catégorie</th>
+                  <th className="py-2 text-left font-medium">Ajouté le</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dormantBooks.map((b) => (
+                  <tr
+                    key={b.id}
+                    className="border-b border-white/5 hover:bg-white/5"
+                  >
+                    <td className="py-2 text-biblio-text">{b.titre}</td>
+                    <td className="py-2 text-biblio-muted">{b.categorie}</td>
+                    <td className="py-2 text-biblio-muted">
+                      {formatDate(b.ajout)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

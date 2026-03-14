@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getPretStatut, useDebounce, formatDate } from "../lib/utils";
 import { getSettings } from "../lib/settings";
 import { sendEmail, buildLoanConfirmationEmail } from "../lib/email";
+import { useRealtimeTable } from "../lib/realtime";
 import {
   ArrowLeftRight,
   Loader2,
@@ -16,6 +17,7 @@ import {
 import PretRow, { PretCard } from "../components/PretRow";
 import ExportModal from "../components/ExportModal";
 import ConfirmModal from "../components/ConfirmModal";
+import ISBNScanner from "../components/ISBNScanner";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 
@@ -39,6 +41,7 @@ export default function Prets() {
   const [page, setPage] = useState(1);
   const [confirmReturn, setConfirmReturn] = useState(null); // {pretId, livreId}
   const [maxBooks, setMaxBooks] = useState(3);
+  const [showStudentScanner, setShowStudentScanner] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -63,6 +66,9 @@ export default function Prets() {
       setMaxBooks(parseInt(s.max_books_per_student) || 3),
     );
   }, []);
+
+  // Realtime: auto-refresh on prets changes
+  useRealtimeTable("prets", () => fetchData());
 
   // Reset page quand filtre ou search change
   useEffect(() => {
@@ -232,6 +238,23 @@ export default function Prets() {
     else exportJSON(rows, filename);
   };
 
+  const handleStudentScan = (raw) => {
+    setShowStudentScanner(false);
+    // Try matching by numero_etudiant, email, or ID
+    const cleaned = raw.trim();
+    const found = etudiants.find(
+      (e) =>
+        e.numero_etudiant === cleaned ||
+        e.email === cleaned ||
+        e.id === cleaned,
+    );
+    if (found) {
+      setForm((f) => ({ ...f, etudiant_id: found.id }));
+    } else {
+      setError(`Aucun étudiant trouvé pour le code scanné: ${cleaned}`);
+    }
+  };
+
   const pretsFiltres = prets.filter((p) => {
     const s = getPretStatut(p);
     // Filtre par statut
@@ -326,22 +349,31 @@ export default function Prets() {
               <label className="text-xs font-medium text-biblio-muted block mb-1">
                 Étudiant *
               </label>
-              <select
-                value={form.etudiant_id}
-                onChange={(e) =>
-                  setForm({ ...form, etudiant_id: e.target.value })
-                }
-                required
-                className={INPUT_CLASS + " w-full"}
-                style={{ colorScheme: "dark" }}
-              >
-                <option value="">-- Choisir un étudiant --</option>
-                {etudiants.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.prenom} {e.nom} ({e.numero_etudiant || "sans numéro"})
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={form.etudiant_id}
+                  onChange={(e) =>
+                    setForm({ ...form, etudiant_id: e.target.value })
+                  }
+                  required
+                  className={INPUT_CLASS + " flex-1"}
+                  style={{ colorScheme: "dark" }}
+                >
+                  <option value="">-- Choisir un étudiant --</option>
+                  {etudiants.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.prenom} {e.nom} ({e.numero_etudiant || "sans numéro"})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowStudentScanner(true)}
+                  className="px-3 py-2 bg-biblio-accent/20 text-biblio-accent rounded-lg hover:bg-biblio-accent/30 transition-colors text-xs font-medium whitespace-nowrap"
+                >
+                  Scanner carte
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-biblio-muted block mb-1">
@@ -537,6 +569,13 @@ export default function Prets() {
             doReturn(confirmReturn.pretId, confirmReturn.livreId)
           }
           onCancel={() => setConfirmReturn(null)}
+        />
+      )}
+
+      {showStudentScanner && (
+        <ISBNScanner
+          onScan={handleStudentScan}
+          onClose={() => setShowStudentScanner(false)}
         />
       )}
     </div>

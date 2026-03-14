@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionsContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
 import { applyAccentColor } from "../lib/settings";
@@ -22,6 +23,8 @@ import {
   Search,
   BookMarked,
   Calendar,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 const BASE_NAV_GROUPS = [
@@ -104,6 +107,7 @@ const ROLE_LABELS = {
 export default function Layout({ children }) {
   const { signOut, session } = useAuth();
   const { can } = usePermissions();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [overdueCount, setOverdueCount] = useState(0);
@@ -303,6 +307,18 @@ export default function Layout({ children }) {
           </form>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+              title={theme === "dark" ? "Mode clair" : "Mode sombre"}
+            >
+              {theme === "dark" ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </button>
             {/* Cloche notifications */}
             <div className="relative">
               <button

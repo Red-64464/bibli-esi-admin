@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getPretStatut, formatDate } from "../lib/utils";
+import { getAmendesEtudiant, payerAmende, annulerAmende } from "../lib/amendes";
 import {
   ArrowLeft,
   User,
@@ -14,6 +15,8 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
+  Banknote,
+  XCircle,
 } from "lucide-react";
 
 function StatusBadge({ statut }) {
@@ -43,6 +46,7 @@ export default function EtudiantDetail() {
   const navigate = useNavigate();
   const [etudiant, setEtudiant] = useState(null);
   const [prets, setPrets] = useState([]);
+  const [amendes, setAmendes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,10 +69,43 @@ export default function EtudiantDetail() {
       if (pretsRes.error) throw pretsRes.error;
       setEtudiant(etudRes.data);
       setPrets(pretsRes.data || []);
+      // Charger amendes (silencieux si table n'existe pas encore)
+      try {
+        const am = await getAmendesEtudiant(id);
+        setAmendes(am);
+      } catch {
+        // table amendes peut ne pas encore exister
+      }
     } catch (err) {
       setError("Impossible de charger le profil : " + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePayerAmende = async (amendeId) => {
+    try {
+      await payerAmende(amendeId);
+      setAmendes((prev) =>
+        prev.map((a) =>
+          a.id === amendeId
+            ? { ...a, statut: "payee", date_paiement: new Date().toISOString() }
+            : a,
+        ),
+      );
+    } catch {
+      // silently fail
+    }
+  };
+
+  const handleAnnulerAmende = async (amendeId) => {
+    try {
+      await annulerAmende(amendeId);
+      setAmendes((prev) =>
+        prev.map((a) => (a.id === amendeId ? { ...a, statut: "annulee" } : a)),
+      );
+    } catch {
+      // silently fail
     }
   };
 
@@ -122,9 +159,7 @@ export default function EtudiantDetail() {
             <User className="w-7 h-7 text-biblio-accent" />
             {etudiant.prenom} {etudiant.nom}
           </h1>
-          <p className="text-biblio-muted text-sm mt-0.5">
-            Profil étudiant
-          </p>
+          <p className="text-biblio-muted text-sm mt-0.5">Profil étudiant</p>
         </div>
       </div>
 
@@ -256,14 +291,18 @@ export default function EtudiantDetail() {
                 {pretsEnCours.map((p) => {
                   const statut = getPretStatut(p);
                   return (
-                    <div key={p.id} className="px-6 py-3 flex items-center justify-between gap-4">
+                    <div
+                      key={p.id}
+                      className="px-6 py-3 flex items-center justify-between gap-4"
+                    >
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-biblio-text line-clamp-1">
                           {p.livres?.titre || "—"}
                         </p>
                         <p className="text-xs text-biblio-muted">
                           Prêté le {formatDate(p.date_pret)}
-                          {p.date_retour_prevue && ` · Retour prévu : ${formatDate(p.date_retour_prevue)}`}
+                          {p.date_retour_prevue &&
+                            ` · Retour prévu : ${formatDate(p.date_retour_prevue)}`}
                         </p>
                       </div>
                       <StatusBadge statut={statut} />
@@ -288,14 +327,18 @@ export default function EtudiantDetail() {
             ) : (
               <div className="divide-y divide-white/5">
                 {historique.map((p) => (
-                  <div key={p.id} className="px-6 py-3 flex items-center justify-between gap-4">
+                  <div
+                    key={p.id}
+                    className="px-6 py-3 flex items-center justify-between gap-4"
+                  >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-biblio-text line-clamp-1">
                         {p.livres?.titre || "—"}
                       </p>
                       <p className="text-xs text-biblio-muted">
                         Prêté {formatDate(p.date_pret)}
-                        {p.date_retour && ` · Rendu ${formatDate(p.date_retour)}`}
+                        {p.date_retour &&
+                          ` · Rendu ${formatDate(p.date_retour)}`}
                       </p>
                     </div>
                     <StatusBadge statut="retourné" />
@@ -304,6 +347,77 @@ export default function EtudiantDetail() {
               </div>
             )}
           </div>
+
+          {/* Amendes */}
+          {amendes.length > 0 && (
+            <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-biblio-warning" />
+                <h3 className="font-semibold text-biblio-text">
+                  Amendes ({amendes.length})
+                </h3>
+                {(() => {
+                  const totalImpaye = amendes
+                    .filter((a) => a.statut === "impayee")
+                    .reduce((s, a) => s + Number(a.montant), 0);
+                  return totalImpaye > 0 ? (
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
+                      {totalImpaye} DA impayé
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+              <div className="divide-y divide-white/5">
+                {amendes.map((a) => (
+                  <div
+                    key={a.id}
+                    className="px-6 py-3 flex items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-biblio-text">
+                        {a.montant} DA
+                        <span className="text-xs text-biblio-muted ml-2">
+                          ({a.jours_retard}j × {a.taux_journalier} DA)
+                        </span>
+                      </p>
+                      <p className="text-xs text-biblio-muted">
+                        {a.prets?.livres?.titre || "—"} ·{" "}
+                        {formatDate(a.date_creation)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {a.statut === "impayee" ? (
+                        <>
+                          <button
+                            onClick={() => handlePayerAmende(a.id)}
+                            className="text-xs px-2 py-1 rounded bg-biblio-success/20 text-biblio-success hover:bg-biblio-success/30 transition-colors"
+                          >
+                            Payer
+                          </button>
+                          <button
+                            onClick={() => handleAnnulerAmende(a.id)}
+                            className="text-xs px-2 py-1 rounded bg-white/5 text-biblio-muted hover:bg-white/10 transition-colors"
+                          >
+                            <XCircle className="w-3 h-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            a.statut === "payee"
+                              ? "bg-biblio-success/20 text-biblio-success"
+                              : "bg-white/10 text-biblio-muted"
+                          }`}
+                        >
+                          {a.statut === "payee" ? "Payée" : "Annulée"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

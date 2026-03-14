@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
 import { logActivity } from "../lib/activityLog";
+import { useRealtimeTable } from "../lib/realtime";
 import {
   BookMarked,
   Loader2,
@@ -52,6 +53,9 @@ export default function Reservations() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Realtime: auto-refresh on reservations changes
+  useRealtimeTable("reservations", () => fetchData());
 
   const fetchData = async () => {
     try {
@@ -168,10 +172,10 @@ export default function Reservations() {
   };
 
   const activeReservations = reservations.filter(
-    (r) => r.statut === "en_attente" || r.statut === "confirmee"
+    (r) => r.statut === "en_attente" || r.statut === "confirmee",
   );
   const doneReservations = reservations.filter(
-    (r) => r.statut === "convertie" || r.statut === "annulee"
+    (r) => r.statut === "convertie" || r.statut === "annulee",
   );
 
   return (

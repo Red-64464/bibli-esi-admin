@@ -23,9 +23,12 @@ import {
   Upload,
   FileText,
   CheckCircle2,
+  Trash2,
+  CheckSquare,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
 import { CATEGORIES, normalizeCategory } from "../lib/categories";
+import { useRealtimeTable } from "../lib/realtime";
 import ISBNScanner from "../components/ISBNScanner";
 import QRCodeModal from "../components/QRCodeModal";
 import LivreCard from "../components/LivreCard";
@@ -33,6 +36,7 @@ import ExportModal from "../components/ExportModal";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
+import { printLabels } from "../lib/print";
 
 const STATUTS_LIVRE = [
   { value: "disponible", label: "Disponible" },
@@ -171,6 +175,7 @@ export default function Livres() {
   const navigate = useNavigate();
 
   const [livres, setLivres] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filtreStatut, setFiltreStatut] = useState("tous");
@@ -224,10 +229,88 @@ export default function Livres() {
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccess, setImportSuccess] = useState(null); // number inserted
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === livres.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(livres.map((l) => l.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    setBulkLoading(true);
+    try {
+      const ids = [...selectedIds];
+      const { error: err } = await supabase
+        .from("livres")
+        .delete()
+        .in("id", ids);
+      if (err) throw err;
+      await logActivity({
+        action_type: "livres_suppression_masse",
+        description: `${ids.length} livre(s) supprimé(s) en masse`,
+        user_info: session?.username || "",
+      });
+      setSelectedIds(new Set());
+      await fetchLivres();
+    } catch (err) {
+      setError("Erreur suppression en masse : " + err.message);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkStatusChange = async (newStatut) => {
+    if (!selectedIds.size) return;
+    setBulkLoading(true);
+    try {
+      const ids = [...selectedIds];
+      const { error: err } = await supabase
+        .from("livres")
+        .update({
+          statut: newStatut,
+          disponible: newStatut === "disponible",
+        })
+        .in("id", ids);
+      if (err) throw err;
+      await logActivity({
+        action_type: "livres_statut_masse",
+        description: `${ids.length} livre(s) → statut "${newStatut}"`,
+        user_info: session?.username || "",
+      });
+      setSelectedIds(new Set());
+      await fetchLivres();
+    } catch (err) {
+      setError("Erreur changement statut en masse : " + err.message);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchLivres();
     fetchBorrowCounts();
-  }, []);
+  }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
+
+  // Realtime: auto-refresh when livres table changes
+  useRealtimeTable("livres", () => {
+    fetchLivres();
+    fetchBorrowCounts();
+  });
 
   // Reset page when filters/search/view change
   useEffect(() => {
@@ -237,12 +320,53 @@ export default function Livres() {
   const fetchLivres = async () => {
     try {
       setLoading(true);
-      const { data, error: err } = await supabase
-        .from("livres")
-        .select("*")
-        .order("date_ajout", { ascending: false });
+      const pageSize = vue === "grille" ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase.from("livres").select("*", { count: "exact" });
+
+      // Server-side search
+      if (recherche) {
+        query = query.or(
+          `titre.ilike.%${recherche}%,auteur.ilike.%${recherche}%,isbn.ilike.%${recherche}%,categorie.ilike.%${recherche}%`,
+        );
+      }
+
+      // Server-side status filter
+      if (filtreStatut !== "tous") {
+        query = query.eq("statut", filtreStatut);
+      }
+
+      // Server-side category filter
+      if (filtreCategorie) {
+        query = query.eq("categorie", filtreCategorie);
+      }
+
+      // Server-side sort
+      switch (tri) {
+        case "titre_az":
+          query = query.order("titre", { ascending: true });
+          break;
+        case "titre_za":
+          query = query.order("titre", { ascending: false });
+          break;
+        case "auteur":
+          query = query.order("auteur", { ascending: true, nullsFirst: false });
+          break;
+        case "statut":
+          query = query.order("statut", { ascending: true });
+          break;
+        default:
+          query = query.order("date_ajout", { ascending: false });
+      }
+
+      query = query.range(from, to);
+
+      const { data, error: err, count } = await query;
       if (err) throw err;
       setLivres(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
       setError("Impossible de charger les livres : " + err.message);
     } finally {
@@ -281,6 +405,37 @@ export default function Livres() {
 
   const handleAddBook = async (bookData) => {
     try {
+      // Duplicate detection: check by ISBN or exact title+author
+      if (bookData.isbn) {
+        const { data: existing } = await supabase
+          .from("livres")
+          .select("id, titre, isbn")
+          .eq("isbn", bookData.isbn)
+          .limit(1);
+        if (existing?.length) {
+          setError(
+            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${bookData.isbn}).`,
+          );
+          return;
+        }
+      }
+      if (bookData.titre) {
+        const { data: byTitle } = await supabase
+          .from("livres")
+          .select("id, titre, auteur")
+          .ilike("titre", bookData.titre.trim());
+        const dup = byTitle?.find(
+          (l) =>
+            l.auteur?.toLowerCase() === (bookData.auteur || "").toLowerCase(),
+        );
+        if (dup) {
+          setError(
+            `Doublon possible : « ${dup.titre} » du même auteur existe déjà.`,
+          );
+          return;
+        }
+      }
+
       const { error: err } = await supabase.from("livres").insert([
         {
           ...bookData,
@@ -327,6 +482,22 @@ export default function Livres() {
     setManualLoading(true);
     setError("");
     try {
+      // Duplicate detection
+      if (manualForm.isbn) {
+        const { data: existing } = await supabase
+          .from("livres")
+          .select("id, titre, isbn")
+          .eq("isbn", manualForm.isbn.trim())
+          .limit(1);
+        if (existing?.length) {
+          setError(
+            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${manualForm.isbn}).`,
+          );
+          setManualLoading(false);
+          return;
+        }
+      }
+
       let couverture_url = manualForm.couverture_url;
       if (manualImageFile) couverture_url = await uploadCover(manualImageFile);
 
@@ -623,49 +794,31 @@ export default function Livres() {
     }
   };
 
-  // ── Filtering + sorting + pagination ──
-  const categories = [
-    ...new Set(livres.map((l) => l.categorie).filter(Boolean)),
-  ].sort();
+  // ── Filtering + sorting + pagination (server-side) ──
+  // Categories: fetch distinct from DB for filter pills
+  const [allCategories, setAllCategories] = useState([]);
+  useEffect(() => {
+    supabase
+      .from("livres")
+      .select("categorie")
+      .not("categorie", "is", null)
+      .then(({ data }) => {
+        if (data) {
+          const cats = [
+            ...new Set(data.map((d) => d.categorie).filter(Boolean)),
+          ].sort();
+          setAllCategories(cats);
+        }
+      });
+  }, [totalCount]);
 
-  const livresFiltres = livres
-    .filter((l) => {
-      const q = recherche.toLowerCase();
-      const matchSearch =
-        !q ||
-        l.titre?.toLowerCase().includes(q) ||
-        l.auteur?.toLowerCase().includes(q) ||
-        l.isbn?.includes(q) ||
-        l.categorie?.toLowerCase().includes(q);
-      const s = normaliseStatut(
-        l.statut || (l.disponible ? "disponible" : "emprunte"),
-      );
-      const matchStatut = filtreStatut === "tous" || s === filtreStatut;
-      const matchCategorie =
-        !filtreCategorie || l.categorie === filtreCategorie;
-      return matchSearch && matchStatut && matchCategorie;
-    })
-    .sort((a, b) => {
-      switch (tri) {
-        case "titre_az":
-          return (a.titre || "").localeCompare(b.titre || "", "fr");
-        case "titre_za":
-          return (b.titre || "").localeCompare(a.titre || "", "fr");
-        case "auteur":
-          return (a.auteur || "").localeCompare(b.auteur || "", "fr");
-        case "statut":
-          return (a.statut || "").localeCompare(b.statut || "");
-        default: // date_ajout — keep original (already sorted by DB)
-          return 0;
-      }
-    });
+  const categories = allCategories;
 
+  // Server-side: livres IS the current page already
+  const livresFiltres = livres;
   const pageSize = vue === "grille" ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
-  const totalPages = Math.ceil(livresFiltres.length / pageSize);
-  const livresPage = livresFiltres.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const livresPage = livres;
 
   return (
     <div className="space-y-6">
@@ -677,8 +830,7 @@ export default function Livres() {
             Gestion des livres
           </h1>
           <p className="text-biblio-muted mt-1">
-            {livres.length} livre{livres.length !== 1 ? "s" : ""} dans le
-            catalogue
+            {totalCount} livre{totalCount !== 1 ? "s" : ""} dans le catalogue
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -791,7 +943,7 @@ export default function Livres() {
       {/* ── Tri + Vue toggle ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-biblio-muted">
-          {livresFiltres.length} résultat{livresFiltres.length !== 1 ? "s" : ""}
+          {totalCount} résultat{totalCount !== 1 ? "s" : ""}
         </p>
         <div className="flex items-center gap-3">
           {/* Sort select */}
@@ -838,6 +990,58 @@ export default function Livres() {
         </div>
       </div>
 
+      {/* ── Bulk actions bar ── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-biblio-accent/10 border border-biblio-accent/20 rounded-lg flex-wrap">
+          <span className="text-sm font-medium text-biblio-accent">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
+          </span>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs px-2 py-1 rounded bg-white/10 text-biblio-muted hover:bg-white/20 transition-colors"
+          >
+            Désélectionner
+          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={() => {
+                const selected = livres.filter((l) => selectedIds.has(l.id));
+                printLabels(selected);
+              }}
+              className="text-xs px-3 py-1 rounded bg-white/10 text-biblio-text hover:bg-white/20 transition-colors flex items-center gap-1"
+            >
+              Imprimer étiquettes
+            </button>
+            <select
+              onChange={(e) => {
+                if (e.target.value) handleBulkStatusChange(e.target.value);
+                e.target.value = "";
+              }}
+              className="text-xs bg-white/10 border border-white/10 rounded px-2 py-1 text-biblio-text"
+              defaultValue=""
+              disabled={bulkLoading}
+            >
+              <option value="" disabled>
+                Changer statut…
+              </option>
+              {STATUTS_LIVRE.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="text-xs px-3 py-1 rounded bg-biblio-danger/20 text-biblio-danger hover:bg-biblio-danger/30 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <Trash2 className="w-3 h-3" />
+              Supprimer
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Book display ── */}
       {loading ? (
         <div className="flex justify-center py-12">
@@ -875,6 +1079,17 @@ export default function Livres() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/10 text-left">
+                    <th className="px-3 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={
+                          livres.length > 0 &&
+                          selectedIds.size === livres.length
+                        }
+                        onChange={toggleSelectAll}
+                        className="rounded accent-biblio-accent"
+                      />
+                    </th>
                     <th className="px-4 py-3 text-xs font-medium text-biblio-muted w-12">
                       Cover
                     </th>
@@ -909,8 +1124,17 @@ export default function Livres() {
                     return (
                       <tr
                         key={livre.id}
-                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                        className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selectedIds.has(livre.id) ? "bg-biblio-accent/5" : ""}`}
                       >
+                        {/* Checkbox */}
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(livre.id)}
+                            onChange={() => toggleSelect(livre.id)}
+                            className="rounded accent-biblio-accent"
+                          />
+                        </td>
                         {/* Mini cover */}
                         <td className="px-4 py-2">
                           {livre.couverture_url ? (

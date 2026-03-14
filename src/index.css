@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Thème personnalisé bibliothèque */
+/* Thème personnalisé bibliothèque — Dark (défaut) */
 @theme {
   --color-biblio-bg: #0f172a;
   --color-biblio-card: #1e293b;
@@ -16,12 +16,70 @@
 body {
   background-color: var(--color-biblio-bg);
   color: var(--color-biblio-text);
-  color-scheme: dark;
   font-family:
     "Inter",
     system-ui,
     -apple-system,
     sans-serif;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+
+/* Dark mode (default) */
+:root.dark body,
+:root:not(.light) body {
+  color-scheme: dark;
+}
+
+/* Light mode overrides via CSS custom properties */
+:root.light {
+  --color-biblio-bg: #f1f5f9;
+  --color-biblio-card: #ffffff;
+  --color-biblio-text: #0f172a;
+  --color-biblio-muted: #64748b;
+}
+
+:root.light body {
+  color-scheme: light;
+}
+
+/* Light mode: selects & inputs */
+:root.light select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Light mode: borders */
+:root.light .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Light mode: glassmorphism bg */
+:root.light .bg-white\/5 {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+:root.light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+:root.light .hover\:bg-white\/5:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+:root.light .hover\:bg-white\/10:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+:root.light .hover\:bg-white\/20:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Light mode: text overrides for muted white */
+:root.light .text-white {
+  color: #0f172a;
+}
+
+/* Light mode: shadows */
+:root.light .shadow-xl {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* ── Responsive mobile utilities ── */
@@ -44,7 +102,8 @@ aside {
 }
 
 /* Ensure selects look correct in dark mode */
-select option {
+:root.dark select option,
+:root:not(.light) select option {
   background-color: #1e293b;
   color: #f1f5f9;
 }

@@ -1,5 +1,6 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Printer } from "lucide-react";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
+import { printFichePret } from "../lib/print";
 
 // Re-export pour la compatibilité avec les imports existants
 export { getPretStatut };
@@ -19,8 +20,7 @@ function StatusBadge({ statut, pret }) {
     ),
     retourné: (
       <span className="text-xs px-2 py-1 rounded-full bg-biblio-success/20 text-biblio-success">
-        Rendu{" "}
-        {pret.date_retour ? formatDate(pret.date_retour) : ""}
+        Rendu {pret.date_retour ? formatDate(pret.date_retour) : ""}
       </span>
     ),
     perdu: (
@@ -128,15 +128,24 @@ export default function PretRow({ pret, onReturn }) {
         <StatusBadge statut={statut} pret={pret} />
       </td>
       <td className="px-4 py-3">
-        {!isRetourne && (
+        <div className="flex items-center gap-2">
+          {!isRetourne && (
+            <button
+              onClick={() => onReturn(pret.id, pret.livre_id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retourner
+            </button>
+          )}
           <button
-            onClick={() => onReturn(pret.id, pret.livre_id)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+            onClick={() => printFichePret(pret)}
+            className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+            title="Imprimer fiche"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Retourner
+            <Printer className="w-3.5 h-3.5" />
           </button>
-        )}
+        </div>
       </td>
     </tr>
   );
