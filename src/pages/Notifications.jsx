@@ -73,6 +73,7 @@ export default function Notifications() {
   const [composerStudent, setComposerStudent] = useState(null); // {id, nom, prenom, email}
   const [composerSubject, setComposerSubject] = useState("");
   const [composerBody, setComposerBody] = useState("");
+  const [composerMeta, setComposerMeta] = useState({ titre: "", dateRetour: "", isOverdue: false });
   const [composerSending, setComposerSending] = useState(false);
   const [composerSent, setComposerSent] = useState(false);
   const [composerError, setComposerError] = useState("");
@@ -191,7 +192,7 @@ export default function Notifications() {
     if (prefillLoan) {
       const s = prefillLoan.etudiants;
       setComposerStudent({ id: prefillLoan.etudiant_id, ...s });
-      const { subject, text } = buildReminderEmail({
+      const { subject, text, titre, dateRetour, isOverdue } = buildReminderEmail({
         prenom: s?.prenom || "",
         nom: s?.nom || "",
         titre: prefillLoan.livres?.titre || "",
@@ -199,10 +200,12 @@ export default function Notifications() {
       });
       setComposerSubject(subject);
       setComposerBody(text);
+      setComposerMeta({ titre, dateRetour, isOverdue });
     } else {
       setComposerStudent(null);
       setComposerSubject("");
       setComposerBody("");
+      setComposerMeta({ titre: "", dateRetour: "", isOverdue: false });
     }
     setComposerSearch("");
     setComposerStudents([]);
@@ -217,8 +220,12 @@ export default function Notifications() {
     try {
       await sendEmail({
         to: composerStudent.email,
+        toName: `${composerStudent.prenom} ${composerStudent.nom}`,
         subject: composerSubject,
         text: composerBody,
+        titre: composerMeta.titre,
+        dateRetour: composerMeta.dateRetour,
+        isOverdue: composerMeta.isOverdue,
       });
       setComposerSent(true);
       setTimeout(() => {

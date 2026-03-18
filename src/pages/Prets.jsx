@@ -153,14 +153,14 @@ export default function Prets() {
 
       // Envoyer email de confirmation si l'étudiant a un email
       if (etudNom?.email) {
-        const { subject, text } = buildLoanConfirmationEmail({
+        const { subject, text, titre: t, dateRetour: dr, isOverdue: ov } = buildLoanConfirmationEmail({
           prenom: etudNom.prenom,
           nom: etudNom.nom,
           titre: livreNom,
           datePret: form.date_pret,
           dateRetour: form.date_retour_prevue,
         });
-        sendEmail({ to: etudNom.email, subject, text }); // fire & forget
+        sendEmail({ to: etudNom.email, toName: `${etudNom.prenom} ${etudNom.nom}`, subject, text, titre: t, dateRetour: dr, isOverdue: ov }); // fire & forget
       }
 
       setShowForm(false);
