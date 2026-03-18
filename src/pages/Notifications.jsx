@@ -10,16 +10,15 @@ import {
   Save,
   Loader2,
   CheckCircle,
-  Info,
   CalendarCheck,
   RefreshCw,
   Send,
   CalendarClock,
-  ClipboardCheck,
   PenLine,
   X,
   Search,
   User,
+  BookOpen,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -68,15 +67,26 @@ export default function Notifications() {
 
   // Composer un rappel manuel
   const [showComposer, setShowComposer] = useState(false);
+  const [composerTab, setComposerTab] = useState("reminder"); // "reminder" | "custom"
   const [composerSearch, setComposerSearch] = useState("");
   const [composerStudents, setComposerStudents] = useState([]);
   const [composerStudent, setComposerStudent] = useState(null); // {id, nom, prenom, email}
-  const [composerSubject, setComposerSubject] = useState("");
-  const [composerBody, setComposerBody] = useState("");
-  const [composerMeta, setComposerMeta] = useState({ titre: "", dateRetour: "", isOverdue: false });
-  const [composerSending, setComposerSending] = useState(false);
-  const [composerSent, setComposerSent] = useState(false);
+  // Onglet « Rappel de prêt »
+  const [composerLoans, setComposerLoans] = useState([]);
+  const [composerLoansLoading, setComposerLoansLoading] = useState(false);
+  const [sendingLoanId, setSendingLoanId] = useState(null);
+  const [sentLoanId, setSentLoanId] = useState(null);
+  // Onglet « Message personnalisé »
+  const [customSubject, setCustomSubject] = useState("");
+  const [customBody, setCustomBody] = useState("");
+  const [customSending, setCustomSending] = useState(false);
+  const [customSent, setCustomSent] = useState(false);
   const [composerError, setComposerError] = useState("");
+  // Test de template
+  const [testEmail, setTestEmail] = useState("");
+  const [testSending, setTestSending] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+  const [testError, setTestError] = useState("");
 
   useEffect(() => {
     loadAll();
@@ -173,7 +183,7 @@ export default function Notifications() {
     openComposer(loan);
   };
 
-  // Search students for composer
+  // Recherche étudiants pour le composer
   useEffect(() => {
     if (!composerSearch.trim()) {
       setComposerStudents([]);
@@ -188,55 +198,122 @@ export default function Notifications() {
       .then(({ data }) => setComposerStudents(data || []));
   }, [composerSearch]);
 
+  // Charge les prêts actifs de l'étudiant sélectionné (onglet Rappel)
+  useEffect(() => {
+    if (!composerStudent || !showComposer) {
+      setComposerLoans([]);
+      return;
+    }
+    setComposerLoansLoading(true);
+    supabase
+      .from("prets")
+      .select("*, livres(titre)")
+      .eq("etudiant_id", composerStudent.id)
+      .eq("rendu", false)
+      .order("date_retour_prevue", { ascending: true })
+      .then(({ data }) => {
+        setComposerLoans(data || []);
+        setComposerLoansLoading(false);
+      });
+  }, [composerStudent, showComposer]);
+
   const openComposer = (prefillLoan = null) => {
+    setComposerTab("reminder");
+    setComposerError("");
+    setComposerSearch("");
+    setComposerStudents([]);
+    setSendingLoanId(null);
+    setSentLoanId(null);
+    setCustomSubject("");
+    setCustomBody("");
+    setCustomSent(false);
     if (prefillLoan) {
       const s = prefillLoan.etudiants;
       setComposerStudent({ id: prefillLoan.etudiant_id, ...s });
-      const { subject, text, titre, dateRetour, isOverdue } = buildReminderEmail({
-        prenom: s?.prenom || "",
-        nom: s?.nom || "",
-        titre: prefillLoan.livres?.titre || "",
-        dateRetour: prefillLoan.date_retour_prevue,
-      });
-      setComposerSubject(subject);
-      setComposerBody(text);
-      setComposerMeta({ titre, dateRetour, isOverdue });
     } else {
       setComposerStudent(null);
-      setComposerSubject("");
-      setComposerBody("");
-      setComposerMeta({ titre: "", dateRetour: "", isOverdue: false });
+      setComposerLoans([]);
     }
-    setComposerSearch("");
-    setComposerStudents([]);
-    setComposerSent(false);
     setShowComposer(true);
   };
 
-  const handleComposerSend = async () => {
-    if (!composerStudent?.email || !composerSubject.trim()) return;
-    setComposerSending(true);
+  const handleSendLoanReminder = async (loan) => {
+    if (!composerStudent?.email) return;
+    setSendingLoanId(loan.id);
+    setComposerError("");
+    try {
+      const emailData = buildReminderEmail({
+        prenom: composerStudent.prenom,
+        nom: composerStudent.nom,
+        titre: loan.livres?.titre || "",
+        dateRetour: loan.date_retour_prevue,
+      });
+      await sendEmail({
+        to: composerStudent.email,
+        toName: `${composerStudent.prenom} ${composerStudent.nom}`,
+        subject: emailData.subject,
+        text: emailData.text,
+        titre: emailData.titre,
+        dateRetour: emailData.dateRetour,
+        templateType: emailData.templateType,
+      });
+      setSentLoanId(loan.id);
+      setTimeout(() => setSentLoanId(null), 3000);
+    } catch (err) {
+      setComposerError(err.message || "Erreur inconnue.");
+    } finally {
+      setSendingLoanId(null);
+    }
+  };
+
+  const handleSendCustom = async () => {
+    if (!composerStudent?.email || !customSubject.trim()) return;
+    setCustomSending(true);
     setComposerError("");
     try {
       await sendEmail({
         to: composerStudent.email,
         toName: `${composerStudent.prenom} ${composerStudent.nom}`,
-        subject: composerSubject,
-        text: composerBody,
-        titre: composerMeta.titre,
-        dateRetour: composerMeta.dateRetour,
-        isOverdue: composerMeta.isOverdue,
+        subject: customSubject,
+        text: customBody,
+        templateType: "custom",
       });
-      setComposerSent(true);
+      setCustomSent(true);
       setTimeout(() => {
         setShowComposer(false);
-        setComposerSent(false);
-        setComposerError("");
+        setCustomSent(false);
+        setCustomSubject("");
+        setCustomBody("");
       }, 1500);
     } catch (err) {
       setComposerError(err.message || "Erreur inconnue.");
     } finally {
-      setComposerSending(false);
+      setCustomSending(false);
+    }
+  };
+
+  const handleTestReminder = async () => {
+    if (!testEmail.trim()) return;
+    setTestSending(true);
+    setTestError("");
+    setTestSent(false);
+    try {
+      await sendEmail({
+        to: testEmail.trim(),
+        toName: "Admin Test",
+        subject: "⚠️ [TEST] Retard de retour : Harry Potter",
+        text: "Ceci est un email de test de retard. Le livre aurait dû être retourné il y a 3 jours.",
+        titre: "Harry Potter — test",
+        dateRetour: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        templateType: "reminder",
+      });
+      setTestSent(true);
+      setTimeout(() => setTestSent(false), 4000);
+    } catch (err) {
+      setTestError(err.message || "Erreur inconnue.");
+      setTimeout(() => setTestError(""), 5000);
+    } finally {
+      setTestSending(false);
     }
   };
 
@@ -382,6 +459,44 @@ export default function Notifications() {
             </span>
           </div>
         </div>
+
+        {/* Test des templates email */}
+        <div className="mt-4 pt-4 border-t border-white/5">
+          <label className="text-xs font-medium text-biblio-muted block mb-2">
+            Tester le mail de retard
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="votre@email.com"
+              className={INPUT_CLASS + " flex-1"}
+            />
+            <button
+              onClick={handleTestReminder}
+              disabled={testSending || !testEmail.trim()}
+              className="shrink-0 flex items-center gap-2 px-4 py-2 bg-biblio-accent/20 hover:bg-biblio-accent/30 text-biblio-accent text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {testSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Tester
+            </button>
+          </div>
+          {testSent && (
+            <p className="text-xs text-biblio-success flex items-center gap-1.5 mt-2">
+              <CheckCircle className="w-3.5 h-3.5" /> Email de test envoyé !
+            </p>
+          )}
+          {testError && (
+            <p className="text-xs text-biblio-danger flex items-center gap-1.5 mt-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {testError}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Bouton de sauvegarde */}
@@ -490,7 +605,7 @@ export default function Notifications() {
       {/* Composer modal */}
       {showComposer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-lg p-6 space-y-4 shadow-2xl">
+          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-lg p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold flex items-center gap-2">
@@ -505,7 +620,31 @@ export default function Notifications() {
               </button>
             </div>
 
-            {/* Destinataire */}
+            {/* Tabs */}
+            <div className="flex gap-1 bg-white/5 p-1 rounded-lg">
+              <button
+                onClick={() => { setComposerTab("reminder"); setComposerError(""); }}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  composerTab === "reminder"
+                    ? "bg-biblio-accent text-white"
+                    : "text-biblio-muted hover:text-biblio-text"
+                }`}
+              >
+                Rappel de prêt
+              </button>
+              <button
+                onClick={() => { setComposerTab("custom"); setComposerError(""); }}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  composerTab === "custom"
+                    ? "bg-biblio-accent text-white"
+                    : "text-biblio-muted hover:text-biblio-text"
+                }`}
+              >
+                Message personnalisé
+              </button>
+            </div>
+
+            {/* Destinataire (partagé entre les onglets) */}
             <div>
               <label className="text-xs font-medium text-biblio-muted block mb-1">
                 Destinataire
@@ -520,9 +659,7 @@ export default function Notifications() {
                       </p>
                       <p className="text-xs text-biblio-muted">
                         {composerStudent.email || (
-                          <span className="text-biblio-danger">
-                            Pas d'email
-                          </span>
+                          <span className="text-biblio-danger">Pas d'email</span>
                         )}
                       </p>
                     </div>
@@ -531,6 +668,8 @@ export default function Notifications() {
                     onClick={() => {
                       setComposerStudent(null);
                       setComposerSearch("");
+                      setComposerLoans([]);
+                      setSentLoanId(null);
                     }}
                     className="text-biblio-muted hover:text-biblio-text"
                   >
@@ -557,14 +696,8 @@ export default function Notifications() {
                             setComposerStudent(s);
                             setComposerSearch("");
                             setComposerStudents([]);
-                            if (!composerSubject)
-                              setComposerSubject(
-                                "Rappel de la bibliothèque ESI",
-                              );
-                            if (!composerBody)
-                              setComposerBody(
-                                `Bonjour ${s.prenom} ${s.nom},\n\n`,
-                              );
+                            if (composerTab === "custom" && !customSubject)
+                              setCustomSubject("Rappel de la bibliothèque ESI");
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 text-left transition-colors"
                         >
@@ -575,9 +708,7 @@ export default function Notifications() {
                             </p>
                             <p className="text-xs text-biblio-muted">
                               {s.email || (
-                                <span className="text-biblio-danger">
-                                  pas d'email
-                                </span>
+                                <span className="text-biblio-danger">pas d'email</span>
                               )}
                             </p>
                           </div>
@@ -589,42 +720,144 @@ export default function Notifications() {
               )}
             </div>
 
-            {/* Sujet */}
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Sujet
-              </label>
-              <input
-                type="text"
-                value={composerSubject}
-                onChange={(e) => setComposerSubject(e.target.value)}
-                placeholder="Rappel de retour..."
-                className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm"
-              />
-            </div>
-
-            {/* Message */}
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Message
-              </label>
-              <textarea
-                value={composerBody}
-                onChange={(e) => setComposerBody(e.target.value)}
-                rows={7}
-                className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm resize-none font-mono"
-                placeholder="Votre message..."
-              />
-            </div>
-
-            {!composerStudent?.email && composerStudent && (
-              <p className="text-xs text-biblio-danger flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Cet étudiant n'a pas d'email enregistré. Ajoutez-en un dans sa
-                fiche.
-              </p>
+            {/* ── ONGLET RAPPEL DE PRÊT ── */}
+            {composerTab === "reminder" && (
+              <div>
+                {!composerStudent ? (
+                  <p className="text-sm text-biblio-muted text-center py-4">
+                    Sélectionnez un étudiant pour voir ses prêts actifs.
+                  </p>
+                ) : !composerStudent.email ? (
+                  <p className="text-xs text-biblio-danger flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Cet étudiant n'a pas d'email. Ajoutez-en un dans sa fiche.
+                  </p>
+                ) : composerLoansLoading ? (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-biblio-accent" />
+                  </div>
+                ) : composerLoans.length === 0 ? (
+                  <p className="text-sm text-biblio-muted text-center py-4">
+                    Aucun prêt actif pour cet étudiant.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-biblio-muted mb-1">
+                      Prêts actifs — cliquez sur un prêt pour envoyer le rappel adapté :
+                    </p>
+                    {composerLoans.map((loan) => {
+                      const isOverdue =
+                        loan.date_retour_prevue &&
+                        new Date(loan.date_retour_prevue) < new Date();
+                      const isSent = sentLoanId === loan.id;
+                      const isSending = sendingLoanId === loan.id;
+                      return (
+                        <div
+                          key={loan.id}
+                          className={`flex items-center justify-between gap-3 p-3 rounded-lg ${
+                            isOverdue ? "bg-biblio-danger/10" : "bg-biblio-warning/10"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-biblio-muted shrink-0" />
+                              <p className="text-sm font-medium text-biblio-text truncate">
+                                {loan.livres?.titre || "—"}
+                              </p>
+                            </div>
+                            <p className="text-xs text-biblio-muted mt-0.5 ml-5">
+                              Retour :{" "}
+                              {loan.date_retour_prevue
+                                ? new Date(loan.date_retour_prevue).toLocaleDateString("fr-FR")
+                                : "—"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                isOverdue
+                                  ? "bg-biblio-danger/20 text-biblio-danger"
+                                  : "bg-biblio-warning/20 text-biblio-warning"
+                              }`}
+                            >
+                              {isOverdue ? "Retard" : "Bientôt dû"}
+                            </span>
+                            <button
+                              onClick={() => handleSendLoanReminder(loan)}
+                              disabled={isSending || isSent}
+                              title={
+                                isOverdue
+                                  ? "Envoyer le mail de retard"
+                                  : "Envoyer le rappel de veille"
+                              }
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-60 ${
+                                isSent
+                                  ? "bg-biblio-success/20 text-biblio-success"
+                                  : isOverdue
+                                  ? "bg-biblio-danger/20 hover:bg-biblio-danger/40 text-biblio-danger"
+                                  : "bg-biblio-warning/20 hover:bg-biblio-warning/40 text-biblio-warning"
+                              }`}
+                            >
+                              {isSent ? (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5" /> Envoyé
+                                </>
+                              ) : isSending ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <Send className="w-3 h-3" /> Rappel
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
+            {/* ── ONGLET MESSAGE PERSONNALISÉ ── */}
+            {composerTab === "custom" && (
+              <>
+                {!composerStudent ? (
+                  <p className="text-sm text-biblio-muted text-center py-2">
+                    Sélectionnez un étudiant ci-dessus.
+                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs font-medium text-biblio-muted block mb-1">
+                        Sujet
+                      </label>
+                      <input
+                        type="text"
+                        value={customSubject}
+                        onChange={(e) => setCustomSubject(e.target.value)}
+                        placeholder="Sujet du message..."
+                        className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-biblio-muted block mb-1">
+                        Message
+                      </label>
+                      <textarea
+                        value={customBody}
+                        onChange={(e) => setCustomBody(e.target.value)}
+                        rows={5}
+                        placeholder="Votre message..."
+                        className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm resize-none"
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Erreur */}
             {composerError && (
               <p className="text-xs text-biblio-danger flex items-center gap-2 bg-biblio-danger/10 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -632,38 +865,35 @@ export default function Notifications() {
               </p>
             )}
 
-            {/* Actions */}
+            {/* Footer */}
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={() => setShowComposer(false)}
                 className="px-4 py-2 text-sm text-biblio-muted hover:text-biblio-text transition-colors"
               >
-                Annuler
+                Fermer
               </button>
-              <button
-                onClick={handleComposerSend}
-                disabled={
-                  composerSending ||
-                  !composerStudent?.email ||
-                  !composerSubject.trim() ||
-                  composerSent
-                }
-                className="flex items-center gap-2 px-5 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {composerSent ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" /> Envoyé !
-                  </>
-                ) : composerSending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Envoi...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" /> Envoyer
-                  </>
-                )}
-              </button>
+              {composerTab === "custom" && composerStudent?.email && (
+                <button
+                  onClick={handleSendCustom}
+                  disabled={customSending || !customSubject.trim() || customSent}
+                  className="flex items-center gap-2 px-5 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {customSent ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" /> Envoyé !
+                    </>
+                  ) : customSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Envoi...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" /> Envoyer
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
