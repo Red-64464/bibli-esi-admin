@@ -341,53 +341,7 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Bloc : Email général */}
-      <div className="bg-biblio-card rounded-xl border border-white/10 p-5 space-y-2">
-        <h2 className="text-base font-semibold flex items-center gap-2 mb-4">
-          <Mail className="w-4 h-4 text-biblio-accent" />
-          Configuration email
-        </h2>
 
-        <Toggle
-          checked={settings.send_reminder_emails === "true"}
-          onChange={(v) => set("send_reminder_emails", String(v))}
-          label="Activer les emails automatiques"
-          description="Envoyer des emails de rappel aux étudiants via Supabase Edge Function."
-        />
-
-        {settings.send_reminder_emails === "true" && (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-3">
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Email expéditeur de la bibliothèque
-              </label>
-              <input
-                type="email"
-                value={settings.library_email}
-                onChange={(e) => set("library_email", e.target.value)}
-                placeholder="bibliotheque@esi.dz"
-                className={INPUT_CLASS}
-              />
-            </div>
-
-            {/* Note sur l'Edge Function */}
-            <div className="mt-2 p-3 bg-biblio-accent/10 border border-biblio-accent/20 rounded-lg flex items-start gap-2">
-              <Info className="w-4 h-4 text-biblio-accent shrink-0 mt-0.5" />
-              <p className="text-xs text-biblio-muted">
-                L'envoi d'emails nécessite une{" "}
-                <strong className="text-biblio-text">
-                  Supabase Edge Function
-                </strong>{" "}
-                configurée avec Resend ou SendGrid. Voir{" "}
-                <code className="text-biblio-accent">
-                  supabase/functions/send-email/
-                </code>
-                .
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Bloc : Rappels */}
       <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
@@ -531,37 +485,7 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Guide Edge Function */}
-      <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
-        <h2 className="text-base font-semibold flex items-center gap-2 mb-3">
-          <Info className="w-4 h-4 text-biblio-accent" />
-          Comment configurer l'envoi d'emails ?
-        </h2>
-        <ol className="text-sm text-biblio-muted space-y-2 list-decimal list-inside">
-          <li>
-            Créer un compte gratuit sur{" "}
-            <code className="text-biblio-accent text-xs">resend.com</code> et
-            récupérer votre clé API.
-          </li>
-          <li>
-            Dans Supabase Dashboard → Settings → Edge Functions → Secrets,
-            ajouter{" "}
-            <code className="text-biblio-accent text-xs">RESEND_API_KEY</code>{" "}
-            et <code className="text-biblio-accent text-xs">FROM_EMAIL</code>.
-          </li>
-          <li>
-            Déployer la fonction :{" "}
-            <code className="text-biblio-accent text-xs">
-              supabase functions deploy send-email --no-verify-jwt
-            </code>
-          </li>
-          <li>
-            Une fois déployée, les boutons « Rappel » et « Nouveau rappel »
-            envoient de vrais emails. Sans déploiement, ils ouvrent votre client
-            mail natif (mailto:).
-          </li>
-        </ol>
-      </div>
+
 
       {/* Composer modal */}
       {showComposer && (
