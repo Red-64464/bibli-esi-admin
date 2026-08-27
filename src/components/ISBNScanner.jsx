@@ -21,8 +21,11 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
     const startCamera = async () => {
       setStatus("loading");
       try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const scanner = new Html5Qrcode(containerId.current);
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+        const formatsToSupport = mode === "isbn"
+          ? [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E]
+          : [Html5QrcodeSupportedFormats.QR_CODE];
+        const scanner = new Html5Qrcode(containerId.current, { formatsToSupport });
         scannerRef.current = scanner;
         await scanner.start(
           { facingMode: "environment" },
@@ -67,8 +70,11 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
         await liveScanner.clear().catch(() => undefined);
         scannerRef.current = null;
       }
-      const { Html5Qrcode } = await import("html5-qrcode");
-      const scanner = new Html5Qrcode(containerId.current);
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+      const formatsToSupport = mode === "isbn"
+        ? [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E]
+        : [Html5QrcodeSupportedFormats.QR_CODE];
+      const scanner = new Html5Qrcode(containerId.current, { formatsToSupport });
       const result = await scanner.scanFile(file, false);
       onScan(result);
     } catch (err) {
@@ -104,7 +110,7 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
           {status === "loading" && (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
-              <span className="text-sm text-biblio-muted">Analyse de la photo...</span>
+              <span className="text-sm text-biblio-muted">Ouverture de la caméra…</span>
             </div>
           )}
 

@@ -1,5 +1,4 @@
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
@@ -25,8 +24,18 @@ export const exportJSON = (data, filename) => {
 };
 
 export const exportExcel = (data, filename, sheetName = "Données") => {
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  XLSX.writeFile(workbook, filename + ".xlsx");
+  const xmlEscape = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const safeCell = (value) => {
+    const text = String(value ?? "");
+    // Empêche les formules Excel injectées depuis des données utilisateur.
+    return /^[=+\-@]/.test(text) ? `'${text}` : text;
+  };
+  const columns = [...new Set(data.flatMap((row) => Object.keys(row || {})))];
+  const row = (cells) => `<Row>${cells.map((cell) => `<Cell><Data ss:Type="String">${xmlEscape(safeCell(cell))}</Data></Cell>`).join("")}</Row>`;
+  const content = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="${xmlEscape(sheetName)}"><Table>${row(columns)}${data.map((item) => row(columns.map((column) => item?.[column]))).join("")}</Table></Worksheet></Workbook>`;
+  downloadBlob(new Blob([content], { type: "application/vnd.ms-excel;charset=utf-8" }), filename + ".xls");
 };

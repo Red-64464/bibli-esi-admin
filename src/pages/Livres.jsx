@@ -27,6 +27,8 @@ import {
   CheckSquare,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
+import UnresolvedBookModal from "../components/UnresolvedBookModal";
+import PendingBooksModal from "../components/PendingBooksModal";
 import { CATEGORIES, normalizeCategory } from "../lib/categories";
 import { useRealtimeTable } from "../lib/realtime";
 import ISBNScanner from "../components/ISBNScanner";
@@ -213,6 +215,11 @@ export default function Livres() {
   // Camera scanner
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [scannedIsbn, setScannedIsbn] = useState(null);
+  const [showUnresolvedBook, setShowUnresolvedBook] = useState(false);
+  const [unresolvedRawScan, setUnresolvedRawScan] = useState("");
+  const [showPendingBooks, setShowPendingBooks] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingToAdd, setPendingToAdd] = useState(null);
 
   // QR code modal
   const [qrLivre, setQrLivre] = useState(null);
@@ -304,6 +311,7 @@ export default function Livres() {
   useEffect(() => {
     fetchLivres();
     fetchBorrowCounts();
+    fetchPendingCount();
   }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
 
   // Realtime: auto-refresh when livres table changes
@@ -385,6 +393,14 @@ export default function Livres() {
     } catch {
       // non-critical, ignore
     }
+  };
+
+  const fetchPendingCount = async () => {
+    const { count } = await supabase
+      .from("bibli_pending_books")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "researching", "ready"]);
+    setPendingCount(count || 0);
   };
 
   const uploadCover = async (file) => {
@@ -508,7 +524,7 @@ export default function Livres() {
             .filter(Boolean)
         : [];
 
-      const { error: err } = await supabase.from("bibli_livres").insert([
+      const { data: createdBook, error: err } = await supabase.from("bibli_livres").insert([
         {
           titre: manualForm.titre.trim(),
           auteur: manualForm.auteur || null,
@@ -526,18 +542,29 @@ export default function Livres() {
           resume: manualForm.resume || null,
           description: manualForm.description || null,
         },
-      ]);
+      ]).select("id").single();
       if (err) throw err;
+      if (pendingToAdd && createdBook?.id) {
+        const { error: pendingError } = await supabase
+          .from("bibli_pending_books")
+          .update({ status: "added", resolved_livre_id: createdBook.id, updated_at: new Date().toISOString() })
+          .eq("id", pendingToAdd.id);
+        if (pendingError) {
+          setError("Livre ajouté, mais la fiche en attente n'a pas pu être mise à jour : " + pendingError.message);
+        }
+      }
       setShowManualForm(false);
       setManualForm(emptyManualForm);
       setManualImageFile(null);
       setManualImagePreview(null);
+      setPendingToAdd(null);
       await logActivity({
         action_type: "livre_ajoute",
         description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement (ISBN: ${manualForm.isbn || "—"} | Auteur: ${manualForm.auteur || "—"} | Catégorie: ${manualForm.categorie || "—"} | Langue: ${manualForm.langue || "—"} | Année: ${manualForm.annee || "—"} | Éditeur: ${manualForm.editeur || "—"} | Exemplaires: ${manualForm.nb_exemplaires || 1})`,
         user_info: session?.username || "",
       });
       await fetchLivres();
+      await fetchPendingCount();
     } catch (err) {
       setError("Erreur lors de l'ajout manuel : " + err.message);
     } finally {
@@ -857,7 +884,16 @@ export default function Livres() {
             <Camera className="w-4 h-4" /> Scanner ISBN
           </button>
           <button
-            onClick={() => setShowManualForm(true)}
+            onClick={() => setShowPendingBooks(true)}
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+          >
+            <BookOpen className="w-4 h-4" /> À identifier{pendingCount ? ` (${pendingCount})` : ""}
+          </button>
+          <button
+            onClick={() => {
+              setPendingToAdd(null);
+              setShowManualForm(true);
+            }}
             className="px-4 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
           >
             <PlusCircle className="w-4 h-4" /> Ajouter manuellement
@@ -869,6 +905,10 @@ export default function Livres() {
         onBookFound={handleAddBook}
         defaultIsbn={scannedIsbn}
         onDefaultIsbnUsed={() => setScannedIsbn(null)}
+        onUnresolved={(raw) => {
+          setUnresolvedRawScan(raw);
+          setShowUnresolvedBook(true);
+        }}
       />
 
       {error && (
@@ -1245,6 +1285,7 @@ export default function Livres() {
                   setShowManualForm(false);
                   setManualImagePreview(null);
                   setManualImageFile(null);
+                  setPendingToAdd(null);
                 }}
                 className="text-biblio-muted hover:text-biblio-text"
               >
@@ -1457,6 +1498,7 @@ export default function Livres() {
                     setShowManualForm(false);
                     setManualImagePreview(null);
                     setManualImageFile(null);
+                    setPendingToAdd(null);
                   }}
                   className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors"
                 >
@@ -1943,6 +1985,38 @@ export default function Livres() {
           mode="isbn"
           onScan={handleCameraScan}
           onClose={() => setShowCameraScanner(false)}
+        />
+      )}
+
+      {showUnresolvedBook && (
+        <UnresolvedBookModal
+          rawScan={unresolvedRawScan}
+          onClose={() => setShowUnresolvedBook(false)}
+          onQueued={() => {
+            setShowUnresolvedBook(false);
+            fetchPendingCount();
+          }}
+        />
+      )}
+
+      {showPendingBooks && (
+        <PendingBooksModal
+          onClose={() => {
+            setShowPendingBooks(false);
+            fetchPendingCount();
+          }}
+          onAdd={(book) => {
+            setPendingToAdd(book);
+            setManualForm({
+              ...emptyManualForm,
+              titre: book.titre_suggere || "",
+              auteur: book.auteur_suggere || "",
+              isbn: book.isbn || "",
+              description: book.ocr_text || "",
+            });
+            setShowPendingBooks(false);
+            setShowManualForm(true);
+          }}
         />
       )}
 
