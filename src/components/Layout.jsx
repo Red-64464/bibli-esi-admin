@@ -166,7 +166,7 @@ export default function Layout({ children }) {
   };
 
   return (
-    <div className="flex min-h-screen relative">
+    <div className="flex min-h-screen relative w-full max-w-full overflow-x-hidden">
       {/* Backdrop mobile */}
       {sidebarOpen && (
         <div
@@ -273,9 +273,9 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Zone principale */}
-      <div className="flex-1 flex flex-col min-h-screen lg:ml-64">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 w-full max-w-full lg:ml-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3">
+        <header className="sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3 min-w-0 max-w-full">
           {/* Burger mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
@@ -306,7 +306,7 @@ export default function Layout({ children }) {
             </div>
           </form>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 shrink-0">
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
@@ -387,7 +387,7 @@ export default function Layout({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
+        <main className="flex-1 min-w-0 w-full max-w-full p-4 lg:p-8 overflow-y-auto overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

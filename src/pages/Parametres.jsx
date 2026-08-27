@@ -135,6 +135,7 @@ export default function Parametres() {
   const [testEmail, setTestEmail] = useState("");
   const [testingNotifications, setTestingNotifications] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [testError, setTestError] = useState("");
 
   useEffect(() => {
     getSettings()
@@ -258,6 +259,7 @@ export default function Parametres() {
     try {
       setTestingNotifications(true);
       setTestSent(false);
+      setTestError("");
       setError("");
       await sendEmail({
         to: email,
@@ -278,7 +280,7 @@ export default function Parametres() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError("Test notification impossible : " + err.message);
+      setTestError("Test notification impossible : " + err.message);
     } finally {
       setTestingNotifications(false);
     }
@@ -443,6 +445,7 @@ export default function Parametres() {
               onChange={(e) => {
                 setTestEmail(e.target.value);
                 setTestSent(false);
+                setTestError("");
               }}
               placeholder="ex : test@esi.dz"
               className={INPUT_CLASS}
@@ -453,6 +456,12 @@ export default function Parametres() {
             <div className="bg-biblio-success/10 text-biblio-success p-3 rounded-lg text-xs flex items-center gap-2">
               <CheckCircle className="w-4 h-4 shrink-0" />
               Les deux e-mails de test ont été envoyés.
+            </div>
+          )}
+          {testError && (
+            <div className="bg-biblio-danger/10 text-biblio-danger p-3 rounded-lg text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{testError}</span>
             </div>
           )}
           <button

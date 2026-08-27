@@ -13,6 +13,19 @@
   --color-biblio-warning: #f59e0b;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   background-color: var(--color-biblio-bg);
   color: var(--color-biblio-text);
@@ -24,6 +37,24 @@ body {
   transition:
     background-color 0.3s,
     color 0.3s;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}
+
+.overflow-x-auto {
+  max-width: 100%;
 }
 
 /* Dark mode (default) */

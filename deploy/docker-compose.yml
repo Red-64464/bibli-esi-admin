@@ -5,6 +5,10 @@ services:
       args:
         VITE_SUPABASE_URL: https://supabase.75.119.140.201.nip.io
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        VITE_EMAILJS_SERVICE_ID: ${VITE_EMAILJS_SERVICE_ID:-}
+        VITE_EMAILJS_TEMPLATE_ID: ${VITE_EMAILJS_TEMPLATE_ID:-}
+        VITE_EMAILJS_TEMPLATE_REMINDER_ID: ${VITE_EMAILJS_TEMPLATE_REMINDER_ID:-}
+        VITE_EMAILJS_PUBLIC_KEY: ${VITE_EMAILJS_PUBLIC_KEY:-}
     container_name: bibliesi-public
     restart: unless-stopped
     networks: [coolify]
