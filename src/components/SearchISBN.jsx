@@ -68,6 +68,7 @@ export default function SearchISBN({
   const [loading, setLoading] = useState(false);
   const [bookData, setBookData] = useState(null); // résultat unique (ISBN)
   const [results, setResults] = useState([]); // liste (titre)
+  const [lookupSource, setLookupSource] = useState("");
   const [error, setError] = useState("");
 
   // Pré-remplir l'ISBN si scanné via caméra
@@ -281,6 +282,7 @@ export default function SearchISBN({
     setError("");
     setBookData(null);
     setResults([]);
+    setLookupSource("");
 
     try {
       if (isIsbn(q)) {
@@ -300,6 +302,7 @@ export default function SearchISBN({
         }
         if (data?.book) {
           setBookData(data.book);
+          setLookupSource(data.source || "catalogues");
           return;
         }
         setError("Aucun livre trouvé. Vous pouvez l'ajouter manuellement.");
@@ -327,6 +330,7 @@ export default function SearchISBN({
     onBookFound(book ?? bookData);
     setBookData(null);
     setResults([]);
+    setLookupSource("");
     setQuery("");
   };
 
@@ -401,13 +405,17 @@ export default function SearchISBN({
             <p className="text-xs text-biblio-muted font-mono">
               ISBN : {bookData.isbn}
             </p>
+            {lookupSource === "catalogue" && (
+              <p className="text-xs text-biblio-success">Ce livre est déjà dans votre catalogue.</p>
+            )}
           </div>
           <button
             onClick={() => handleConfirm()}
+            disabled={lookupSource === "catalogue"}
             className="self-center px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
-            Ajouter
+            {lookupSource === "catalogue" ? "Déjà ajouté" : "Ajouter"}
           </button>
         </div>
       )}
