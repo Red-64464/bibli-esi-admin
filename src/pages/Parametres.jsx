@@ -8,6 +8,7 @@ import {
 } from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
+import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../lib/email";
 import ConfirmModal from "../components/ConfirmModal";
 import {
   Settings,
@@ -23,6 +24,7 @@ import {
   RotateCcw,
   CalendarDays,
   AlertOctagon,
+  Send,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -130,6 +132,9 @@ export default function Parametres() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testingNotifications, setTestingNotifications] = useState(false);
+  const [testSent, setTestSent] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -218,6 +223,64 @@ export default function Parametres() {
     } finally {
       setSaving(false);
       setShowConfirmReset(false);
+    }
+  };
+
+  const handleTestNotifications = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      setError("Indiquez une adresse e-mail pour le test.");
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    const confirmation = buildLoanConfirmationEmail({
+      prenom: "Test",
+      nom: "Notification",
+      titre: "Livre de test Bibl'ESI",
+      datePret: today,
+      dateRetour: tomorrow,
+    });
+    const reminder = buildReminderEmail({
+      prenom: "Test",
+      nom: "Notification",
+      titre: "Livre de test Bibl'ESI",
+      dateRetour: yesterday,
+    });
+
+    try {
+      setTestingNotifications(true);
+      setTestSent(false);
+      setError("");
+      await sendEmail({
+        to: email,
+        toName: "Test Notification",
+        ...confirmation,
+      });
+      await sendEmail({
+        to: email,
+        toName: "Test Notification",
+        ...reminder,
+      });
+      await logActivity({
+        action_type: "notifications_test",
+        description: `Test notifications envoyé vers ${email}`,
+        user_info: session?.username || "",
+      });
+      setTestSent(true);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError("Test notification impossible : " + err.message);
+    } finally {
+      setTestingNotifications(false);
     }
   };
 
@@ -363,6 +426,49 @@ export default function Parametres() {
             className={INPUT_CLASS + " max-w-[140px]"}
           />
         </Field>
+
+        <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-biblio-text">
+              Tester les notifications par e-mail
+            </p>
+            <p className="text-xs text-biblio-muted mt-0.5">
+              Envoie une confirmation de prêt et un rappel de retard à l'adresse choisie.
+            </p>
+          </div>
+          <Field label="Adresse e-mail de test">
+            <input
+              type="email"
+              value={testEmail}
+              onChange={(e) => {
+                setTestEmail(e.target.value);
+                setTestSent(false);
+              }}
+              placeholder="ex : test@esi.dz"
+              className={INPUT_CLASS}
+              autoComplete="email"
+            />
+          </Field>
+          {testSent && (
+            <div className="bg-biblio-success/10 text-biblio-success p-3 rounded-lg text-xs flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              Les deux e-mails de test ont été envoyés.
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleTestNotifications}
+            disabled={testingNotifications || !testEmail.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+          >
+            {testingNotifications ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Envoyer le test
+          </button>
+        </div>
       </Section>
 
       {/* Section : Apparence */}
