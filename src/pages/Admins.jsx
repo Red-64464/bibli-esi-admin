@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import { ALL_PERMISSIONS } from "../contexts/PermissionsContext";
+import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../lib/email";
 import ConfirmModal from "../components/ConfirmModal";
 import {
   UserCog,
@@ -21,6 +22,8 @@ import {
   Clock,
   Pencil,
   Mail,
+  Bell,
+  Send,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -237,6 +240,10 @@ export default function Admins() {
     email: "",
   });
   const [profileLoading, setProfileLoading] = useState(false);
+  const [changeNotificationsId, setChangeNotificationsId] = useState(null);
+  const [testEmail, setTestEmail] = useState("");
+  const [testNotificationLoading, setTestNotificationLoading] = useState(false);
+  const [testNotificationSent, setTestNotificationSent] = useState(false);
 
   useEffect(() => {
     fetchAdmins();
@@ -428,6 +435,61 @@ export default function Admins() {
       setError("Erreur lors de la modification du profil : " + err.message);
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  const handleTestNotifications = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      setError("Indiquez une adresse e-mail pour le test.");
+      return;
+    }
+
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const confirmation = buildLoanConfirmationEmail({
+      prenom: "Test",
+      nom: "Notification",
+      titre: "Livre de test Bibl'ESI",
+      datePret: new Date().toISOString().slice(0, 10),
+      dateRetour: tomorrow,
+    });
+    const reminder = buildReminderEmail({
+      prenom: "Test",
+      nom: "Notification",
+      titre: "Livre de test Bibl'ESI",
+      dateRetour: yesterday,
+    });
+
+    try {
+      setTestNotificationLoading(true);
+      setTestNotificationSent(false);
+      setError("");
+      await sendEmail({
+        to: email,
+        toName: "Test Notification",
+        ...confirmation,
+      });
+      await sendEmail({
+        to: email,
+        toName: "Test Notification",
+        ...reminder,
+      });
+      await logActivity({
+        action_type: "notifications_test",
+        description: `Test notifications envoyé vers ${email}`,
+        user_info: session?.username || "",
+      });
+      setTestNotificationSent(true);
+      showSuccess("Deux e-mails de test ont été envoyés.");
+    } catch (err) {
+      setError("Test notification impossible : " + err.message);
+    } finally {
+      setTestNotificationLoading(false);
     }
   };
 
@@ -718,6 +780,7 @@ export default function Admins() {
                       setChangePwdId(null);
                       setChangeRoleId(null);
                       setChangePermsId(null);
+                      setChangeNotificationsId(null);
                       if (opening) {
                         setEditProfile({
                           username: admin.username,
@@ -740,6 +803,7 @@ export default function Admins() {
                       setChangeRoleId(null);
                       setChangePermsId(null);
                       setChangeProfileId(null);
+                      setChangeNotificationsId(null);
                       setNewPwd("");
                       setError("");
                     }}
@@ -757,6 +821,7 @@ export default function Admins() {
                         setChangePwdId(null);
                         setChangePermsId(null);
                         setChangeProfileId(null);
+                        setChangeNotificationsId(null);
                         setNewRole(admin.role);
                         setError("");
                       }}
@@ -774,6 +839,7 @@ export default function Admins() {
                         setChangePwdId(null);
                         setChangeRoleId(null);
                         setChangeProfileId(null);
+                        setChangeNotificationsId(null);
                         if (opening) {
                           setEditPerms({
                             ...DEFAULT_PERMISSIONS,
@@ -786,6 +852,25 @@ export default function Admins() {
                     >
                       <ShieldCheck className="w-3.5 h-3.5" />
                       Permissions
+                    </button>
+                  )}
+                  {admin.id === session?.id && (
+                    <button
+                      onClick={() => {
+                        const opening = changeNotificationsId !== admin.id;
+                        setChangeNotificationsId(opening ? admin.id : null);
+                        setChangePwdId(null);
+                        setChangeRoleId(null);
+                        setChangePermsId(null);
+                        setChangeProfileId(null);
+                        setTestEmail(opening ? admin.email || "" : "");
+                        setTestNotificationSent(false);
+                        setError("");
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      Notifications
                     </button>
                   )}
                   {admin.id !== session?.id && (
@@ -876,6 +961,64 @@ export default function Admins() {
                     </button>
                     <button
                       onClick={() => setChangeProfileId(null)}
+                      className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Inline notification tests */}
+              {changeNotificationsId === admin.id && (
+                <div className="pt-2 space-y-3 border border-white/10 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-biblio-text flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-biblio-accent" />
+                    Notifications
+                  </h3>
+                  <p className="text-xs text-biblio-muted">
+                    Envoyez deux e-mails de test : une confirmation de prêt et un rappel de retard.
+                  </p>
+                  <div>
+                    <label className="text-xs font-medium text-biblio-muted block mb-1">
+                      Adresse e-mail de test
+                    </label>
+                    <input
+                      type="email"
+                      value={testEmail}
+                      onChange={(e) => {
+                        setTestEmail(e.target.value);
+                        setTestNotificationSent(false);
+                      }}
+                      placeholder="ex : test@esi.dz"
+                      className={INPUT_CLASS}
+                      autoComplete="email"
+                    />
+                  </div>
+                  {testNotificationSent && (
+                    <div className="bg-biblio-success/10 text-biblio-success p-3 rounded-lg text-xs flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 shrink-0" />
+                      Les e-mails de test ont été envoyés.
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleTestNotifications}
+                      disabled={testNotificationLoading || !testEmail.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                    >
+                      {testNotificationLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      Envoyer le test
+                    </button>
+                    <button
+                      onClick={() => {
+                        setChangeNotificationsId(null);
+                        setTestNotificationSent(false);
+                      }}
                       className="p-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
                     >
                       <X className="w-3.5 h-3.5" />
