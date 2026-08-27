@@ -119,7 +119,7 @@ function ImportCSVModal({ onClose, onImported }) {
         return;
       }
       const { error: err } = await supabase
-        .from("etudiants")
+        .from("bibli_etudiants")
         .upsert(valid, { ignoreDuplicates: true });
       if (err) throw err;
       setSuccess(`${valid.length} étudiant(s) importé(s) avec succès.`);
@@ -327,12 +327,12 @@ export default function Etudiants() {
       setLoading(true);
       const [etudRes, pretsRes] = await Promise.all([
         supabase
-          .from("etudiants")
+          .from("bibli_etudiants")
           .select("*")
           .order("date_inscription", { ascending: false }),
         supabase
-          .from("prets")
-          .select("*, livres(titre)")
+          .from("bibli_prets")
+          .select("*, bibli_livres(titre)")
           .eq("rendu", false),
       ]);
       if (etudRes.error) throw etudRes.error;
@@ -401,7 +401,7 @@ export default function Etudiants() {
         notes_admin: form.notes_admin,
         champs_custom: serializeCustomFields(form.champs_custom),
       };
-      const { error: err } = await supabase.from("etudiants").insert([payload]);
+      const { error: err } = await supabase.from("bibli_etudiants").insert([payload]);
       if (err) {
         if (err.code === "23505")
           setError("Cet email ou numéro étudiant existe déjà.");
@@ -426,12 +426,12 @@ export default function Etudiants() {
     try {
       const etudiant = etudiants.find((e) => e.id === id);
       const { error: pretsErr } = await supabase
-        .from("prets")
+        .from("bibli_prets")
         .delete()
         .eq("etudiant_id", id);
       if (pretsErr) throw pretsErr;
       const { error: err } = await supabase
-        .from("etudiants")
+        .from("bibli_etudiants")
         .delete()
         .eq("id", id);
       if (err) throw err;
@@ -477,7 +477,7 @@ export default function Etudiants() {
         champs_custom: serializeCustomFields(editForm.champs_custom),
       };
       const { error: err } = await supabase
-        .from("etudiants")
+        .from("bibli_etudiants")
         .update(payload)
         .eq("id", editEtudiant.id);
       if (err) throw err;
@@ -496,7 +496,7 @@ export default function Etudiants() {
   };
 
   const handleExport = async (format) => {
-    const { data } = await supabase.from("etudiants").select("*");
+    const { data } = await supabase.from("bibli_etudiants").select("*");
     const rows = (data || []).map((e) => ({
       Prénom: e.prenom,
       Nom: e.nom,

@@ -5,7 +5,7 @@ import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session, signIn } = useAuth();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -18,7 +18,7 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await signIn(username.trim(), password);
+      await signIn(email.trim(), password);
     } catch (err) {
       setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
     } finally {
@@ -49,15 +49,15 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-biblio-muted uppercase tracking-wider">
-                Nom d'utilisateur
+                E-mail
               </label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="user"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@exemple.com"
                 required
-                autoComplete="username"
+                autoComplete="email"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent transition-colors"
               />
             </div>
@@ -99,7 +99,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={loading || !username.trim() || !password}
+              disabled={loading || !email.trim() || !password}
               className="w-full py-3 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (

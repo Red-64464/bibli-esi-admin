@@ -1,0 +1,58 @@
+services:
+  public:
+    build:
+      context: ../../bibli-esi-public
+      args:
+        VITE_SUPABASE_URL: https://supabase.75.119.140.201.nip.io
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    container_name: bibliesi-public
+    restart: unless-stopped
+    networks: [coolify]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.bibliesi-public.rule: Host(`bibliesi-public.75.119.140.201.nip.io`)
+      traefik.http.routers.bibliesi-public.entrypoints: https
+      traefik.http.routers.bibliesi-public.tls: "true"
+      traefik.http.routers.bibliesi-public.tls.certresolver: letsencrypt
+      traefik.http.services.bibliesi-public.loadbalancer.server.port: "80"
+
+  admin:
+    build:
+      context: ..
+      args:
+        VITE_SUPABASE_URL: https://supabase.75.119.140.201.nip.io
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    container_name: bibliesi-admin
+    restart: unless-stopped
+    networks: [coolify]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.bibliesi-admin.rule: Host(`bibliesi-admin.75.119.140.201.nip.io`)
+      traefik.http.routers.bibliesi-admin.entrypoints: https
+      traefik.http.routers.bibliesi-admin.tls: "true"
+      traefik.http.routers.bibliesi-admin.tls.certresolver: letsencrypt
+      traefik.http.services.bibliesi-admin.loadbalancer.server.port: "80"
+
+  api-proxy:
+    image: nginx:1.27-alpine
+    container_name: bibliesi-supabase-proxy
+    restart: unless-stopped
+    volumes:
+      - ./supabase-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [coolify, supabase_default]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.bibliesi-supabase.rule: Host(`supabase.75.119.140.201.nip.io`)
+      traefik.http.routers.bibliesi-supabase.entrypoints: https
+      traefik.http.routers.bibliesi-supabase.tls: "true"
+      traefik.http.routers.bibliesi-supabase.tls.certresolver: letsencrypt
+      traefik.http.services.bibliesi-supabase.loadbalancer.server.port: "80"
+
+networks:
+  coolify:
+    external: true
+  supabase_default:
+    external: true

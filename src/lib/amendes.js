@@ -17,7 +17,7 @@ export async function createAmende(pret, tauxJournalier = 50, createdBy = "") {
   const montant = jours * tauxJournalier;
 
   const { data, error } = await supabase
-    .from("amendes")
+    .from("bibli_amendes")
     .insert([
       {
         pret_id: pret.id,
@@ -41,7 +41,7 @@ export async function createAmende(pret, tauxJournalier = 50, createdBy = "") {
  */
 export async function payerAmende(amendeId) {
   const { error } = await supabase
-    .from("amendes")
+    .from("bibli_amendes")
     .update({ statut: "payee", date_paiement: new Date().toISOString() })
     .eq("id", amendeId);
   if (error) throw error;
@@ -52,7 +52,7 @@ export async function payerAmende(amendeId) {
  */
 export async function annulerAmende(amendeId) {
   const { error } = await supabase
-    .from("amendes")
+    .from("bibli_amendes")
     .update({ statut: "annulee" })
     .eq("id", amendeId);
   if (error) throw error;
@@ -63,8 +63,8 @@ export async function annulerAmende(amendeId) {
  */
 export async function getAmendesEtudiant(etudiantId) {
   const { data, error } = await supabase
-    .from("amendes")
-    .select("*, prets(livres(titre))")
+    .from("bibli_amendes")
+    .select("*, prets(bibli_livres(titre))")
     .eq("etudiant_id", etudiantId)
     .order("date_creation", { ascending: false });
   if (error) throw error;
@@ -76,7 +76,7 @@ export async function getAmendesEtudiant(etudiantId) {
  */
 export async function getTotalImpaye(etudiantId) {
   const { data, error } = await supabase
-    .from("amendes")
+    .from("bibli_amendes")
     .select("montant")
     .eq("etudiant_id", etudiantId)
     .eq("statut", "impayee");
@@ -97,8 +97,8 @@ export async function isEtudiantBloque(etudiantId) {
  */
 export async function getAllAmendesImpayees() {
   const { data, error } = await supabase
-    .from("amendes")
-    .select("*, etudiants(nom, prenom, email), prets(livres(titre))")
+    .from("bibli_amendes")
+    .select("*, bibli_etudiants(nom, prenom, email), prets(bibli_livres(titre))")
     .eq("statut", "impayee")
     .order("date_creation", { ascending: false });
   if (error) throw error;

@@ -35,8 +35,8 @@ export default function Calendrier() {
       const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
 
       const { data, error: err } = await supabase
-        .from("prets")
-        .select("id, date_retour_prevue, date_pret, rendu, livres(titre), etudiants(nom, prenom)")
+        .from("bibli_prets")
+        .select("id, date_retour_prevue, date_pret, rendu, bibli_livres(titre), bibli_etudiants(nom, prenom)")
         .eq("rendu", false)
         .gte("date_retour_prevue", start)
         .lte("date_retour_prevue", end);

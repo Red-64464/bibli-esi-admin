@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 import {
@@ -115,17 +115,17 @@ export default function Dashboard() {
       setLoading(true);
       const [livresRes, etudRes, pretsRes] = await Promise.all([
         supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("*")
           .order("date_ajout", { ascending: false }),
         supabase
-          .from("etudiants")
+          .from("bibli_etudiants")
           .select("*")
           .order("date_inscription", { ascending: false }),
         supabase
-          .from("prets")
+          .from("bibli_prets")
           .select(
-            "*, livres(id, titre, isbn, categorie), etudiants(id, nom, prenom, email)",
+            "*, bibli_livres(id, titre, isbn, categorie), bibli_etudiants(id, nom, prenom, email)",
           )
           .order("date_pret", { ascending: false }),
       ]);
@@ -317,8 +317,8 @@ export default function Dashboard() {
   const handleExport = async (format) => {
     try {
       const filename = `${exportType}_${new Date().toISOString().slice(0, 10)}`;
-      if (exportType === "livres") {
-        const { data } = await supabase.from("livres").select("*");
+      if (exportType === "bibli_livres") {
+        const { data } = await supabase.from("bibli_livres").select("*");
         const rows = (data || []).map((l) => ({
           ISBN: l.isbn,
           Titre: l.titre,
@@ -337,8 +337,8 @@ export default function Dashboard() {
         else exportJSON(rows, filename);
       } else {
         const { data } = await supabase
-          .from("prets")
-          .select("*, livres(titre, isbn), etudiants(nom, prenom, email)")
+          .from("bibli_prets")
+          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email)")
           .eq("rendu", false);
         const rows = (data || []).map((p) => ({
           Livre: p.livres?.titre || "",
@@ -830,7 +830,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => {
-              setExportType("livres");
+              setExportType("bibli_livres");
               setShowExportModal(true);
             }}
             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -839,7 +839,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => {
-              setExportType("prets");
+              setExportType("bibli_prets");
               setShowExportModal(true);
             }}
             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -861,9 +861,9 @@ export default function Dashboard() {
           icon={BookOpen}
           label="Total livres"
           value={stats.totalLivres}
-          active={activeCard === "livres"}
+          active={activeCard === "bibli_livres"}
           onClick={() =>
-            setActiveCard(activeCard === "livres" ? null : "livres")
+            setActiveCard(activeCard === "bibli_livres" ? null : "bibli_livres")
           }
         />
         <StatCard
@@ -896,9 +896,9 @@ export default function Dashboard() {
           icon={Users}
           label="Etudiants inscrits"
           value={stats.totalEtudiants}
-          active={activeCard === "etudiants"}
+          active={activeCard === "bibli_etudiants"}
           onClick={() =>
-            setActiveCard(activeCard === "etudiants" ? null : "etudiants")
+            setActiveCard(activeCard === "bibli_etudiants" ? null : "bibli_etudiants")
           }
         />
         <StatCard
@@ -1191,7 +1191,7 @@ export default function Dashboard() {
 
       {showExportModal && (
         <ExportModal
-          title={`Exporter - ${exportType === "livres" ? "Catalogue" : "Prets en cours"}`}
+          title={`Exporter - ${exportType === "bibli_livres" ? "Catalogue" : "Prets en cours"}`}
           onClose={() => setShowExportModal(false)}
           onExport={handleExport}
         />
