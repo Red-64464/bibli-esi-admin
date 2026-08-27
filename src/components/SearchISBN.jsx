@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Search, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { normalizeCategory } from "../lib/categories";
+import { supabase } from "../lib/supabase";
 
-const isIsbn = (q) => /^[\d\-\s]{9,17}$/.test(q.trim());
+const isIsbn = (q) => /^(?:\d{9}[\dXx]|\d{13})$/.test(q.replace(/[^0-9Xx]/g, ""));
 
 const LANG_MAP = {
   fr: "Français",
@@ -283,32 +284,25 @@ export default function SearchISBN({
 
     try {
       if (isIsbn(q)) {
-        const cleanIsbn = q.replace(/[-\s]/g, "");
-
-        // Appel PARALLÈLE des 3 sources simultanément
-        const [gbResult, olResult, bnfResult] = await Promise.allSettled([
-          fetchGoogleBooks(cleanIsbn),
-          fetchOpenLibrary(cleanIsbn),
-          fetchBnF(cleanIsbn),
-        ]);
-
-        const gb = gbResult.status === "fulfilled" ? gbResult.value : null;
-        const ol = olResult.status === "fulfilled" ? olResult.value : null;
-        const bnf = bnfResult.status === "fulfilled" ? bnfResult.value : null;
-
-        console.log("[ISBN Search] GB:", gb, "| OL:", ol, "| BnF:", bnf);
-        if (bnfResult.status === "rejected")
-          console.error("[BnF] erreur:", bnfResult.reason);
-
-        const merged = mergeBooks(gb, ol, bnf);
-        if (merged) {
-          setBookData(merged);
+        // L'appel serveur vérifie l'ISBN, cherche d'abord dans Bibl'ESI,
+        // puis interroge les catalogues externes et mémorise la réponse.
+        const { data, error: lookupError } = await supabase.functions.invoke(
+          "bibli-book-lookup",
+          { body: { isbn: q } },
+        );
+        if (lookupError) {
+          const details = await lookupError.context?.json?.().catch(() => null);
+          setError(
+            details?.error ||
+              "Aucun livre trouvé pour cet ISBN. Vérifiez le numéro ou ajoutez-le manuellement.",
+          );
           return;
         }
-
-        setError(
-          "Aucun livre trouvé pour cet ISBN. Vérifiez le numéro ou ajoutez manuellement.",
-        );
+        if (data?.book) {
+          setBookData(data.book);
+          return;
+        }
+        setError("Aucun livre trouvé. Vous pouvez l'ajouter manuellement.");
       } else {
         const url = `https://www.googleapis.com/books/v1/volumes?q=intitle:${encodeURIComponent(q)}&maxResults=8&langRestrict=fr`;
         const response = await fetch(url);

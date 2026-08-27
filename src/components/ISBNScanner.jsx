@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, X, Loader2, AlertCircle, ImagePlus } from "lucide-react";
 
 /**
@@ -9,9 +9,49 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   const [status, setStatus] = useState("idle"); // idle | loading | error
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef(null);
+  const scannerRef = useRef(null);
+  const scanHandledRef = useRef(false);
   const containerId = useRef(
     "isbn-scanner-" + Math.random().toString(36).slice(2, 8),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const startCamera = async () => {
+      setStatus("loading");
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const scanner = new Html5Qrcode(containerId.current);
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 280, height: 180 } },
+          (decodedText) => {
+            if (scanHandledRef.current) return;
+            scanHandledRef.current = true;
+            onScan(decodedText);
+          },
+          () => {},
+        );
+        if (!cancelled) setStatus("scanning");
+      } catch {
+        // La photo reste disponible si le navigateur refuse la caméra.
+        if (!cancelled) setStatus("idle");
+      }
+    };
+
+    void startCamera();
+    return () => {
+      cancelled = true;
+      const scanner = scannerRef.current;
+      if (scanner) {
+        void scanner.stop().catch(() => undefined).finally(() => {
+          void scanner.clear().catch(() => undefined);
+        });
+      }
+    };
+  }, [onScan]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -21,6 +61,12 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
     setErrorMsg("");
 
     try {
+      const liveScanner = scannerRef.current;
+      if (liveScanner) {
+        await liveScanner.stop().catch(() => undefined);
+        await liveScanner.clear().catch(() => undefined);
+        scannerRef.current = null;
+      }
       const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode(containerId.current);
       const result = await scanner.scanFile(file, false);
@@ -40,8 +86,6 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div id={containerId.current} className="hidden" />
-
       <div className="bg-biblio-card rounded-xl border border-white/10 w-full max-w-sm space-y-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-5">
           <h2 className="text-base font-semibold flex items-center gap-2">
@@ -64,6 +108,14 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
             </div>
           )}
 
+          <div id={containerId.current} className="overflow-hidden rounded-lg bg-black" />
+
+          {status === "scanning" && (
+            <p className="text-xs text-biblio-muted text-center">
+              Placez le code-barres ISBN dans le cadre : la recherche démarre automatiquement.
+            </p>
+          )}
+
           {status === "error" && (
             <div className="flex flex-col items-center gap-3 py-4">
               <AlertCircle className="w-8 h-8 text-biblio-danger" />
@@ -80,7 +132,7 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
             </div>
           )}
 
-          {status === "idle" && (
+          {(status === "idle" || status === "scanning") && (
             <>
               <input
                 ref={fileInputRef}
@@ -98,7 +150,7 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
                 Prendre une photo
               </button>
               <p className="text-xs text-biblio-muted text-center pb-1">
-                Photographiez le code-barre du livre pour le scanner automatiquement.
+                Si la caméra ne lit pas le code, prenez une photo nette du code-barres.
               </p>
             </>
           )}
