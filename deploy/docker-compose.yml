@@ -1,7 +1,7 @@
 services:
   public:
     build:
-      context: ../../bibli-esi-public
+      context: ${BIBLIESI_PUBLIC_CONTEXT:-../../bibli-esi-public}
       args:
         VITE_SUPABASE_URL: https://supabase.75.119.140.201.nip.io
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
