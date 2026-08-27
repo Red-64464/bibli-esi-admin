@@ -1,13 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/utils";
-import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react";
 
 const MONTH_NAMES = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
 const DAY_NAMES = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const REMINDER_OPTIONS = [
+  { value: 0, label: "Le jour même" },
+  { value: 1, label: "1 jour avant" },
+  { value: 2, label: "2 jours avant" },
+  { value: 3, label: "3 jours avant" },
+  { value: 7, label: "1 semaine avant" },
+];
 
 function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
@@ -19,6 +26,76 @@ function getFirstDayOfMonth(year, month) {
   return d === 0 ? 6 : d - 1;
 }
 
+function addDays(dateStr, days) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10).replaceAll("-", "");
+}
+
+function escapeIcsText(value = "") {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function buildCalendarFile(pretsToExport, reminderDays) {
+  const now = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const trigger = reminderDays === 0 ? "PT0M" : `-P${reminderDays}D`;
+  const events = pretsToExport.map((pret) => {
+    const title = pret.livres?.titre || "Livre à retourner";
+    const student = pret.etudiants
+      ? `${pret.etudiants.prenom || ""} ${pret.etudiants.nom || ""}`.trim()
+      : "";
+    const description = [
+      `Livre : ${title}`,
+      student ? `Etudiant : ${student}` : "",
+      pret.date_pret ? `Pret : ${formatDate(pret.date_pret)}` : "",
+      `Retour prevu : ${formatDate(pret.date_retour_prevue)}`,
+    ].filter(Boolean).join("\\n");
+
+    return [
+      "BEGIN:VEVENT",
+      `UID:bibliesi-return-${pret.id}@bibliesi`,
+      `DTSTAMP:${now}`,
+      `DTSTART;VALUE=DATE:${addDays(pret.date_retour_prevue, 0)}`,
+      `DTEND;VALUE=DATE:${addDays(pret.date_retour_prevue, 1)}`,
+      `SUMMARY:${escapeIcsText(`Retour livre - ${title}`)}`,
+      `DESCRIPTION:${escapeIcsText(description)}`,
+      "BEGIN:VALARM",
+      `TRIGGER:${trigger}`,
+      "ACTION:DISPLAY",
+      `DESCRIPTION:${escapeIcsText(`Retour livre - ${title}`)}`,
+      "END:VALARM",
+      "END:VEVENT",
+    ].join("\r\n");
+  });
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//BiblESI//Calendrier des retours//FR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Bibl'ESI - Retours de livres",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+function downloadIcs(content, filename) {
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function Calendrier() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -27,6 +104,8 @@ export default function Calendrier() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState(null);
+  const [reminderDays, setReminderDays] = useState(1);
+  const [exporting, setExporting] = useState(false);
 
   const fetchPrets = useCallback(async () => {
     try {
@@ -79,6 +158,35 @@ export default function Calendrier() {
 
   const selectedPrets = selectedDay ? (pretsByDay[selectedDay] || []) : [];
 
+  const exportToGoogleCalendar = async () => {
+    try {
+      setExporting(true);
+      setError("");
+
+      const { data, error: err } = await supabase
+        .from("bibli_prets")
+        .select("id, date_retour_prevue, date_pret, rendu, bibli_livres(titre), bibli_etudiants(nom, prenom)")
+        .eq("rendu", false)
+        .not("date_retour_prevue", "is", null)
+        .order("date_retour_prevue", { ascending: true });
+
+      if (err) throw err;
+      const activePrets = data || [];
+      if (activePrets.length === 0) {
+        setError("Aucun retour actif à exporter pour le moment.");
+        return;
+      }
+
+      const ics = buildCalendarFile(activePrets, Number(reminderDays));
+      downloadIcs(ics, `bibliesi-retours-${new Date().toISOString().slice(0, 10)}.ics`);
+      window.open("https://calendar.google.com/calendar/u/0/r/settings/export", "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError("Export impossible : " + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,6 +197,46 @@ export default function Calendrier() {
         <p className="text-biblio-muted mt-1">
           Retours prévus pour {MONTH_NAMES[month]} {year}
         </p>
+      </div>
+
+      <div className="bg-biblio-card rounded-xl border border-white/10 p-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-biblio-text">
+            Ajouter les retours dans Google Calendar
+          </p>
+          <p className="text-xs text-biblio-muted max-w-2xl">
+            Télécharge un fichier calendrier avec tous les retours actifs, puis ouvre Google Calendar pour l'importer dans ton calendrier personnel.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="text-xs text-biblio-muted">
+            Rappel
+            <select
+              value={reminderDays}
+              onChange={(e) => setReminderDays(Number(e.target.value))}
+              className="mt-1 w-full sm:w-44 rounded-lg border border-white/10 bg-biblio-bg px-3 py-2 text-sm text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent/60"
+            >
+              {REMINDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={exportToGoogleCalendar}
+            disabled={exporting}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-biblio-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-biblio-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Exporter Google Calendar
+            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+          </button>
+        </div>
       </div>
 
       {error && (
