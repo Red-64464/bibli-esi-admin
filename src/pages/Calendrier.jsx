@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
 import { formatDate } from "../lib/utils";
-import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react";
+import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink, BookOpen, User, Clock } from "lucide-react";
 
 const MONTH_NAMES = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -31,6 +31,25 @@ function addDays(dateStr, days) {
   const date = new Date(`${dateStr}T00:00:00`);
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10).replaceAll("-", "");
+}
+
+function toDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dateKey(year, month, day) {
+  return toDateKey(new Date(year, month, day));
+}
+
+function getLoanEndDate(pret) {
+  return pret.date_retour || pret.date_retour_prevue || pret.date_pret;
+}
+
+function isBetweenDays(day, start, end) {
+  const current = new Date(`${day}T00:00:00`).getTime();
+  const startTime = new Date(`${start}T00:00:00`).getTime();
+  const endTime = new Date(`${end}T00:00:00`).getTime();
+  return current >= startTime && current <= endTime;
 }
 
 function escapeIcsText(value = "") {
@@ -116,10 +135,10 @@ export default function Calendrier() {
 
       const { data, error: err } = await supabase
         .from("bibli_prets")
-        .select("id, date_retour_prevue, date_pret, rendu, bibli_livres(titre), bibli_etudiants(nom, prenom)")
-        .eq("rendu", false)
-        .gte("date_retour_prevue", start)
-        .lte("date_retour_prevue", end);
+        .select("id, date_retour_prevue, date_retour, date_pret, date_rappel, rendu, statut, notes, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email, numero_etudiant)")
+        .lte("date_pret", end)
+        .or(`date_retour_prevue.gte.${start},date_retour.gte.${start},and(date_retour_prevue.is.null,date_retour.is.null)`)
+        .order("date_pret", { ascending: true });
 
       if (err) throw err;
       setPrets(data || []);
@@ -146,13 +165,18 @@ export default function Calendrier() {
     setSelectedDay(null);
   };
 
-  // Grouper les prêts par jour de retour
+  // Grouper les prêts par jour couvert par la période du prêt
   const pretsByDay = {};
   prets.forEach((p) => {
-    if (!p.date_retour_prevue) return;
-    const day = new Date(p.date_retour_prevue).getDate();
-    if (!pretsByDay[day]) pretsByDay[day] = [];
-    pretsByDay[day].push(p);
+    if (!p.date_pret) return;
+    const start = p.date_pret;
+    const end = getLoanEndDate(p);
+    for (let day = 1; day <= getDaysInMonth(year, month); day += 1) {
+      const key = dateKey(year, month, day);
+      if (!isBetweenDays(key, start, end)) continue;
+      if (!pretsByDay[day]) pretsByDay[day] = [];
+      pretsByDay[day].push(p);
+    }
   });
 
   const daysInMonth = getDaysInMonth(year, month);
@@ -167,7 +191,7 @@ export default function Calendrier() {
 
       const { data, error: err } = await supabase
         .from("bibli_prets")
-        .select("id, date_retour_prevue, date_pret, rendu, bibli_livres(titre), bibli_etudiants(nom, prenom)")
+        .select("id, date_retour_prevue, date_pret, rendu, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom)")
         .eq("rendu", false)
         .not("date_retour_prevue", "is", null)
         .order("date_retour_prevue", { ascending: true });
@@ -207,7 +231,7 @@ export default function Calendrier() {
             Ajouter les retours dans Google Calendar
           </p>
           <p className="text-xs text-biblio-muted max-w-2xl">
-            Télécharge un fichier calendrier avec tous les retours actifs, puis ouvre Google Calendar pour l'importer dans ton calendrier personnel.
+            Télécharge un fichier calendrier avec tous les retours actifs, puis ouvre Google Calendar pour l&apos;importer dans ton calendrier personnel.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -309,20 +333,44 @@ export default function Calendrier() {
                     onClick={() =>
                       setSelectedDay(selectedDay === day ? null : day)
                     }
-                    className={`h-14 rounded-lg flex flex-col items-center justify-start pt-1.5 transition-colors relative
-                      ${isSelected ? "bg-biblio-accent/20 border border-biblio-accent" : "hover:bg-white/5 border border-transparent"}
+                    className={`h-20 rounded-lg flex flex-col items-stretch justify-start p-1.5 transition-colors relative text-left
+                      ${dayPrets.length ? "bg-biblio-accent/10 border border-biblio-accent/25" : "border border-transparent"}
+                      ${isSelected ? "bg-biblio-accent/20 border-biblio-accent" : "hover:bg-white/5"}
                       ${isToday ? "ring-1 ring-biblio-accent" : ""}
                     `}
                   >
                     <span
-                      className={`text-sm font-medium ${isToday ? "text-biblio-accent" : "text-biblio-text"}`}
+                      className={`text-sm font-medium text-center ${isToday ? "text-biblio-accent" : "text-biblio-text"}`}
                     >
                       {day}
                     </span>
                     {dayPrets.length > 0 && (
-                      <span className="mt-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-biblio-warning/20 text-biblio-warning text-[10px] font-bold px-1">
-                        {dayPrets.length}
-                      </span>
+                      <div className="mt-1 space-y-1 overflow-hidden">
+                        {dayPrets.slice(0, 2).map((pret) => {
+                          const key = dateKey(year, month, day);
+                          const isStart = pret.date_pret === key;
+                          const isEnd = getLoanEndDate(pret) === key;
+                          return (
+                            <span
+                              key={pret.id}
+                              className={`block truncate rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                isEnd
+                                  ? "bg-biblio-danger/25 text-biblio-danger"
+                                  : isStart
+                                    ? "bg-biblio-success/25 text-biblio-success"
+                                    : "bg-biblio-accent/20 text-biblio-accent"
+                              }`}
+                            >
+                              {isStart ? "Début" : isEnd ? "Retour" : "Prêt"} · {pret.livres?.titre || "Livre"}
+                            </span>
+                          );
+                        })}
+                        {dayPrets.length > 2 && (
+                          <span className="block text-center text-[10px] font-semibold text-biblio-muted">
+                            +{dayPrets.length - 2}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </button>
                 );
@@ -337,7 +385,7 @@ export default function Calendrier() {
         <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
           <div className="px-6 py-4 border-b border-white/10">
             <h3 className="font-semibold text-biblio-text">
-              Retours prévus le {selectedDay} {MONTH_NAMES[month]} {year}
+              Prêts du {selectedDay} {MONTH_NAMES[month]} {year}
               <span className="ml-2 text-biblio-muted text-sm font-normal">
                 ({selectedPrets.length} prêt{selectedPrets.length !== 1 ? "s" : ""})
               </span>
@@ -345,25 +393,56 @@ export default function Calendrier() {
           </div>
           {selectedPrets.length === 0 ? (
             <p className="px-6 py-4 text-sm text-biblio-muted">
-              Aucun retour prévu ce jour.
+              Aucun prêt actif sur cette journée.
             </p>
           ) : (
             <div className="divide-y divide-white/5">
               {selectedPrets.map((p) => (
-                <div key={p.id} className="px-6 py-3 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-biblio-text line-clamp-1">
-                      {p.livres?.titre || "—"}
-                    </p>
-                    <p className="text-xs text-biblio-muted">
-                      {p.etudiants
-                        ? `${p.etudiants.prenom} ${p.etudiants.nom}`
-                        : "—"}
-                    </p>
+                <div key={p.id} className="px-6 py-4 space-y-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-biblio-text flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-biblio-accent shrink-0" />
+                        <span className="line-clamp-1">{p.livres?.titre || "—"}</span>
+                      </p>
+                      {p.livres?.isbn && (
+                        <p className="mt-1 text-xs font-mono text-biblio-muted">
+                          ISBN : {p.livres.isbn}
+                        </p>
+                      )}
+                    </div>
+                    <span className="w-fit rounded-full bg-biblio-accent/15 px-2.5 py-1 text-xs font-medium text-biblio-accent">
+                      {p.rendu ? "Rendu" : "En cours"}
+                    </span>
                   </div>
-                  <span className="text-xs text-biblio-muted">
-                    {formatDate(p.date_retour_prevue)}
-                  </span>
+                  <div className="grid grid-cols-1 gap-2 text-xs text-biblio-muted sm:grid-cols-2">
+                    <p className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-biblio-accent" />
+                      <span className="text-biblio-text">
+                        {p.etudiants
+                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                          : "Étudiant inconnu"}
+                      </span>
+                      {p.etudiants?.numero_etudiant && (
+                        <span className="font-mono">· {p.etudiants.numero_etudiant}</span>
+                      )}
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-biblio-accent" />
+                      <span>Prêt : {formatDate(p.date_pret)}</span>
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-biblio-danger" />
+                      <span>Retour prévu : {formatDate(p.date_retour_prevue)}</span>
+                    </p>
+                    {p.date_rappel && (
+                      <p className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-biblio-warning" />
+                        <span>Rappel : {formatDate(p.date_rappel)}</span>
+                      </p>
+                    )}
+                  </div>
+                  {p.notes && <p className="rounded-lg bg-white/5 p-3 text-xs text-biblio-muted">{p.notes}</p>}
                 </div>
               ))}
             </div>
