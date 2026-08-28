@@ -1,4 +1,4 @@
-import { Trash2, BookOpen, Pencil, Phone, User, AlertTriangle } from "lucide-react";
+import { Trash2, BookOpen, Pencil, User, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Normalise champs_custom : supporte array [{key,value}] ou object {key:value}
@@ -56,12 +56,6 @@ export default function EtudiantCard({
             <p className="text-xs text-biblio-muted font-mono mt-0.5">
               N° {etudiant.numero_etudiant || "—"}
             </p>
-            {etudiant.telephone && (
-              <p className="text-xs text-biblio-muted flex items-center gap-1 mt-0.5">
-                <Phone className="w-3 h-3" />
-                {etudiant.telephone}
-              </p>
-            )}
           </div>
         </div>
 

@@ -27,6 +27,11 @@ function normaliseNumber(value = "") {
   return value.replace(/[^0-9]/g, "").slice(0, 12);
 }
 
+function buildStudentEmail(numeroEtudiant = "") {
+  const cleaned = normaliseNumber(numeroEtudiant);
+  return cleaned ? `${cleaned}@etu.he2b.be` : "";
+}
+
 function extractFields(text) {
   const lines = text
     .split(/\r?\n/)
@@ -169,6 +174,7 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
       paths.recto = path;
       const payload = {
         nom: fields.nom.trim(), prenom: fields.prenom.trim(), numero_etudiant: fields.numero_etudiant.trim(),
+        email: buildStudentEmail(fields.numero_etudiant),
         photo_carte_recto_path: paths.recto,
       };
       const { data, error: insertError } = await supabase.from("bibli_etudiants").insert(payload).select().single();

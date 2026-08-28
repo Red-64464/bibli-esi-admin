@@ -1,4 +1,4 @@
-import { RotateCcw, Printer } from "lucide-react";
+import { Pencil, RotateCcw, Printer } from "lucide-react";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 import { printFichePret } from "../lib/print";
 
@@ -39,7 +39,7 @@ function StatusBadge({ statut, pret }) {
 }
 
 /** Carte mobile pour un prêt — visible uniquement sur petits écrans */
-export function PretCard({ pret, onReturn }) {
+export function PretCard({ pret, onReturn, onEdit }) {
   const statut = getPretStatut(pret);
   const isRetourne = statut === "retourné";
   const isRetard = statut === "en_retard";
@@ -86,22 +86,30 @@ export function PretCard({ pret, onReturn }) {
         )}
       </div>
 
-      {/* Action */}
-      {!isRetourne && (
+      <div className="flex gap-2">
         <button
-          onClick={() => onReturn(pret.id, pret.livre_id)}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+          onClick={() => onEdit(pret)}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Marquer comme retourné
+          <Pencil className="w-3.5 h-3.5" />
+          Modifier
         </button>
-      )}
+        {!isRetourne && (
+          <button
+            onClick={() => onReturn(pret.id, pret.livre_id)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Retourner
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 /** Ligne de tableau desktop */
-export default function PretRow({ pret, onReturn }) {
+export default function PretRow({ pret, onReturn, onEdit }) {
   const statut = getPretStatut(pret);
   const isRetard = statut === "en_retard";
   const isRetourne = statut === "retourné";
@@ -138,6 +146,13 @@ export default function PretRow({ pret, onReturn }) {
               Retourner
             </button>
           )}
+          <button
+            onClick={() => onEdit(pret)}
+            className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
+            title="Modifier"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={() => printFichePret(pret)}
             className="p-1.5 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"

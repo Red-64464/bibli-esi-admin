@@ -15,7 +15,6 @@ import {
   Pencil,
   Plus,
   Trash2,
-  Phone,
   StickyNote,
   AlertCircle,
   Upload,
@@ -34,6 +33,11 @@ const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
 
 const PAGE_SIZE = 20;
+
+function buildStudentEmail(numeroEtudiant = "") {
+  const cleaned = String(numeroEtudiant).replace(/[^0-9]/g, "").trim();
+  return cleaned ? `${cleaned}@etu.he2b.be` : "";
+}
 
 // Defined OUTSIDE the component so React doesn't remount it on every keystroke
 function CustomFieldsEditor({ fields, onChange }) {
@@ -100,9 +104,8 @@ function ImportCSVModal({ onClose, onImported }) {
         const rows = results.data.map((r) => ({
           nom: r.nom?.trim() || "",
           prenom: r.prenom?.trim() || "",
-          email: r.email?.trim() || "",
           numero_etudiant: r.numero_etudiant?.trim() || "",
-          telephone: r.telephone?.trim() || "",
+          email: buildStudentEmail(r.numero_etudiant?.trim() || ""),
         }));
         setPreview(rows);
       },
@@ -159,9 +162,9 @@ function ImportCSVModal({ onClose, onImported }) {
         <p className="text-sm text-biblio-muted">
           Le fichier CSV doit contenir les colonnes :{" "}
           <code className="text-biblio-accent">
-            nom, prenom, email, numero_etudiant, telephone
+            nom, prenom, numero_etudiant
           </code>
-          . Les doublons (même email/numéro) seront ignorés.
+          . L&apos;e-mail est créé automatiquement depuis le matricule.
         </p>
 
         {/* File input */}
@@ -200,7 +203,7 @@ function ImportCSVModal({ onClose, onImported }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-white/5 text-biblio-muted">
-                    {["Prénom", "Nom", "Email", "N° étudiant", "Téléphone"].map(
+                    {["Prénom", "Nom", "Email auto", "N° étudiant"].map(
                       (h) => (
                         <th key={h} className="px-3 py-2 text-left font-medium">
                           {h}
@@ -226,9 +229,6 @@ function ImportCSVModal({ onClose, onImported }) {
                       </td>
                       <td className="px-3 py-2 text-biblio-muted">
                         {r.numero_etudiant || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-biblio-muted">
-                        {r.telephone || "—"}
                       </td>
                     </tr>
                   ))}
@@ -273,9 +273,7 @@ function ImportCSVModal({ onClose, onImported }) {
 const emptyForm = {
   nom: "",
   prenom: "",
-  email: "",
   numero_etudiant: "",
-  telephone: "",
   notes_admin: "",
   champs_custom: [],
 };
@@ -400,9 +398,8 @@ export default function Etudiants() {
       const payload = {
         nom: form.nom.trim(),
         prenom: form.prenom.trim(),
-        email: form.email,
+        email: buildStudentEmail(form.numero_etudiant),
         numero_etudiant: form.numero_etudiant,
-        telephone: form.telephone,
         notes_admin: form.notes_admin,
         champs_custom: serializeCustomFields(form.champs_custom),
       };
@@ -459,9 +456,7 @@ export default function Etudiants() {
     setEditForm({
       nom: etudiant.nom || "",
       prenom: etudiant.prenom || "",
-      email: etudiant.email || "",
       numero_etudiant: etudiant.numero_etudiant || "",
-      telephone: etudiant.telephone || "",
       notes_admin: etudiant.notes_admin || "",
       champs_custom: parseCustomFields(etudiant.champs_custom),
     });
@@ -475,9 +470,8 @@ export default function Etudiants() {
       const payload = {
         nom: editForm.nom.trim(),
         prenom: editForm.prenom.trim(),
-        email: editForm.email,
+        email: buildStudentEmail(editForm.numero_etudiant),
         numero_etudiant: editForm.numero_etudiant,
-        telephone: editForm.telephone,
         notes_admin: editForm.notes_admin,
         champs_custom: serializeCustomFields(editForm.champs_custom),
       };
@@ -507,7 +501,6 @@ export default function Etudiants() {
       Nom: e.nom,
       Email: e.email || "",
       "Numéro étudiant": e.numero_etudiant || "",
-      Téléphone: e.telephone || "",
       "Date inscription": e.date_inscription
         ? new Date(e.date_inscription).toLocaleDateString("fr-FR")
         : "",
@@ -528,8 +521,7 @@ export default function Etudiants() {
         e.nom?.toLowerCase().includes(q) ||
         e.prenom?.toLowerCase().includes(q) ||
         e.email?.toLowerCase().includes(q) ||
-        e.numero_etudiant?.toLowerCase().includes(q) ||
-        e.telephone?.toLowerCase().includes(q);
+        e.numero_etudiant?.toLowerCase().includes(q);
       if (!matchSearch) return false;
 
       if (filterMode === "en_retard") return hasRetard(e.id);
@@ -668,18 +660,6 @@ export default function Etudiants() {
             </div>
             <div>
               <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="Email"
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
                 Numéro étudiant
               </label>
               <input
@@ -692,17 +672,12 @@ export default function Etudiants() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3" /> Téléphone
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                Email automatique
               </label>
-              <input
-                value={form.telephone}
-                onChange={(e) =>
-                  setForm({ ...form, telephone: e.target.value })
-                }
-                placeholder="+213…"
-                className={INPUT_CLASS}
-              />
+              <div className={`${INPUT_CLASS} bg-white/3 text-biblio-muted`}>
+                {buildStudentEmail(form.numero_etudiant) || "matricule@etu.he2b.be"}
+              </div>
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs font-medium text-biblio-muted block mb-1 flex items-center gap-1">
@@ -789,7 +764,7 @@ export default function Etudiants() {
           type="text"
           value={recherche}
           onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="Rechercher un étudiant (nom, prénom, email, numéro, téléphone)…"
+          placeholder="Rechercher un étudiant (nom, prénom, email, numéro)…"
           className="w-full bg-biblio-card border border-white/10 rounded-lg pl-10 pr-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent"
         />
       </div>
@@ -890,7 +865,7 @@ export default function Etudiants() {
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-biblio-accent" /> Modifier
-                l'étudiant
+                l&apos;étudiant
               </h2>
               <button
                 onClick={() => setEditEtudiant(null)}
@@ -931,19 +906,6 @@ export default function Etudiants() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-biblio-muted block mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, email: e.target.value })
-                    }
-                    className={INPUT_CLASS}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-biblio-muted block mb-1">
                     Numéro étudiant
                   </label>
                   <input
@@ -958,17 +920,12 @@ export default function Etudiants() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-biblio-muted block mb-1 flex items-center gap-1">
-                    <Phone className="w-3 h-3" /> Téléphone
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Email automatique
                   </label>
-                  <input
-                    value={editForm.telephone}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, telephone: e.target.value })
-                    }
-                    placeholder="+213…"
-                    className={INPUT_CLASS}
-                  />
+                  <div className={`${INPUT_CLASS} bg-white/3 text-biblio-muted`}>
+                    {buildStudentEmail(editForm.numero_etudiant) || "matricule@etu.he2b.be"}
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-medium text-biblio-muted block mb-1 flex items-center gap-1">

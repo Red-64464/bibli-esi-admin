@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
@@ -13,6 +14,8 @@ import {
   Download,
   AlertCircle,
   Search,
+  Save,
+  X,
 } from "lucide-react";
 import PretRow, { PretCard } from "../components/PretRow";
 import ExportModal from "../components/ExportModal";
@@ -28,6 +31,7 @@ const PAGE_SIZE = 25;
 
 export default function Prets() {
   const { session } = useAuth();
+  const location = useLocation();
   const [prets, setPrets] = useState([]);
   const [livres, setLivres] = useState([]);
   const [etudiants, setEtudiants] = useState([]);
@@ -42,6 +46,10 @@ export default function Prets() {
   const [confirmReturn, setConfirmReturn] = useState(null); // {pretId, livreId}
   const [maxBooks, setMaxBooks] = useState(3);
   const [showStudentScanner, setShowStudentScanner] = useState(false);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [editPret, setEditPret] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
   const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -66,6 +74,13 @@ export default function Prets() {
       setMaxBooks(parseInt(s.max_books_per_student) || 3),
     );
   }, []);
+
+  useEffect(() => {
+    const livreId = location.state?.livreId;
+    if (!livreId) return;
+    setForm((current) => ({ ...current, livre_id: livreId }));
+    setShowForm(true);
+  }, [location.state?.livreId]);
 
   useRealtimeTables(["bibli_prets", "bibli_livres", "bibli_etudiants", "bibli_settings"], () => fetchData());
 
@@ -101,6 +116,31 @@ export default function Prets() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const filteredEtudiantsForForm = etudiants.filter((etudiant) => {
+    const q = studentSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      etudiant.numero_etudiant?.toLowerCase().includes(q) ||
+      etudiant.email?.toLowerCase().includes(q) ||
+      etudiant.nom?.toLowerCase().includes(q) ||
+      etudiant.prenom?.toLowerCase().includes(q) ||
+      `${etudiant.prenom || ""} ${etudiant.nom || ""}`.toLowerCase().includes(q)
+    );
+  });
+
+  const openEditPret = (pret) => {
+    setEditPret(pret);
+    setStudentSearch("");
+    setEditForm({
+      livre_id: pret.livre_id || "",
+      etudiant_id: pret.etudiant_id || "",
+      date_pret: pret.date_pret || today,
+      date_retour_prevue: pret.date_retour_prevue || "",
+      date_rappel: pret.date_rappel || "",
+      notes: pret.notes || "",
+    });
   };
 
   const handleCreatePret = async (e) => {
@@ -175,6 +215,61 @@ export default function Prets() {
       await fetchData();
     } catch (err) {
       setError("Erreur lors du prêt : " + err.message);
+    }
+  };
+
+  const handleEditPretSave = async (e) => {
+    e.preventDefault();
+    if (!editPret || !editForm?.livre_id || !editForm?.etudiant_id) return;
+    setEditLoading(true);
+    setError("");
+    try {
+      const oldLivreId = editPret.livre_id;
+      const newLivreId = editForm.livre_id;
+      const isActivePret = getPretStatut(editPret) !== "retourné";
+      const payload = {
+        livre_id: newLivreId,
+        etudiant_id: editForm.etudiant_id,
+        date_pret: editForm.date_pret,
+        date_retour_prevue: editForm.date_retour_prevue || null,
+        date_rappel: editForm.date_rappel || null,
+        notes: editForm.notes,
+      };
+
+      const { error: updateError } = await supabase
+        .from("bibli_prets")
+        .update(payload)
+        .eq("id", editPret.id);
+      if (updateError) throw updateError;
+
+      if (isActivePret && oldLivreId !== newLivreId) {
+        const { error: oldBookError } = await supabase
+          .from("bibli_livres")
+          .update({ disponible: true, statut: "disponible" })
+          .eq("id", oldLivreId);
+        if (oldBookError) throw oldBookError;
+        const { error: newBookError } = await supabase
+          .from("bibli_livres")
+          .update({ disponible: false, statut: "emprunté" })
+          .eq("id", newLivreId);
+        if (newBookError) throw newBookError;
+      }
+
+      const livreNom = livres.find((l) => l.id === newLivreId)?.titre || editPret.livres?.titre || "Livre";
+      const etudiant = etudiants.find((item) => item.id === editForm.etudiant_id);
+      await logActivity({
+        action_type: "pret_modifie",
+        description: `Prêt « ${livreNom} » modifié${etudiant ? ` pour ${etudiant.prenom} ${etudiant.nom}` : ""}`,
+        user_info: session?.username || "",
+      });
+
+      setEditPret(null);
+      setEditForm(null);
+      await fetchData();
+    } catch (err) {
+      setError("Erreur lors de la modification du prêt : " + err.message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -281,6 +376,16 @@ export default function Prets() {
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
   );
+  const editBookOptions = editPret && !livres.some((livre) => livre.id === editPret.livre_id)
+    ? [
+        {
+          id: editPret.livre_id,
+          titre: editPret.livres?.titre || "Livre actuel",
+          isbn: editPret.livres?.isbn || "",
+        },
+        ...livres,
+      ]
+    : livres;
 
   return (
     <div className="space-y-6">
@@ -348,6 +453,13 @@ export default function Prets() {
               <label className="text-xs font-medium text-biblio-muted block mb-1">
                 Étudiant *
               </label>
+              <input
+                type="search"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Chercher par matricule, nom ou prénom"
+                className={INPUT_CLASS + " w-full mb-2"}
+              />
               <div className="flex gap-2">
                 <select
                   value={form.etudiant_id}
@@ -359,7 +471,7 @@ export default function Prets() {
                   style={{ colorScheme: "dark" }}
                 >
                   <option value="">-- Choisir un étudiant --</option>
-                  {etudiants.map((e) => (
+                  {filteredEtudiantsForForm.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.prenom} {e.nom} ({e.numero_etudiant || "sans numéro"})
                     </option>
@@ -531,6 +643,7 @@ export default function Prets() {
                       key={pret.id}
                       pret={pret}
                       onReturn={handleReturn}
+                      onEdit={openEditPret}
                     />
                   ))}
                 </tbody>
@@ -541,7 +654,12 @@ export default function Prets() {
           {/* Mobile : cartes */}
           <div className="md:hidden space-y-3">
             {pretsPaged.map((pret) => (
-              <PretCard key={pret.id} pret={pret} onReturn={handleReturn} />
+              <PretCard
+                key={pret.id}
+                pret={pret}
+                onReturn={handleReturn}
+                onEdit={openEditPret}
+              />
             ))}
           </div>
 
@@ -550,6 +668,147 @@ export default function Prets() {
             <Pagination page={page} totalPages={totalPages} onPage={setPage} />
           )}
         </>
+      )}
+
+      {editPret && editForm && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <ArrowLeftRight className="w-5 h-5 text-biblio-accent" />
+                Modifier le prêt
+              </h2>
+              <button
+                onClick={() => {
+                  setEditPret(null);
+                  setEditForm(null);
+                }}
+                className="text-biblio-muted hover:text-biblio-text"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditPretSave} className="p-6 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Livre *
+                  </label>
+                  <select
+                    value={editForm.livre_id}
+                    onChange={(e) => setEditForm({ ...editForm, livre_id: e.target.value })}
+                    required
+                    className={INPUT_CLASS + " w-full"}
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="">-- Choisir un livre --</option>
+                    {editBookOptions.map((livre) => (
+                      <option key={livre.id} value={livre.id}>
+                        {livre.titre} (ISBN: {livre.isbn || "—"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Étudiant *
+                  </label>
+                  <input
+                    type="search"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Chercher par matricule, nom ou prénom"
+                    className={INPUT_CLASS + " w-full mb-2"}
+                  />
+                  <select
+                    value={editForm.etudiant_id}
+                    onChange={(e) => setEditForm({ ...editForm, etudiant_id: e.target.value })}
+                    required
+                    className={INPUT_CLASS + " w-full"}
+                    style={{ colorScheme: "dark" }}
+                  >
+                    <option value="">-- Choisir un étudiant --</option>
+                    {filteredEtudiantsForForm.map((etudiant) => (
+                      <option key={etudiant.id} value={etudiant.id}>
+                        {etudiant.prenom} {etudiant.nom} ({etudiant.numero_etudiant || "sans numéro"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Date du prêt
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.date_pret}
+                    onChange={(e) => setEditForm({ ...editForm, date_pret: e.target.value })}
+                    className={INPUT_CLASS + " w-full"}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Date de retour prévue
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.date_retour_prevue}
+                    onChange={(e) => setEditForm({ ...editForm, date_retour_prevue: e.target.value })}
+                    className={INPUT_CLASS + " w-full"}
+                    min={editForm.date_pret}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Date de rappel
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.date_rappel}
+                    onChange={(e) => setEditForm({ ...editForm, date_rappel: e.target.value })}
+                    className={INPUT_CLASS + " w-full"}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-medium text-biblio-muted block mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    placeholder="Notes sur le prêt…"
+                    className={INPUT_CLASS + " w-full resize-none"}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {editLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Enregistrer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditPret(null);
+                    setEditForm(null);
+                  }}
+                  className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {showExportModal && (
