@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, BookOpen, Loader2, PlusCircle, X } from "lucide-react";
+import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, Loader2, PlusCircle, Search, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 const STATUS = {
@@ -14,6 +14,7 @@ export default function PendingBooksModal({ onClose, onAdd }) {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +51,41 @@ export default function PendingBooksModal({ onClose, onAdd }) {
     onAdd(book);
   };
 
+  const openPreview = (book, index) => {
+    const photos = [
+      book.coverUrl && { url: book.coverUrl, label: "Couverture" },
+      book.evidenceUrl && { url: book.evidenceUrl, label: "Dos / code-barres" },
+    ].filter(Boolean);
+    if (photos.length) setPreview({ book, photos, index });
+  };
+
+  const movePreview = (direction) => {
+    setPreview((current) => {
+      if (!current) return current;
+      const nextIndex = (current.index + direction + current.photos.length) % current.photos.length;
+      return { ...current, index: nextIndex };
+    });
+  };
+
+  const copyIsbn = async (isbn) => {
+    if (!isbn) return;
+    try {
+      await navigator.clipboard.writeText(isbn);
+    } catch {
+      setError("Impossible de copier l'ISBN automatiquement.");
+    }
+  };
+
+  const searchLinks = (book) => {
+    const query = encodeURIComponent(book.isbn || book.titre_suggere || book.raw_scan || "");
+    if (!query) return [];
+    return [
+      { label: "Google Books", url: `https://books.google.com/books?q=${query}` },
+      { label: "Open Library", url: `https://openlibrary.org/search?q=${query}` },
+      { label: "BnF", url: `https://catalogue.bnf.fr/rechercher.do?motRecherche=${query}` },
+    ];
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 py-8">
       <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
@@ -63,13 +99,64 @@ export default function PendingBooksModal({ onClose, onAdd }) {
           {!loading && !error && books.length === 0 && <p className="py-10 text-center text-sm text-biblio-muted">Aucun livre en attente : parfait. 🎉</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             {books.map((book) => <article key={book.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="grid grid-cols-2 gap-2">{book.coverUrl && <img src={book.coverUrl} alt="Couverture privée" className="h-36 w-full rounded-lg object-contain bg-black/20" />}{book.evidenceUrl && <img src={book.evidenceUrl} alt="Photo d'identification privée" className="h-36 w-full rounded-lg object-contain bg-black/20" />}</div>
+              <div className="grid grid-cols-2 gap-2">
+                {book.coverUrl && (
+                  <button type="button" onClick={() => openPreview(book, 0)} className="group overflow-hidden rounded-lg bg-black/20 focus:outline-none focus:ring-2 focus:ring-biblio-accent" aria-label="Agrandir la couverture">
+                    <img src={book.coverUrl} alt="Couverture privée" className="h-36 w-full object-contain transition-transform group-hover:scale-105" />
+                  </button>
+                )}
+                {book.evidenceUrl && (
+                  <button type="button" onClick={() => openPreview(book, book.coverUrl ? 1 : 0)} className="group overflow-hidden rounded-lg bg-black/20 focus:outline-none focus:ring-2 focus:ring-biblio-accent" aria-label="Agrandir la photo du dos ou du code-barres">
+                    <img src={book.evidenceUrl} alt="Photo d'identification privée" className="h-36 w-full object-contain transition-transform group-hover:scale-105" />
+                  </button>
+                )}
+              </div>
               <div className="mt-3 space-y-1"><p className="font-medium">{book.titre_suggere || "Titre non encore identifié"}</p><p className="text-xs text-biblio-muted">{book.auteur_suggere || "Auteur inconnu"}{book.isbn ? ` · ISBN ${book.isbn}` : ""}</p><p className="text-xs text-biblio-accent">{STATUS[book.status] || book.status}</p>{book.notes && <p className="text-xs text-biblio-muted">Note : {book.notes}</p>}</div>
-              <button onClick={() => prepareAdd(book)} className="mt-4 flex items-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm text-white"><PlusCircle className="h-4 w-4" /> Préparer l'ajout</button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {book.isbn && (
+                  <button type="button" onClick={() => copyIsbn(book.isbn)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text hover:bg-white/20">
+                    <Copy className="h-3.5 w-3.5" /> Copier ISBN
+                  </button>
+                )}
+                {searchLinks(book).map((link) => (
+                  <a key={link.label} href={link.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text hover:bg-white/20">
+                    <Search className="h-3.5 w-3.5" /> {link.label}<ExternalLink className="h-3 w-3 opacity-70" />
+                  </a>
+                ))}
+              </div>
+              <button onClick={() => prepareAdd(book)} className="mt-3 flex items-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm text-white"><PlusCircle className="h-4 w-4" /> Préparer l'ajout</button>
             </article>)}
           </div>
         </div>
       </div>
+      {preview && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setPreview(null)}>
+          <div className="relative flex h-full max-h-[92vh] w-full max-w-5xl flex-col" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between gap-3 text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{preview.book.titre_suggere || "Livre à identifier"}</p>
+                <p className="text-xs text-white/70">{preview.photos[preview.index].label} · {preview.index + 1}/{preview.photos.length}</p>
+              </div>
+              <button type="button" onClick={() => setPreview(null)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-slate-950 shadow-xl hover:bg-slate-200" aria-label="Fermer la photo agrandie">
+                <X className="h-7 w-7" />
+              </button>
+            </div>
+            <div className="relative flex min-h-0 flex-1 items-center justify-center rounded-xl bg-black/40">
+              {preview.photos.length > 1 && (
+                <button type="button" onClick={() => movePreview(-1)} className="absolute left-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo précédente">
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+              )}
+              <img src={preview.photos[preview.index].url} alt={preview.photos[preview.index].label} className="max-h-full max-w-full rounded-lg object-contain" />
+              {preview.photos.length > 1 && (
+                <button type="button" onClick={() => movePreview(1)} className="absolute right-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo suivante">
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

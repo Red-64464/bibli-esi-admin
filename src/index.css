@@ -57,6 +57,49 @@ button {
   max-width: 100%;
 }
 
+.affluence-status-card {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.affluence-status-card--green {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #064e3b;
+}
+
+.affluence-status-card--amber {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.affluence-status-card--red {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #7f1d1d;
+}
+
+:root.dark .affluence-status-card--green,
+:root:not(.light) .affluence-status-card--green {
+  background: rgba(6, 78, 59, 0.88);
+  border-color: rgba(52, 211, 153, 0.72);
+  color: #d1fae5;
+}
+
+:root.dark .affluence-status-card--amber,
+:root:not(.light) .affluence-status-card--amber {
+  background: rgba(120, 53, 15, 0.88);
+  border-color: rgba(251, 191, 36, 0.72);
+  color: #fef3c7;
+}
+
+:root.dark .affluence-status-card--red,
+:root:not(.light) .affluence-status-card--red {
+  background: rgba(127, 29, 29, 0.88);
+  border-color: rgba(248, 113, 113, 0.72);
+  color: #fee2e2;
+}
+
 /* Dark mode (default) */
 :root.dark body,
 :root:not(.light) body {

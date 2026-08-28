@@ -100,9 +100,9 @@ export default function Affluence() {
   }, [capacity, occupancy]);
 
   const cardClasses = {
-    green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    red: "border-red-500/30 bg-red-500/10 text-red-300",
+    green: "affluence-status-card affluence-status-card--green",
+    amber: "affluence-status-card affluence-status-card--amber",
+    red: "affluence-status-card affluence-status-card--red",
   };
   const StateIcon = state.Icon;
 

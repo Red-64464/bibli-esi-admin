@@ -850,7 +850,7 @@ export default function Livres() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col items-center gap-5 text-center">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <BookOpen className="w-8 h-8 text-biblio-accent" />
@@ -860,12 +860,12 @@ export default function Livres() {
             {totalCount} livre{totalCount !== 1 ? "s" : ""} dans le catalogue
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="grid w-full max-w-2xl grid-cols-2 justify-center gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
           <button
             onClick={() => setShowExportModal(true)}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+            className="min-h-12 justify-center px-5 py-3 bg-white/10 hover:bg-white/20 text-biblio-text rounded-xl font-semibold transition-colors flex items-center gap-2 text-base"
           >
-            <Download className="w-4 h-4" /> Export
+            <Download className="w-5 h-5" /> Export
           </button>
           <button
             onClick={() => {
@@ -873,30 +873,30 @@ export default function Livres() {
               setImportSuccess(null);
               setShowImportModal(true);
             }}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+            className="min-h-12 justify-center px-5 py-3 bg-white/10 hover:bg-white/20 text-biblio-text rounded-xl font-semibold transition-colors flex items-center gap-2 text-base"
           >
-            <Upload className="w-4 h-4" /> Import CSV
+            <Upload className="w-5 h-5" /> Import CSV
           </button>
           <button
             onClick={() => setShowCameraScanner(true)}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+            className="min-h-12 justify-center px-5 py-3 bg-white/10 hover:bg-white/20 text-biblio-text rounded-xl font-semibold transition-colors flex items-center gap-2 text-base"
           >
-            <Camera className="w-4 h-4" /> Scanner ISBN
+            <Camera className="w-5 h-5" /> Scanner ISBN
           </button>
           <button
             onClick={() => setShowPendingBooks(true)}
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+            className="min-h-12 justify-center px-5 py-3 bg-white/10 hover:bg-white/20 text-biblio-text rounded-xl font-semibold transition-colors flex items-center gap-2 text-base"
           >
-            <BookOpen className="w-4 h-4" /> À identifier{pendingCount ? ` (${pendingCount})` : ""}
+            <BookOpen className="w-5 h-5" /> À identifier{pendingCount ? ` (${pendingCount})` : ""}
           </button>
           <button
             onClick={() => {
               setPendingToAdd(null);
               setShowManualForm(true);
             }}
-            className="px-4 py-2.5 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+            className="col-span-2 min-h-12 justify-center px-6 py-3 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-xl font-semibold transition-colors flex items-center gap-2 text-base sm:col-span-1"
           >
-            <PlusCircle className="w-4 h-4" /> Ajouter manuellement
+            <PlusCircle className="w-5 h-5" /> Ajouter manuellement
           </button>
         </div>
       </div>

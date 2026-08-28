@@ -303,18 +303,18 @@ export default function Layout({ children }) {
       {/* Zone principale */}
       <div className="flex-1 flex flex-col min-h-screen min-w-0 w-full max-w-full lg:ml-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3 min-w-0 max-w-full">
+        <header className="sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3 min-w-0 max-w-full relative">
           {/* Burger mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-biblio-muted hover:text-biblio-text transition-colors"
+            className="lg:hidden text-biblio-muted hover:text-biblio-text transition-colors z-10"
           >
             <Menu className="w-6 h-6" />
           </button>
           <img
             src="/logo.png"
             alt="Bibl'ESI"
-            className="h-7 w-auto object-contain lg:hidden"
+            className="absolute left-1/2 h-12 w-auto -translate-x-1/2 object-contain lg:hidden"
           />
 
           {/* Barre de recherche */}
@@ -334,7 +334,7 @@ export default function Layout({ children }) {
             </div>
           </form>
 
-          <div className="ml-auto flex items-center gap-2 shrink-0">
+          <div className="ml-auto flex items-center gap-2 shrink-0 z-10">
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
