@@ -95,7 +95,7 @@ export default function Prets() {
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
         supabase
           .from("bibli_prets")
-          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom)")
+          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email, numero_etudiant)")
           .order("date_pret", { ascending: false }),
         supabase
           .from("bibli_livres")
@@ -120,6 +120,7 @@ export default function Prets() {
 
   const filteredEtudiantsForForm = etudiants.filter((etudiant) => {
     const q = studentSearch.trim().toLowerCase();
+    if (etudiant.id === form.etudiant_id || etudiant.id === editForm?.etudiant_id) return true;
     if (!q) return true;
     return (
       etudiant.numero_etudiant?.toLowerCase().includes(q) ||
@@ -360,7 +361,7 @@ export default function Prets() {
       const q = search.toLowerCase();
       const livreMatch = (p.livres?.titre || "").toLowerCase().includes(q);
       const etudMatch = p.etudiants
-        ? `${p.etudiants.prenom} ${p.etudiants.nom}`.toLowerCase().includes(q)
+        ? `${p.etudiants.prenom} ${p.etudiants.nom} ${p.etudiants.email || ""} ${p.etudiants.numero_etudiant || ""}`.toLowerCase().includes(q)
         : false;
       if (!livreMatch && !etudMatch) return false;
     }

@@ -41,8 +41,6 @@ function extractFields(text) {
   const labelledNumber = joined.match(/(?:n[°o]?|matricule|student\s*(?:id|number))\s*[:#-]?\s*(\d{4,10})\b/i)?.[1];
   const number = labelledNumber || (joined.match(/\b\d{5,8}\b/) || [""])[0];
   return {
-    nom: "",
-    prenom: "",
     numero_etudiant: normaliseNumber(number),
   };
 }
@@ -105,7 +103,7 @@ async function readQRCode(file) {
 export default function StudentCardOCRModal({ onClose, onComplete }) {
   const [files, setFiles] = useState({ recto: null });
   const [previews, setPreviews] = useState({ recto: "" });
-  const [fields, setFields] = useState({ nom: "", prenom: "", numero_etudiant: "" });
+  const [fields, setFields] = useState({ numero_etudiant: "" });
   const [rawText, setRawText] = useState("");
   const [step, setStep] = useState("capture");
   const [error, setError] = useState("");
@@ -145,7 +143,7 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
       const text = result.data.text || "";
       const extracted = extractFields(text);
       setRawText(text);
-      setFields({ ...extracted, numero_etudiant: qrNumber || extracted.numero_etudiant });
+      setFields({ numero_etudiant: qrNumber || extracted.numero_etudiant });
       setStep("review");
     } catch (err) {
       setError(`Analyse impossible : ${err.message || "réessayez avec des photos plus nettes"}`);
@@ -156,7 +154,6 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
   };
 
   const save = async () => {
-    if (!fields.nom.trim() || !fields.prenom.trim()) return setError("Le nom et le prénom doivent être confirmés.");
     if (!fields.numero_etudiant.trim()) return setError("Le numéro étudiant doit être confirmé.");
     setSaving(true);
     setError("");
@@ -173,7 +170,9 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
       uploaded.push(path);
       paths.recto = path;
       const payload = {
-        nom: fields.nom.trim(), prenom: fields.prenom.trim(), numero_etudiant: fields.numero_etudiant.trim(),
+        nom: fields.numero_etudiant.trim(),
+        prenom: "Étudiant",
+        numero_etudiant: fields.numero_etudiant.trim(),
         email: buildStudentEmail(fields.numero_etudiant),
         photo_carte_recto_path: paths.recto,
       };
@@ -201,8 +200,8 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
         </>}
         {step === "analyse" && <div className="py-10 flex flex-col items-center gap-3 text-center"><Loader2 className="w-10 h-10 animate-spin text-biblio-accent" /><p>{progress}</p><p className="text-xs text-biblio-muted">Cela peut prendre quelques secondes sur mobile.</p></div>}
         {step === "review" && <>
-          <div className="rounded-lg bg-biblio-success/10 border border-biblio-success/30 p-3 text-sm flex gap-2"><Check className="text-biblio-success shrink-0" />Matricule détecté. Complétez le nom et le prénom avant l’enregistrement.</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{[["prenom", "Prénom *"], ["nom", "Nom *"], ["numero_etudiant", "Matricule *"]].map(([key, label]) => <label key={key} className="text-xs text-biblio-muted">{label}<input value={fields[key]} onChange={(event) => setFields({ ...fields, [key]: event.target.value })} className={INPUT_CLASS + " mt-1"} /></label>)}</div>
+          <div className="rounded-lg bg-biblio-success/10 border border-biblio-success/30 p-3 text-sm flex gap-2"><Check className="text-biblio-success shrink-0" />Matricule détecté. Vérifiez-le avant l’enregistrement.</div>
+          <label className="text-xs text-biblio-muted">Matricule *<input value={fields.numero_etudiant} onChange={(event) => setFields({ numero_etudiant: event.target.value })} className={INPUT_CLASS + " mt-1"} /></label>
           <details className="text-xs text-biblio-muted"><summary>Voir le texte OCR brut</summary><pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap bg-black/20 rounded p-2">{rawText || "Aucun texte"}</pre></details>
           <div className="flex gap-3"><button type="button" onClick={() => setStep("capture")} className="px-4 py-2.5 bg-white/10 rounded-lg">Reprendre les photos</button><button type="button" onClick={save} disabled={saving} className="px-4 py-2.5 bg-biblio-success text-white rounded-lg flex items-center gap-2">{saving ? <Loader2 className="animate-spin" /> : <Upload />} Enregistrer</button></div>
         </>}

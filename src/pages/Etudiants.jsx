@@ -427,6 +427,20 @@ export default function Etudiants() {
   const handleDeleteConfirmed = async (id) => {
     try {
       const etudiant = etudiants.find((e) => e.id === id);
+      const activeLivreIds = [
+        ...new Set(
+          prets
+            .filter((p) => p.etudiant_id === id && !p.rendu && p.livre_id)
+            .map((p) => p.livre_id),
+        ),
+      ];
+      if (activeLivreIds.length) {
+        const { error: livresErr } = await supabase
+          .from("bibli_livres")
+          .update({ disponible: true, statut: "disponible" })
+          .in("id", activeLivreIds);
+        if (livresErr) throw livresErr;
+      }
       const { error: pretsErr } = await supabase
         .from("bibli_prets")
         .delete()
