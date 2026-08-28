@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getPretStatut, useDebounce, formatDate } from "../lib/utils";
 import { getSettings } from "../lib/settings";
 import { sendEmail, buildLoanConfirmationEmail } from "../lib/email";
-import { useRealtimeTable } from "../lib/realtime";
+import { useRealtimeTables } from "../lib/realtime";
 import {
   ArrowLeftRight,
   Loader2,
@@ -67,8 +67,7 @@ export default function Prets() {
     );
   }, []);
 
-  // Realtime: auto-refresh on prets changes
-  useRealtimeTable("bibli_prets", () => fetchData());
+  useRealtimeTables(["bibli_prets", "bibli_livres", "bibli_etudiants", "bibli_settings"], () => fetchData());
 
   // Reset page quand filtre ou search change
   useEffect(() => {

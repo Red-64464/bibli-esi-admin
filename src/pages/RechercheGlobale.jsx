@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { useDebounce, formatDate, getPretStatut } from "../lib/utils";
 import {
   Search,
@@ -74,6 +75,8 @@ export default function RechercheGlobale() {
       setLoading(false);
     }
   }, []);
+
+  useRealtimeTables(["bibli_livres", "bibli_etudiants", "bibli_prets"], () => doSearch(debouncedQuery));
 
   useEffect(() => {
     doSearch(debouncedQuery);

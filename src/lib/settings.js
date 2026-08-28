@@ -24,6 +24,10 @@ export const SETTING_DEFAULTS = {
   library_hours: JSON.stringify(DEFAULT_HOURS),
   library_closed_message: "",
   library_is_closed: "false",
+  library_capacity: "3",
+  library_current_occupancy: "0",
+  library_arrival_video_url: "",
+  library_arrival_video_title: "Comment venir à la bibliothèque",
 };
 
 export { DEFAULT_HOURS };

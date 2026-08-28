@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import { ALL_PERMISSIONS } from "../contexts/PermissionsContext";
@@ -248,6 +249,7 @@ export default function Admins() {
   useEffect(() => {
     fetchAdmins();
   }, []);
+  useRealtimeTables(["bibli_profiles"], () => fetchAdmins());
 
   const fetchAdmins = async () => {
     try {

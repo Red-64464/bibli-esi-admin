@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { getPretStatut, formatDate } from "../lib/utils";
 import { getAmendesEtudiant, payerAmende, annulerAmende } from "../lib/amendes";
 import {
@@ -53,6 +54,7 @@ export default function EtudiantDetail() {
   useEffect(() => {
     fetchData();
   }, [id]);
+  useRealtimeTables(["bibli_etudiants", "bibli_prets", "bibli_amendes"], () => fetchData());
 
   const fetchData = async () => {
     try {

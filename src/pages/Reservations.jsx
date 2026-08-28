@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/utils";
 import { useAuth } from "../contexts/AuthContext";
 import { logActivity } from "../lib/activityLog";
-import { useRealtimeTable } from "../lib/realtime";
+import { useRealtimeTables } from "../lib/realtime";
 import {
   BookMarked,
   Loader2,
@@ -54,8 +54,7 @@ export default function Reservations() {
     fetchData();
   }, []);
 
-  // Realtime: auto-refresh on reservations changes
-  useRealtimeTable("bibli_reservations", () => fetchData());
+  useRealtimeTables(["bibli_reservations", "bibli_prets", "bibli_livres", "bibli_etudiants"], () => fetchData());
 
   const fetchData = async () => {
     try {

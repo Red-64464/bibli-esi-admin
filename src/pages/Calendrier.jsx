@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { formatDate } from "../lib/utils";
 import { Calendar, Loader2, AlertCircle, ChevronLeft, ChevronRight, Download, ExternalLink } from "lucide-react";
 
@@ -132,6 +133,7 @@ export default function Calendrier() {
   useEffect(() => {
     fetchPrets();
   }, [fetchPrets]);
+  useRealtimeTables(["bibli_prets", "bibli_livres", "bibli_etudiants"], () => fetchPrets());
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }

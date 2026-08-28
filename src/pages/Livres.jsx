@@ -30,7 +30,7 @@ import SearchISBN from "../components/SearchISBN";
 import UnresolvedBookModal from "../components/UnresolvedBookModal";
 import PendingBooksModal from "../components/PendingBooksModal";
 import { CATEGORIES, normalizeCategory } from "../lib/categories";
-import { useRealtimeTable } from "../lib/realtime";
+import { useRealtimeTables } from "../lib/realtime";
 import ISBNScanner from "../components/ISBNScanner";
 import QRCodeModal from "../components/QRCodeModal";
 import LivreCard from "../components/LivreCard";
@@ -314,10 +314,10 @@ export default function Livres() {
     fetchPendingCount();
   }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
 
-  // Realtime: auto-refresh when livres table changes
-  useRealtimeTable("bibli_livres", () => {
+  useRealtimeTables(["bibli_livres", "bibli_prets", "bibli_pending_books"], () => {
     fetchLivres();
     fetchBorrowCounts();
+    fetchPendingCount();
   });
 
   // Reset page when filters/search/view change

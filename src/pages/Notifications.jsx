@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { getSettings, saveSettings } from "../lib/settings";
 import { sendEmail, buildReminderEmail } from "../lib/email";
 import {
@@ -81,6 +82,7 @@ export default function Notifications() {
   useEffect(() => {
     loadAll();
   }, []);
+  useRealtimeTables(["bibli_settings", "bibli_prets", "bibli_etudiants"], () => loadAll());
 
   const loadAll = async () => {
     try {

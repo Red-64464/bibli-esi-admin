@@ -1,35 +1,34 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
 /**
- * Hook pour écouter les changements en temps réel sur une table Supabase.
- * @param {string} table - Nom de la table
- * @param {function} onChange - Callback appelé lors d'un changement (payload)
- * @param {object} [filter] - Filtre optionnel { column, value }
+ * Réagit aux changements Supabase sans recharger la page.
+ * Un seul canal est ouvert pour la page active et les rafales sont regroupées.
  */
-export function useRealtimeTable(table, onChange, filter) {
+export function useRealtimeTables(tables, onChange, delay = 250) {
+  const callbackRef = useRef(onChange);
+  callbackRef.current = onChange;
+  const key = [...tables].sort().join("|");
+
   useEffect(() => {
-    let channel = supabase.channel(
-      `realtime-${table}-${filter?.value || "all"}`,
-    );
-
-    let subscription = channel.on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table,
-        ...(filter ? { filter: `${filter.column}=eq.${filter.value}` } : {}),
-      },
-      (payload) => {
-        onChange(payload);
-      },
-    );
-
-    subscription.subscribe();
-
+    const names = key ? key.split("|") : [];
+    if (!names.length) return undefined;
+    let timer;
+    const channel = supabase.channel(`live-${key}`);
+    const refresh = (payload) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => callbackRef.current(payload), delay);
+    };
+    names.forEach((table) => channel.on("postgres_changes", { event: "*", schema: "public", table }, refresh));
+    channel.subscribe();
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [table, filter?.column, filter?.value]);
+  }, [key, delay]);
+}
+
+/** Compatibilité avec les anciens appels d'une seule table. */
+export function useRealtimeTable(table, onChange) {
+  useRealtimeTables([table], onChange);
 }

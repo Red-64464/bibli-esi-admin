@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { getPretStatut, formatDate } from "../lib/utils";
 import {
   BarChart2,
@@ -292,6 +293,7 @@ export default function Statistiques() {
   useEffect(() => {
     fetchStats();
   }, []);
+  useRealtimeTables(["bibli_livres", "bibli_etudiants", "bibli_prets"], () => fetchStats());
 
   // ─── Filter pretsByMonth based on period ─────────────────────────────────────
   // Must be before any early returns to respect Rules of Hooks

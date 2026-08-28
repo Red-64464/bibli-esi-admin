@@ -8,7 +8,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
+      injectRegister: null,
       includeAssets: ["logo.png"],
       manifest: {
         name: "Bibl'ESI Admin",
@@ -32,6 +33,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        // La PWA ne prend jamais le contrôle d'une application encore ouverte.
+        // L'utilisateur valide la mise à jour via le bouton affiché dans l'interface.
+        clientsClaim: false,
+        skipWaiting: false,
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2}"],
         runtimeCaching: [
           {

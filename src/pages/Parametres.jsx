@@ -7,6 +7,7 @@ import {
   applyAccentColor,
 } from "../lib/settings";
 import { logActivity } from "../lib/activityLog";
+import { useRealtimeTables } from "../lib/realtime";
 import { useAuth } from "../contexts/AuthContext";
 import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../lib/email";
 import ConfirmModal from "../components/ConfirmModal";
@@ -94,6 +95,10 @@ const SETTINGS_LABELS = {
   library_hours: "Horaires d'ouverture",
   library_closed_message: "Message de fermeture",
   library_is_closed: "Fermeture exceptionnelle",
+  library_capacity: "Capacité d'accueil",
+  library_current_occupancy: "Personnes présentes",
+  library_arrival_video_url: "Vidéo du trajet",
+  library_arrival_video_title: "Titre de la vidéo",
 };
 
 function formatSettingVal(key, val) {
@@ -154,6 +159,16 @@ export default function Parametres() {
       )
       .finally(() => setLoading(false));
   }, []);
+
+  useRealtimeTables(["bibli_settings"], () => {
+    if (saving) return;
+    getSettings().then((next) => {
+      setForm(next);
+      originalFormRef.current = { ...next };
+      applyAccentColor(next.accent_color);
+      try { setHours(JSON.parse(next.library_hours)); } catch { setHours({ ...DEFAULT_HOURS }); }
+    }).catch(() => {});
+  });
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 

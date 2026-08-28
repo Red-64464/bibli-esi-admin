@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import Papa from "papaparse";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -321,6 +322,7 @@ export default function Etudiants() {
   useEffect(() => {
     fetchData();
   }, []);
+  useRealtimeTables(["bibli_etudiants", "bibli_prets"], () => fetchData());
 
   const fetchData = async () => {
     try {

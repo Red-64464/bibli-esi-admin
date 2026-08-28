@@ -6,6 +6,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
 import { applyAccentColor } from "../lib/settings";
+import { useRealtimeTables } from "../lib/realtime";
 import {
   LayoutDashboard,
   BookOpen,
@@ -23,6 +24,7 @@ import {
   Search,
   BookMarked,
   Calendar,
+  Gauge,
   Sun,
   Moon,
 } from "lucide-react";
@@ -99,6 +101,12 @@ const SUPER_ADMIN_GROUP = {
   ],
 };
 
+const AFFLUENCE_GROUP = {
+  items: [
+    { to: "/affluence", label: "Affluence", icon: Gauge, perm: "dashboard" },
+  ],
+};
+
 const ROLE_LABELS = {
   super_admin: "Super Admin",
   librarian: "Bibliothécaire",
@@ -117,9 +125,29 @@ export default function Layout({ children }) {
 
   const isSuperAdmin = session?.role === "super_admin";
   const navGroups = isSuperAdmin
-    ? [...BASE_NAV_GROUPS, SUPER_ADMIN_GROUP]
+    ? [AFFLUENCE_GROUP, ...BASE_NAV_GROUPS, SUPER_ADMIN_GROUP]
     : BASE_NAV_GROUPS;
   const closeSidebar = () => setSidebarOpen(false);
+
+  useRealtimeTables(["bibli_settings"], () => {
+    supabase.from("bibli_settings").select("value").eq("key", "accent_color").maybeSingle().then(({ data }) => {
+      if (data?.value) applyAccentColor(data.value);
+    });
+  });
+
+  useRealtimeTables(["bibli_prets"], async () => {
+    try {
+      const { data } = await supabase
+        .from("bibli_prets")
+        .select("id, statut, rendu, date_pret, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)")
+        .eq("rendu", false);
+      if (data) {
+        const overdue = data.filter((pret) => getPretStatut(pret) === "en_retard");
+        setOverdueCount(overdue.length);
+        setOverdueList(overdue.slice(0, 5));
+      }
+    } catch {}
+  });
 
   // Appliquer la couleur d'accentuation sauvegardée au démarrage
   useEffect(() => {

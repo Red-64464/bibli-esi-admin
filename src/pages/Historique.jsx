@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { exportCSV as exportToCSV } from "../lib/exports";
 import {
   History,
@@ -237,6 +238,13 @@ export default function Historique() {
     setPage(0);
     fetchLogs(0);
   }, [filter, search, dateDebut, dateFin, userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useRealtimeTables(["bibli_activity_logs", "bibli_profiles"], () => {
+    setPage(0);
+    fetchLogs(0);
+    loadStats();
+    loadUsers();
+  });
 
   const loadMore = () => {
     const next = page + 1;

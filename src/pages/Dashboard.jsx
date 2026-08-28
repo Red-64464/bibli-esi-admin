@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { useRealtimeTables } from "../lib/realtime";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 import {
   LayoutDashboard,
@@ -109,6 +110,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboard();
   }, []);
+  useRealtimeTables(["bibli_livres", "bibli_etudiants", "bibli_prets"], () => fetchDashboard());
 
   const fetchDashboard = async () => {
     try {
