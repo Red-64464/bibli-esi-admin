@@ -35,19 +35,41 @@ function extractFields(text) {
   const joined = lines.join(" ");
   const labelledNumber = joined.match(/(?:n[°o]?|matricule|student\s*(?:id|number))\s*[:#-]?\s*(\d{4,10})\b/i)?.[1];
   const number = labelledNumber || (joined.match(/\b\d{5,8}\b/) || [""])[0];
-  const labelledName = joined.match(/(?:nom|name)\s*[:#-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' -]{2,})/i)?.[1] || "";
-  const cardName = lines.find((line) => {
-    const words = line.split(" ").filter(Boolean);
-    return words.length >= 2 && words.length <= 4 && /^[A-ZÀ-ÖØ-Ý' -]+$/.test(line)
-      && !/CARTE|ETUDIANT|STUDENT|INFORMATIQUE|DÉVELOPPEUR|DEVELOPPEUR|FORMATION|HE2B|ESI|202\d/i.test(line);
-  }) || "";
-  const detectedName = cleanText(labelledName || cardName);
-  const nameParts = detectedName.split(" ").filter(Boolean);
   return {
-    nom: nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : "",
-    prenom: nameParts.length > 1 ? nameParts.at(-1) : "",
+    nom: "",
+    prenom: "",
     numero_etudiant: normaliseNumber(number),
   };
+}
+
+async function renderProcessedImage(file, crop) {
+  const source = await createImageBitmap(file);
+  const cropX = Math.round(source.width * crop.x);
+  const cropY = Math.round(source.height * crop.y);
+  const cropWidth = Math.round(source.width * crop.width);
+  const cropHeight = Math.round(source.height * crop.height);
+  const scale = Math.min(3.2, Math.max(1.8, crop.target / Math.max(cropWidth, cropHeight)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(cropWidth * scale);
+  canvas.height = Math.round(cropHeight * scale);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(source, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = image.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+    const contrasted = Math.max(0, Math.min(255, (gray - 125) * 1.85 + 125));
+    data[i] = contrasted;
+    data[i + 1] = contrasted;
+    data[i + 2] = contrasted;
+  }
+  ctx.putImageData(image, 0, 0);
+  source.close();
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+}
+
+function prepareOcrImage(file) {
+  return renderProcessedImage(file, { x: 0, y: 0.28, width: 1, height: 0.72, target: 2200 });
 }
 
 async function prepareImage(file) {
@@ -113,7 +135,8 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
         if (message.status === "recognizing text") setProgress(`OCR en cours… ${Math.round((message.progress || 0) * 100)} %`);
       }});
       await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
-      const result = await worker.recognize(files.recto);
+      const ocrImage = await prepareOcrImage(files.recto);
+      const result = await worker.recognize(ocrImage || files.recto);
       const text = result.data.text || "";
       const extracted = extractFields(text);
       setRawText(text);
@@ -164,7 +187,7 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto p-4 sm:py-8">
       <div className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-5 sm:p-6 space-y-5">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-biblio-muted hover:text-biblio-text"><X /></button>
-        <div className="pr-8"><h2 className="text-xl font-semibold flex items-center gap-2"><ScanLine className="text-biblio-accent" /> Ajouter par carte étudiante</h2><p className="text-sm text-biblio-muted mt-1">Une photo du recto suffit : nom, prénom et matricule.</p></div>
+        <div className="pr-8"><h2 className="text-xl font-semibold flex items-center gap-2"><ScanLine className="text-biblio-accent" /> Ajouter par carte étudiante</h2><p className="text-sm text-biblio-muted mt-1">Une photo du recto suffit : le matricule est détecté automatiquement.</p></div>
         <div className="flex items-center gap-2 text-xs text-biblio-muted"><ShieldCheck className="w-4 h-4 text-biblio-success" /> OCR effectué localement dans votre navigateur · aucune photo envoyée à un service OCR externe</div>
         {step === "capture" && <>
           <div className="space-y-2"><p className="text-sm font-medium">Photo du recto</p><button type="button" onClick={() => inputRefs.recto.current?.click()} className="w-full aspect-[1.6] rounded-xl border-2 border-dashed border-white/20 hover:border-biblio-accent/60 overflow-hidden flex items-center justify-center bg-white/5">{previews.recto ? <img src={previews.recto} alt="Aperçu du recto" className="w-full h-full object-cover" /> : <span className="text-sm text-biblio-muted flex flex-col items-center gap-2"><ImagePlus />Ajouter une photo</span>}</button><input ref={inputRefs.recto} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => selectFile("recto", event.target.files?.[0])} /><button type="button" onClick={() => inputRefs.recto.current?.click()} className="text-xs text-biblio-accent flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {previews.recto ? "Remplacer" : "Choisir"}</button></div>
@@ -172,7 +195,7 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
         </>}
         {step === "analyse" && <div className="py-10 flex flex-col items-center gap-3 text-center"><Loader2 className="w-10 h-10 animate-spin text-biblio-accent" /><p>{progress}</p><p className="text-xs text-biblio-muted">Cela peut prendre quelques secondes sur mobile.</p></div>}
         {step === "review" && <>
-          <div className="rounded-lg bg-biblio-success/10 border border-biblio-success/30 p-3 text-sm flex gap-2"><Check className="text-biblio-success shrink-0" />Données détectées. Vérifiez-les avant l’enregistrement.</div>
+          <div className="rounded-lg bg-biblio-success/10 border border-biblio-success/30 p-3 text-sm flex gap-2"><Check className="text-biblio-success shrink-0" />Matricule détecté. Complétez le nom et le prénom avant l’enregistrement.</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{[["prenom", "Prénom *"], ["nom", "Nom *"], ["numero_etudiant", "Matricule *"]].map(([key, label]) => <label key={key} className="text-xs text-biblio-muted">{label}<input value={fields[key]} onChange={(event) => setFields({ ...fields, [key]: event.target.value })} className={INPUT_CLASS + " mt-1"} /></label>)}</div>
           <details className="text-xs text-biblio-muted"><summary>Voir le texte OCR brut</summary><pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap bg-black/20 rounded p-2">{rawText || "Aucun texte"}</pre></details>
           <div className="flex gap-3"><button type="button" onClick={() => setStep("capture")} className="px-4 py-2.5 bg-white/10 rounded-lg">Reprendre les photos</button><button type="button" onClick={save} disabled={saving} className="px-4 py-2.5 bg-biblio-success text-white rounded-lg flex items-center gap-2">{saving ? <Loader2 className="animate-spin" /> : <Upload />} Enregistrer</button></div>
