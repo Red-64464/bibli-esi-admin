@@ -33,16 +33,20 @@ function extractFields(text) {
     .map(cleanText)
     .filter(Boolean);
   const joined = lines.join(" ");
-  const numberMatch = joined.match(/(?:n[°o]?|matricule|student\s*(?:id|number))?\s*[:#-]?\s*(\d{4,10})\b/i);
-  const number = numberMatch?.[1] || (joined.match(/\b\d{5,8}\b/) || [""])[0];
-  const programme = lines.find((line) => /informatique|développeur|developer|bachelier|bachelor|master|formation/i.test(line)) || "";
+  const labelledNumber = joined.match(/(?:n[°o]?|matricule|student\s*(?:id|number))\s*[:#-]?\s*(\d{4,10})\b/i)?.[1];
+  const number = labelledNumber || (joined.match(/\b\d{5,8}\b/) || [""])[0];
   const labelledName = joined.match(/(?:nom|name)\s*[:#-]?\s*([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý' -]{2,})/i)?.[1] || "";
-  const nameParts = cleanText(labelledName).split(" ").filter(Boolean);
+  const cardName = lines.find((line) => {
+    const words = line.split(" ").filter(Boolean);
+    return words.length >= 2 && words.length <= 4 && /^[A-ZÀ-ÖØ-Ý' -]+$/.test(line)
+      && !/CARTE|ETUDIANT|STUDENT|INFORMATIQUE|DÉVELOPPEUR|DEVELOPPEUR|FORMATION|HE2B|ESI|202\d/i.test(line);
+  }) || "";
+  const detectedName = cleanText(labelledName || cardName);
+  const nameParts = detectedName.split(" ").filter(Boolean);
   return {
-    nom: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
-    prenom: nameParts.length > 1 ? nameParts[0] : "",
+    nom: nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : "",
+    prenom: nameParts.length > 1 ? nameParts.at(-1) : "",
     numero_etudiant: normaliseNumber(number),
-    programme,
   };
 }
 
@@ -72,19 +76,19 @@ async function readQRCode(file) {
 }
 
 export default function StudentCardOCRModal({ onClose, onComplete }) {
-  const [files, setFiles] = useState({ recto: null, verso: null });
-  const [previews, setPreviews] = useState({ recto: "", verso: "" });
-  const [fields, setFields] = useState({ nom: "", prenom: "", numero_etudiant: "", programme: "" });
+  const [files, setFiles] = useState({ recto: null });
+  const [previews, setPreviews] = useState({ recto: "" });
+  const [fields, setFields] = useState({ nom: "", prenom: "", numero_etudiant: "" });
   const [rawText, setRawText] = useState("");
   const [step, setStep] = useState("capture");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
   const [saving, setSaving] = useState(false);
-  const inputRefs = { recto: useRef(null), verso: useRef(null) };
+  const inputRefs = { recto: useRef(null) };
 
   useEffect(() => () => Object.values(previews).forEach((url) => url && URL.revokeObjectURL(url)), [previews]);
 
-  const ready = useMemo(() => files.recto && files.verso, [files]);
+  const ready = useMemo(() => Boolean(files.recto), [files]);
 
   const selectFile = (side, file) => {
     if (!file) return;
@@ -96,12 +100,12 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
   };
 
   const analyse = async () => {
-    if (!ready) return setError("Ajoutez les deux côtés de la carte.");
+    if (!ready) return setError("Ajoutez une photo nette du recto de la carte.");
     setError("");
     setStep("analyse");
     setProgress("Lecture du QR code…");
-    const qrTexts = await Promise.all([readQRCode(files.recto), readQRCode(files.verso)]);
-    const qrNumber = qrTexts.join(" ").match(/\b\d{4,10}\b/)?.[0] || "";
+    const qrText = await readQRCode(files.recto);
+    const qrNumber = qrText.match(/\b\d{4,10}\b/)?.[0] || "";
     setProgress("Lecture OCR locale…");
     let worker;
     try {
@@ -109,11 +113,8 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
         if (message.status === "recognizing text") setProgress(`OCR en cours… ${Math.round((message.progress || 0) * 100)} %`);
       }});
       await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
-      const results = await Promise.all([
-        worker.recognize(files.recto),
-        worker.recognize(files.verso),
-      ]);
-      const text = results.map((result) => result.data.text || "").join("\n");
+      const result = await worker.recognize(files.recto);
+      const text = result.data.text || "";
       const extracted = extractFields(text);
       setRawText(text);
       setFields({ ...extracted, numero_etudiant: qrNumber || extracted.numero_etudiant });
@@ -135,20 +136,17 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id || "admin";
       const paths = {};
-      for (const side of ["recto", "verso"]) {
-        const blob = await prepareImage(files[side]);
-        const path = `${userId}/${crypto.randomUUID()}-${side}.jpg`;
+      const blob = await prepareImage(files.recto);
+      const path = `${userId}/${crypto.randomUUID()}-recto.jpg`;
         const { error: uploadError } = await supabase.storage.from("bibli-student-cards").upload(path, blob, {
           contentType: "image/jpeg", upsert: false,
         });
         if (uploadError) throw uploadError;
-        uploaded.push(path);
-        paths[side] = path;
-      }
+      uploaded.push(path);
+      paths.recto = path;
       const payload = {
         nom: fields.nom.trim(), prenom: fields.prenom.trim(), numero_etudiant: fields.numero_etudiant.trim(),
-        photo_carte_recto_path: paths.recto, photo_carte_verso_path: paths.verso,
-        champs_custom: fields.programme.trim() ? { formation: fields.programme.trim(), source: "ocr_carte" } : { source: "ocr_carte" },
+        photo_carte_recto_path: paths.recto,
       };
       const { data, error: insertError } = await supabase.from("bibli_etudiants").insert(payload).select().single();
       if (insertError) throw insertError;
@@ -166,18 +164,16 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto p-4 sm:py-8">
       <div className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-5 sm:p-6 space-y-5">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-biblio-muted hover:text-biblio-text"><X /></button>
-        <div className="pr-8"><h2 className="text-xl font-semibold flex items-center gap-2"><ScanLine className="text-biblio-accent" /> Ajouter par carte étudiante</h2><p className="text-sm text-biblio-muted mt-1">Les photos restent dans le stockage privé de la bibliothèque.</p></div>
+        <div className="pr-8"><h2 className="text-xl font-semibold flex items-center gap-2"><ScanLine className="text-biblio-accent" /> Ajouter par carte étudiante</h2><p className="text-sm text-biblio-muted mt-1">Une photo du recto suffit : nom, prénom et matricule.</p></div>
         <div className="flex items-center gap-2 text-xs text-biblio-muted"><ShieldCheck className="w-4 h-4 text-biblio-success" /> OCR effectué localement dans votre navigateur · aucune photo envoyée à un service OCR externe</div>
         {step === "capture" && <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {["recto", "verso"].map((side) => <div key={side} className="space-y-2"><p className="text-sm font-medium">Photo {side}</p><button type="button" onClick={() => inputRefs[side].current?.click()} className="w-full aspect-[1.6] rounded-xl border-2 border-dashed border-white/20 hover:border-biblio-accent/60 overflow-hidden flex items-center justify-center bg-white/5">{previews[side] ? <img src={previews[side]} alt={`Aperçu ${side}`} className="w-full h-full object-cover" /> : <span className="text-sm text-biblio-muted flex flex-col items-center gap-2"><ImagePlus />Ajouter une photo</span>}</button><input ref={inputRefs[side]} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => selectFile(side, event.target.files?.[0])} /><button type="button" onClick={() => inputRefs[side].current?.click()} className="text-xs text-biblio-accent flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {previews[side] ? "Remplacer" : "Choisir"}</button></div>)}
-          </div>
+          <div className="space-y-2"><p className="text-sm font-medium">Photo du recto</p><button type="button" onClick={() => inputRefs.recto.current?.click()} className="w-full aspect-[1.6] rounded-xl border-2 border-dashed border-white/20 hover:border-biblio-accent/60 overflow-hidden flex items-center justify-center bg-white/5">{previews.recto ? <img src={previews.recto} alt="Aperçu du recto" className="w-full h-full object-cover" /> : <span className="text-sm text-biblio-muted flex flex-col items-center gap-2"><ImagePlus />Ajouter une photo</span>}</button><input ref={inputRefs.recto} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => selectFile("recto", event.target.files?.[0])} /><button type="button" onClick={() => inputRefs.recto.current?.click()} className="text-xs text-biblio-accent flex items-center gap-1"><RotateCcw className="w-3 h-3" /> {previews.recto ? "Remplacer" : "Choisir"}</button></div>
           <button type="button" disabled={!ready} onClick={analyse} className="w-full px-4 py-3 bg-biblio-accent disabled:opacity-50 text-white rounded-lg font-medium flex justify-center items-center gap-2"><ScanLine className="w-5 h-5" /> Analyser la carte</button>
         </>}
         {step === "analyse" && <div className="py-10 flex flex-col items-center gap-3 text-center"><Loader2 className="w-10 h-10 animate-spin text-biblio-accent" /><p>{progress}</p><p className="text-xs text-biblio-muted">Cela peut prendre quelques secondes sur mobile.</p></div>}
         {step === "review" && <>
           <div className="rounded-lg bg-biblio-success/10 border border-biblio-success/30 p-3 text-sm flex gap-2"><Check className="text-biblio-success shrink-0" />Données détectées. Vérifiez-les avant l’enregistrement.</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{[["prenom", "Prénom *"], ["nom", "Nom *"], ["numero_etudiant", "Numéro étudiant *"], ["programme", "Formation détectée"]].map(([key, label]) => <label key={key} className="text-xs text-biblio-muted">{label}<input value={fields[key]} onChange={(event) => setFields({ ...fields, [key]: event.target.value })} className={INPUT_CLASS + " mt-1"} /></label>)}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{[["prenom", "Prénom *"], ["nom", "Nom *"], ["numero_etudiant", "Matricule *"]].map(([key, label]) => <label key={key} className="text-xs text-biblio-muted">{label}<input value={fields[key]} onChange={(event) => setFields({ ...fields, [key]: event.target.value })} className={INPUT_CLASS + " mt-1"} /></label>)}</div>
           <details className="text-xs text-biblio-muted"><summary>Voir le texte OCR brut</summary><pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap bg-black/20 rounded p-2">{rawText || "Aucun texte"}</pre></details>
           <div className="flex gap-3"><button type="button" onClick={() => setStep("capture")} className="px-4 py-2.5 bg-white/10 rounded-lg">Reprendre les photos</button><button type="button" onClick={save} disabled={saving} className="px-4 py-2.5 bg-biblio-success text-white rounded-lg flex items-center gap-2">{saving ? <Loader2 className="animate-spin" /> : <Upload />} Enregistrer</button></div>
         </>}
