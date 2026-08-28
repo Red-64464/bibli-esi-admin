@@ -170,7 +170,10 @@ Deno.serve(async (request) => {
     const results = uniqueResults([...(googleResult.status === "fulfilled" ? googleResult.value : []), ...(openLibraryResult.status === "fulfilled" ? openLibraryResult.value : [])]);
     return results.length ? reply(request, 200, { results, source: "catalogues", sources: ["Google Books", "Open Library"] }) : reply(request, 404, { error: "Aucun livre trouvé. Essayez l'ISBN ou envoyez deux photos." });
   }
-  const { data: localBook } = await admin.from("bibli_livres").select("isbn, titre, auteur, editeur, couverture_url, annee, resume, langue, categorie, nb_pages").eq("isbn", isbn).maybeSingle();
+  // Ne sélectionner que les colonnes présentes dans le schéma de production.
+  // Les catalogues externes peuvent toutefois continuer à fournir nb_pages
+  // dans leurs métadonnées : le front filtre ces champs avant insertion.
+  const { data: localBook } = await admin.from("bibli_livres").select("isbn, titre, auteur, editeur, couverture_url, annee, resume, langue, categorie").eq("isbn", isbn).maybeSingle();
   if (localBook) return reply(request, 200, { book: localBook, source: "catalogue" });
   const { data: cached } = await admin.from("bibli_book_lookup_cache").select("metadata, sources, found, failure_reason").eq("isbn", isbn).gt("expires_at", new Date().toISOString()).maybeSingle();
   if (cached?.found && cached.metadata) return reply(request, 200, { book: cached.metadata, source: "cache", sources: cached.sources });

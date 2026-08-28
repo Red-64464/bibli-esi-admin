@@ -421,28 +421,46 @@ export default function Livres() {
 
   const handleAddBook = async (bookData) => {
     try {
+      // Les catalogues externes peuvent renvoyer des champs supplémentaires
+      // (ex. nb_pages) absents du schéma local. On n'envoie que les colonnes
+      // réellement supportées par bibli_livres pour éviter un échec d'insertion.
+      const catalogBook = {
+        titre: bookData.titre?.trim() || "Livre sans titre",
+        sous_titre: bookData.sous_titre || null,
+        auteur: bookData.auteur || null,
+        isbn: bookData.isbn || null,
+        editeur: bookData.editeur || null,
+        annee: bookData.annee || null,
+        langue: bookData.langue || null,
+        categorie: bookData.categorie || null,
+        tags: Array.isArray(bookData.tags) ? bookData.tags : [],
+        resume: bookData.resume || null,
+        description: bookData.description || null,
+        emplacement: bookData.emplacement || null,
+        couverture_url: bookData.couverture_url || null,
+      };
       // Duplicate detection: check by ISBN or exact title+author
-      if (bookData.isbn) {
+      if (catalogBook.isbn) {
         const { data: existing } = await supabase
           .from("bibli_livres")
           .select("id, titre, isbn")
-          .eq("isbn", bookData.isbn)
+          .eq("isbn", catalogBook.isbn)
           .limit(1);
         if (existing?.length) {
           setError(
-            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${bookData.isbn}).`,
+            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${catalogBook.isbn}).`,
           );
           return;
         }
       }
-      if (bookData.titre) {
+      if (catalogBook.titre) {
         const { data: byTitle } = await supabase
           .from("bibli_livres")
           .select("id, titre, auteur")
-          .ilike("titre", bookData.titre.trim());
+          .ilike("titre", catalogBook.titre);
         const dup = byTitle?.find(
           (l) =>
-            l.auteur?.toLowerCase() === (bookData.auteur || "").toLowerCase(),
+            l.auteur?.toLowerCase() === (catalogBook.auteur || "").toLowerCase(),
         );
         if (dup) {
           setError(
@@ -454,7 +472,7 @@ export default function Livres() {
 
       const { error: err } = await supabase.from("bibli_livres").insert([
         {
-          ...bookData,
+          ...catalogBook,
           statut: "disponible",
           disponible: true,
           nb_exemplaires: 1,
