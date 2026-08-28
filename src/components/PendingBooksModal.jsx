@@ -14,6 +14,7 @@ export default function PendingBooksModal({ onClose, onAdd }) {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [copiedIsbn, setCopiedIsbn] = useState("");
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
@@ -70,9 +71,23 @@ export default function PendingBooksModal({ onClose, onAdd }) {
   const copyIsbn = async (isbn) => {
     if (!isbn) return;
     try {
-      await navigator.clipboard.writeText(isbn);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(isbn);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = isbn;
+        fallback.setAttribute("readonly", "");
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        if (!document.execCommand("copy")) throw new Error("copy_failed");
+        fallback.remove();
+      }
+      setCopiedIsbn(isbn);
+      window.setTimeout(() => setCopiedIsbn((value) => value === isbn ? "" : value), 1800);
     } catch {
-      setError("Impossible de copier l'ISBN automatiquement.");
+      setError(`Copie impossible automatiquement. ISBN à copier : ${isbn}`);
     }
   };
 
@@ -115,7 +130,7 @@ export default function PendingBooksModal({ onClose, onAdd }) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {book.isbn && (
                   <button type="button" onClick={() => copyIsbn(book.isbn)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text hover:bg-white/20">
-                    <Copy className="h-3.5 w-3.5" /> Copier ISBN
+                    <Copy className="h-3.5 w-3.5" /> {copiedIsbn === book.isbn ? "ISBN copié ✓" : "Copier ISBN"}
                   </button>
                 )}
                 {searchLinks(book).map((link) => (

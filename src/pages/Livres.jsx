@@ -123,15 +123,17 @@ function ImageUploadZone({
   onFileChange,
   label = "Cliquer pour ajouter (PNG, JPG…)",
 }) {
+  const [previewError, setPreviewError] = useState(false);
+  useEffect(() => setPreviewError(false), [preview]);
   return (
     <div>
       {preview ? (
         <div className="relative inline-block">
-          <img
-            src={preview}
-            alt="Aperçu"
-            className="h-32 object-contain rounded-lg border border-white/10"
-          />
+          {previewError ? (
+            <div className="flex h-32 w-24 flex-col items-center justify-center gap-1 rounded-lg border border-biblio-danger/50 bg-biblio-danger/10 p-2 text-center text-[11px] text-biblio-danger"><AlertCircle className="h-5 w-5" />Aperçu impossible</div>
+          ) : (
+            <img src={preview} alt="Aperçu" onError={() => setPreviewError(true)} className="h-32 max-w-40 rounded-lg border border-white/10 object-contain" />
+          )}
           <button
             type="button"
             onClick={() => onFileChange(null)}
@@ -158,6 +160,20 @@ function ImageUploadZone({
         </label>
       )}
     </div>
+  );
+}
+
+const CATALOG_COLUMNS = [
+  "titre", "sous_titre", "auteur", "isbn", "editeur", "annee", "langue",
+  "categorie", "tags", "resume", "description", "emplacement", "nb_exemplaires",
+  "statut", "disponible", "couverture_url",
+];
+
+function catalogInsertPayload(book) {
+  return Object.fromEntries(
+    CATALOG_COLUMNS
+      .filter((column) => book[column] !== undefined)
+      .map((column) => [column, book[column]]),
   );
 }
 
@@ -201,6 +217,7 @@ export default function Livres() {
   const [editLoading, setEditLoading] = useState(false);
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [editImagePreviewError, setEditImagePreviewError] = useState(false);
 
   // Manual add modal
   const [showManualForm, setShowManualForm] = useState(false);
@@ -614,15 +631,17 @@ export default function Livres() {
 
   const handleDuplicate = async (livre) => {
     try {
-      const { id, date_ajout, ...rest } = livre;
+      const duplicate = catalogInsertPayload({
+        ...livre,
+        titre: `${livre.titre} (Copie)`,
+        disponible: true,
+        statut: "disponible",
+        isbn: null,
+        nb_exemplaires: Number(livre.nb_exemplaires) || 1,
+        tags: Array.isArray(livre.tags) ? livre.tags : [],
+      });
       const { error: err } = await supabase.from("bibli_livres").insert([
-        {
-          ...rest,
-          titre: `${livre.titre} (Copie)`,
-          disponible: true,
-          statut: "disponible",
-          isbn: null, // avoid unique constraint collision
-        },
+        duplicate,
       ]);
       if (err) throw err;
       await logActivity({
@@ -644,6 +663,7 @@ export default function Livres() {
     setEditLivre(livre);
     setEditImageFile(null);
     setEditImagePreview(null);
+    setEditImagePreviewError(false);
     setEditForm({
       titre: livre.titre || "",
       auteur: livre.auteur || "",
@@ -1552,14 +1572,11 @@ export default function Livres() {
                 <div className="flex gap-4 items-start flex-wrap">
                   {(editImagePreview || editForm.couverture_url) && (
                     <div className="relative inline-block">
-                      <img
-                        src={editImagePreview || editForm.couverture_url}
-                        alt=""
-                        className="h-32 object-contain rounded-lg border border-white/10"
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
+                      {editImagePreviewError ? (
+                        <div className="flex h-32 w-24 flex-col items-center justify-center gap-1 rounded-lg border border-biblio-danger/50 bg-biblio-danger/10 p-2 text-center text-[11px] text-biblio-danger"><AlertCircle className="h-5 w-5" />Aperçu impossible</div>
+                      ) : (
+                        <img src={editImagePreview || editForm.couverture_url} alt="Aperçu de couverture" className="h-32 max-w-40 rounded-lg border border-white/10 object-contain" onError={() => setEditImagePreviewError(true)} />
+                      )}
                       {editImagePreview && (
                         <button
                           type="button"
@@ -1587,6 +1604,7 @@ export default function Livres() {
                           if (!file) return;
                           setEditImageFile(file);
                           setEditImagePreview(URL.createObjectURL(file));
+                          setEditImagePreviewError(false);
                           setEditForm({ ...editForm, couverture_url: "" });
                         }}
                       />
