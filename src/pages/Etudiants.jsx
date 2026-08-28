@@ -20,8 +20,10 @@ import {
   AlertCircle,
   Upload,
   ArrowUpDown,
+  ScanLine,
 } from "lucide-react";
 import EtudiantCard from "../components/EtudiantCard";
+import StudentCardOCRModal from "../components/StudentCardOCRModal";
 import ExportModal from "../components/ExportModal";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
@@ -307,6 +309,7 @@ export default function Etudiants() {
   const [editLoading, setEditLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCardOCR, setShowCardOCR] = useState(false);
 
   // Confirm delete
   const [confirmDelete, setConfirmDelete] = useState(null); // etudiant id
@@ -611,8 +614,25 @@ export default function Etudiants() {
             <UserPlus className="w-5 h-5" />
             Ajouter un étudiant
           </button>
+          <button
+            onClick={() => setShowCardOCR(true)}
+            className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+          >
+            <ScanLine className="w-5 h-5" />
+            Ajouter par carte
+          </button>
         </div>
       </div>
+
+      {showCardOCR && (
+        <StudentCardOCRModal
+          onClose={() => setShowCardOCR(false)}
+          onComplete={async () => {
+            setError("");
+            await fetchData();
+          }}
+        />
+      )}
 
       {/* Formulaire d'ajout */}
       {showForm && (
