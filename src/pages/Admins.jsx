@@ -8,6 +8,7 @@ import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../li
 import ConfirmModal from "../components/ConfirmModal";
 import {
   UserCog,
+  Search,
   Plus,
   Trash2,
   KeyRound,
@@ -194,6 +195,8 @@ function PermissionsGrid({ permissions, onChange }) {
 export default function Admins() {
   const { session } = useAuth();
   const [admins, setAdmins] = useState([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -495,6 +498,18 @@ export default function Admins() {
     }
   };
 
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredAdmins = admins.filter((admin) => {
+    const matchesRole = roleFilter === "all" || admin.role === roleFilter;
+    const haystack = [admin.username, admin.display_name, admin.email]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return matchesRole && (!normalizedSearch || haystack.includes(normalizedSearch));
+  });
+  const superAdminCount = admins.filter((admin) => admin.role === "super_admin").length;
+  const librarianCount = admins.filter((admin) => admin.role === "librarian").length;
+
   const handleSavePermissions = async (adminId) => {
     try {
       setPermsLoading(true);
@@ -571,6 +586,7 @@ export default function Admins() {
             setShowAdd(true);
             setAddForm({
               username: "",
+              email: "",
               password: "",
               role: "librarian",
               permissions: { ...DEFAULT_PERMISSIONS },
@@ -589,6 +605,47 @@ export default function Admins() {
         <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-4">
+          <p className="text-xs text-biblio-muted">Comptes au total</p>
+          <p className="text-2xl font-bold text-biblio-text mt-1">{admins.length}</p>
+        </div>
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-4">
+          <p className="text-xs text-biblio-muted">Super administrateurs</p>
+          <p className="text-2xl font-bold text-biblio-accent mt-1">{superAdminCount}</p>
+        </div>
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-4">
+          <p className="text-xs text-biblio-muted">Bibliothécaires</p>
+          <p className="text-2xl font-bold text-biblio-success mt-1">{librarianCount}</p>
+        </div>
+      </div>
+
+      {!loading && admins.length > 0 && (
+        <div className="bg-biblio-card rounded-xl border border-white/10 p-3 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-biblio-muted" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher par nom, identifiant ou e-mail…"
+              className={INPUT_CLASS + " pl-9"}
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className={INPUT_CLASS + " sm:w-52"}
+            style={{ colorScheme: "dark" }}
+            aria-label="Filtrer par rôle"
+          >
+            <option value="all">Tous les rôles</option>
+            <option value="super_admin">Super administrateurs</option>
+            <option value="librarian">Bibliothécaires</option>
+          </select>
         </div>
       )}
       {success && (
@@ -718,7 +775,7 @@ export default function Admins() {
         </div>
       ) : (
         <div className="bg-biblio-card rounded-xl border border-white/10 divide-y divide-white/5">
-          {admins.map((admin) => (
+          {filteredAdmins.map((admin) => (
             <div key={admin.id} className="p-4 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 {/* Infos */}
@@ -1134,6 +1191,11 @@ export default function Admins() {
           {admins.length === 0 && (
             <div className="p-8 text-center text-biblio-muted text-sm">
               Aucun administrateur trouvé.
+            </div>
+          )}
+          {admins.length > 0 && filteredAdmins.length === 0 && (
+            <div className="p-8 text-center text-biblio-muted text-sm">
+              Aucun compte ne correspond à ces critères.
             </div>
           )}
         </div>
