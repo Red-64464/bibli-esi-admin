@@ -148,13 +148,32 @@ export default function Prets() {
     e.preventDefault();
     if (!form.livre_id || !form.etudiant_id) return;
     try {
+      if (form.date_retour_prevue && form.date_retour_prevue < form.date_pret) {
+        setError("La date de retour doit être postérieure ou égale à la date du prêt.");
+        return;
+      }
+      if (form.date_rappel && form.date_retour_prevue && form.date_rappel > form.date_retour_prevue) {
+        setError("La date de rappel ne peut pas être après la date de retour.");
+        return;
+      }
+      const { data: currentBook, error: bookCheckError } = await supabase
+        .from("bibli_livres")
+        .select("id, titre, disponible")
+        .eq("id", form.livre_id)
+        .maybeSingle();
+      if (bookCheckError) throw bookCheckError;
+      if (!currentBook || !currentBook.disponible) {
+        setError("Ce livre vient d'être emprunté. Actualisez la liste et choisissez un autre livre.");
+        await fetchData();
+        return;
+      }
       // Vérifier le quota max_books_per_student
       const { count } = await supabase
         .from("bibli_prets")
         .select("id", { count: "exact", head: true })
         .eq("etudiant_id", form.etudiant_id)
         .eq("rendu", false);
-      if ((count || 0) >= maxBooks) {
+      if (maxBooks > 0 && (count || 0) >= maxBooks) {
         setError(
           `Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`,
         );
@@ -228,6 +247,40 @@ export default function Prets() {
       const oldLivreId = editPret.livre_id;
       const newLivreId = editForm.livre_id;
       const isActivePret = getPretStatut(editPret) !== "retourné";
+      if (editForm.date_retour_prevue && editForm.date_retour_prevue < editForm.date_pret) {
+        setError("La date de retour doit être postérieure ou égale à la date du prêt.");
+        return;
+      }
+      if (editForm.date_rappel && editForm.date_retour_prevue && editForm.date_rappel > editForm.date_retour_prevue) {
+        setError("La date de rappel ne peut pas être après la date de retour.");
+        return;
+      }
+      if (isActivePret && oldLivreId !== newLivreId) {
+        const { data: replacementBook, error: replacementError } = await supabase
+          .from("bibli_livres")
+          .select("id, titre, disponible")
+          .eq("id", newLivreId)
+          .maybeSingle();
+        if (replacementError) throw replacementError;
+        if (!replacementBook || !replacementBook.disponible) {
+          setError("Le nouveau livre n'est plus disponible. Choisissez un livre disponible.");
+          await fetchData();
+          return;
+        }
+      }
+      if (isActivePret && editForm.etudiant_id !== editPret.etudiant_id && maxBooks > 0) {
+        const { count, error: countError } = await supabase
+          .from("bibli_prets")
+          .select("id", { count: "exact", head: true })
+          .eq("etudiant_id", editForm.etudiant_id)
+          .eq("rendu", false)
+          .neq("id", editPret.id);
+        if (countError) throw countError;
+        if ((count || 0) >= maxBooks) {
+          setError(`Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`);
+          return;
+        }
+      }
       const payload = {
         livre_id: newLivreId,
         etudiant_id: editForm.etudiant_id,
