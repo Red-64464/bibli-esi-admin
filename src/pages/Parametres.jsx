@@ -26,6 +26,7 @@ import {
   CalendarDays,
   AlertOctagon,
   Send,
+  Info,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -141,12 +142,14 @@ export default function Parametres() {
   const [testingNotifications, setTestingNotifications] = useState(false);
   const [testSent, setTestSent] = useState(false);
   const [testError, setTestError] = useState("");
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     getSettings()
       .then((s) => {
         setForm(s);
         originalFormRef.current = { ...s };
+        setDirty(false);
         applyAccentColor(s.accent_color);
         try {
           setHours(JSON.parse(s.library_hours));
@@ -165,24 +168,75 @@ export default function Parametres() {
     getSettings().then((next) => {
       setForm(next);
       originalFormRef.current = { ...next };
+      setDirty(false);
       applyAccentColor(next.accent_color);
       try { setHours(JSON.parse(next.library_hours)); } catch { setHours({ ...DEFAULT_HOURS }); }
     }).catch(() => {});
   });
 
-  const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const set = (key, value) => {
+    setDirty(true);
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const setHour = (jour, field, value) =>
+  const setHour = (jour, field, value) => {
+    setDirty(true);
     setHours((prev) => ({
       ...prev,
       [jour]: { ...prev[jour], [field]: value },
     }));
+  };
+
+  const applyHoursPreset = (preset) => {
+    setDirty(true);
+    setHours((prev) => {
+      const next = { ...prev };
+      JOURS.forEach(({ key }) => {
+        next[key] = preset === "closed"
+          ? { ouvert: false, debut: "", fin: "" }
+          : { ouvert: !["samedi", "dimanche"].includes(key), debut: "08:00", fin: "17:00" };
+      });
+      return next;
+    });
+  };
+
+  const validateSettings = () => {
+    if (!form.library_name?.trim()) return "Le nom de la bibliothèque est obligatoire.";
+    const email = form.library_email?.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "L'adresse e-mail de la bibliothèque n'est pas valide.";
+    }
+    const loanDays = Number(form.default_loan_days);
+    const maxBooks = Number(form.max_books_per_student);
+    const reminderDays = Number(form.reminder_days_before);
+    if (!Number.isInteger(loanDays) || loanDays < 1 || loanDays > 365) {
+      return "La durée de prêt doit être comprise entre 1 et 365 jours.";
+    }
+    if (!Number.isInteger(maxBooks) || maxBooks < 0 || maxBooks > 50) {
+      return "La limite de livres doit être comprise entre 0 et 50.";
+    }
+    if (!Number.isInteger(reminderDays) || reminderDays < 1 || reminderDays > 30) {
+      return "Le rappel doit être compris entre 1 et 30 jours.";
+    }
+    for (const { key, label } of JOURS) {
+      const jour = hours?.[key];
+      if (jour?.ouvert && (!jour.debut || !jour.fin || jour.debut >= jour.fin)) {
+        return `Les horaires du ${label.toLowerCase()} sont invalides : l'ouverture doit être avant la fermeture.`;
+      }
+    }
+    return "";
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
     try {
       setSaving(true);
       setError("");
+      const validationError = validateSettings();
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
       const payload = { ...form, library_hours: JSON.stringify(hours) };
       await saveSettings(payload);
 
@@ -205,6 +259,7 @@ export default function Parametres() {
         description = `Paramètres modifiés — ${details.join(" | ")}`;
       }
       originalFormRef.current = { ...payload };
+      setDirty(false);
 
       await logActivity({
         action_type: "settings_modifie",
@@ -227,6 +282,8 @@ export default function Parametres() {
       await saveSettings(SETTING_DEFAULTS);
       setForm({ ...SETTING_DEFAULTS });
       setHours({ ...DEFAULT_HOURS });
+      originalFormRef.current = { ...SETTING_DEFAULTS };
+      setDirty(false);
       await logActivity({
         action_type: "settings_modifie",
         description: "Paramètres réinitialisés aux valeurs par défaut",
@@ -320,6 +377,21 @@ export default function Parametres() {
         <p className="text-biblio-muted mt-1 text-sm">
           Configuration générale de la bibliothèque.
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
+            form.library_is_closed === "true"
+              ? "bg-biblio-danger/10 text-biblio-danger"
+              : "bg-biblio-success/10 text-biblio-success"
+          }`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {form.library_is_closed === "true" ? "Fermeture exceptionnelle active" : "Ouverture selon les horaires"}
+          </span>
+          {dirty && (
+            <span className="inline-flex items-center gap-1.5 text-biblio-warning">
+              <Info className="w-3.5 h-3.5" /> Modifications non enregistrées
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -556,6 +628,17 @@ export default function Parametres() {
         )}
 
         {/* Grille 7 jours */}
+        <div className="flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <span className="w-full text-xs text-biblio-muted">Raccourcis utiles</span>
+          <button type="button" onClick={() => applyHoursPreset("week")}
+            className="rounded-lg bg-white/10 px-3 py-2 text-xs text-biblio-text hover:bg-white/20 transition-colors">
+            Semaine 08:00–17:00
+          </button>
+          <button type="button" onClick={() => applyHoursPreset("closed")}
+            className="rounded-lg bg-white/10 px-3 py-2 text-xs text-biblio-text hover:bg-white/20 transition-colors">
+            Fermer tous les jours
+          </button>
+        </div>
         <div className="space-y-2 mt-2">
           <div className="hidden sm:grid grid-cols-[110px_60px_1fr_16px_1fr] gap-2 items-center mb-1">
             <span className="text-xs text-biblio-muted">Jour</span>
