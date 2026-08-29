@@ -104,15 +104,16 @@ export default function Notifications() {
     try {
       setTodayLoading(true);
       const todayStr = new Date().toISOString().slice(0, 10);
-      const { data } = await supabase
+      const { data, error: err } = await supabase
         .from("bibli_prets")
         .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .eq("date_rappel", todayStr)
         .order("date_retour_prevue", { ascending: true });
+      if (err) throw err;
       setTodayReminders(data || []);
-    } catch {
-      /* silently ignore if date_rappel column doesn't exist */
+    } catch (err) {
+      setError("Impossible de charger les rappels du jour : " + err.message);
     } finally {
       setTodayLoading(false);
     }
@@ -129,28 +130,30 @@ export default function Notifications() {
       const todayStr = today.toISOString().slice(0, 10);
 
       // Prêts dans la fenêtre de rappel (bientôt dus)
-      const { data: upcoming } = await supabase
+      const { data: upcoming, error: upcomingError } = await supabase
         .from("bibli_prets")
         .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .gte("date_retour_prevue", todayStr)
         .lte("date_retour_prevue", futureDateStr)
         .order("date_retour_prevue", { ascending: true });
+      if (upcomingError) throw upcomingError;
 
       // Prêts en retard
-      const { data: overdue } = await supabase
+      const { data: overdue, error: overdueError } = await supabase
         .from("bibli_prets")
         .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .lt("date_retour_prevue", todayStr)
         .order("date_retour_prevue", { ascending: true });
+      if (overdueError) throw overdueError;
 
       setPreviewLoans([
         ...(upcoming || []).map((p) => ({ ...p, _type: "upcoming" })),
         ...(overdue || []).map((p) => ({ ...p, _type: "overdue" })),
       ]);
-    } catch {
-      /* silently ignore */
+    } catch (err) {
+      setError("Impossible de charger les prêts à rappeler : " + err.message);
     } finally {
       setPreviewLoading(false);
     }
@@ -227,7 +230,7 @@ export default function Notifications() {
         text: composerBody,
         titre: composerMeta.titre,
         dateRetour: composerMeta.dateRetour,
-        isOverdue: composerMeta.isOverdue,
+        templateType: "reminder",
       });
       setComposerSent(true);
       setTimeout(() => {
