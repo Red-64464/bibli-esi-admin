@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
 import { applyAccentColor } from "../lib/settings";
 import { useRealtimeTables } from "../lib/realtime";
+import OfflineSyncStatus from "./OfflineSyncStatus";
 import {
   LayoutDashboard,
   BookOpen,
@@ -335,6 +336,7 @@ export default function Layout({ children }) {
           </form>
 
           <div className="ml-auto flex items-center gap-2 shrink-0 z-10">
+            <OfflineSyncStatus />
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}

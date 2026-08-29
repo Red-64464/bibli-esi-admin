@@ -29,6 +29,7 @@ import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 import { useDebounce, getPretStatut } from "../lib/utils";
 import { parseOrMessage, studentSchema } from "../lib/validation";
+import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
@@ -423,6 +424,26 @@ export default function Etudiants() {
       setError("");
       await fetchData();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        const { data: payload } = parseOrMessage(studentSchema, {
+          nom: form.nom.trim(),
+          prenom: form.prenom.trim(),
+          numero_etudiant: form.numero_etudiant,
+          notes_admin: form.notes_admin,
+          champs_custom: serializeCustomFields(form.champs_custom),
+        });
+        if (payload) {
+          await enqueueOfflineAction({
+            type: "student:create",
+            label: `Étudiant : ${payload.numero_etudiant}`,
+            payload,
+          });
+          setForm(emptyForm);
+          setShowForm(false);
+          setError("Supabase est indisponible : l'étudiant est sauvegardé localement et sera synchronisé plus tard.");
+          return;
+        }
+      }
       setError("Erreur lors de l'ajout : " + err.message);
     }
   };

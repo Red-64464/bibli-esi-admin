@@ -40,6 +40,7 @@ import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 import { printLabels } from "../lib/print";
 import { compressImage, imageExtension, validateImageFile } from "../lib/images";
 import { bookSchema, externalBookSchema, parseOrMessage } from "../lib/validation";
+import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue";
 
 const STATUTS_LIVRE = [
   { value: "disponible", label: "Disponible" },
@@ -422,6 +423,24 @@ export default function Livres() {
   };
 
   const uploadCover = async (file) => {
+    const { blob, path } = await prepareCoverUpload(file);
+    const { error } = await supabase.storage
+      .from("bibli-covers")
+      .upload(path, blob, {
+        contentType: blob.type || "image/jpeg",
+        cacheControl: "86400",
+      });
+    if (error)
+      throw new Error(
+        "Upload image échoué : " +
+          error.message +
+          " (créez un bucket public nommé 'covers' dans Supabase Storage)",
+      );
+    const { data } = supabase.storage.from("bibli-covers").getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const prepareCoverUpload = async (file) => {
     const validation = validateImageFile(file, 8);
     if (validation) throw new Error(validation);
     const compressed = await compressImage(file, {
@@ -431,20 +450,7 @@ export default function Livres() {
     });
     const ext = imageExtension(compressed);
     const filename = `cover_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("bibli-covers")
-      .upload(filename, compressed, {
-        contentType: compressed.type || "image/jpeg",
-        cacheControl: "86400",
-      });
-    if (error)
-      throw new Error(
-        "Upload image échoué : " +
-          error.message +
-          " (créez un bucket public nommé 'covers' dans Supabase Storage)",
-      );
-    const { data } = supabase.storage.from("bibli-covers").getPublicUrl(filename);
-    return data.publicUrl;
+    return { blob: compressed, path: filename };
   };
 
   const handleAddBook = async (bookData) => {
@@ -502,14 +508,13 @@ export default function Livres() {
         }
       }
 
-      const { error: err } = await supabase.from("bibli_livres").insert([
-        {
-          ...catalogBook,
-          statut: "disponible",
-          disponible: true,
-          nb_exemplaires: 1,
-        },
-      ]);
+      const payload = {
+        ...catalogBook,
+        statut: "disponible",
+        disponible: true,
+        nb_exemplaires: 1,
+      };
+      const { error: err } = await supabase.from("bibli_livres").insert([payload]);
       if (err) {
         if (err.code === "23505")
           setError("Ce livre (ISBN) existe déjà dans la base.");
@@ -524,6 +529,31 @@ export default function Livres() {
       setError("");
       await fetchLivres();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        await enqueueOfflineAction({
+          type: "book:create",
+          label: `Livre : ${bookData.titre || "sans titre"}`,
+          payload: {
+            titre: bookData.titre?.trim() || "Livre sans titre",
+            auteur: bookData.auteur || null,
+            isbn: bookData.isbn || null,
+            editeur: bookData.editeur || null,
+            annee: bookData.annee || null,
+            langue: bookData.langue || null,
+            categorie: bookData.categorie || null,
+            tags: Array.isArray(bookData.tags) ? bookData.tags : [],
+            resume: bookData.resume || null,
+            description: bookData.description || null,
+            emplacement: bookData.emplacement || null,
+            couverture_url: bookData.couverture_url || null,
+            statut: "disponible",
+            disponible: true,
+            nb_exemplaires: 1,
+          },
+        });
+        setError("Supabase est indisponible : le livre est sauvegardé localement et sera synchronisé plus tard.");
+        return;
+      }
       setError("Erreur lors de l'ajout : " + err.message);
     }
   };
@@ -580,16 +610,27 @@ export default function Livres() {
         return;
       }
       let couverture_url = validatedBook.couverture_url;
-      if (manualImageFile) couverture_url = await uploadCover(manualImageFile);
+      let queuedCover = null;
+      if (manualImageFile) {
+        queuedCover = await prepareCoverUpload(manualImageFile);
+        const { error: uploadError } = await supabase.storage
+          .from("bibli-covers")
+          .upload(queuedCover.path, queuedCover.blob, {
+            contentType: queuedCover.blob.type || "image/jpeg",
+            cacheControl: "86400",
+          });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("bibli-covers").getPublicUrl(queuedCover.path);
+        couverture_url = data.publicUrl;
+      }
 
-      const { data: createdBook, error: err } = await supabase.from("bibli_livres").insert([
-        {
-          ...validatedBook,
-          tags: validatedBook.tags || [],
-          disponible: validatedBook.statut === "disponible",
-          couverture_url: couverture_url || null,
-        },
-      ]).select("id").single();
+      const payload = {
+        ...validatedBook,
+        tags: validatedBook.tags || [],
+        disponible: validatedBook.statut === "disponible",
+        couverture_url: couverture_url || null,
+      };
+      const { data: createdBook, error: err } = await supabase.from("bibli_livres").insert([payload]).select("id").single();
       if (err) throw err;
       if (pendingToAdd && createdBook?.id) {
         const { error: pendingError } = await supabase
@@ -613,6 +654,36 @@ export default function Livres() {
       await fetchLivres();
       await fetchPendingCount();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        const tagsArray = manualForm.tags
+          ? manualForm.tags.split(",").map((t) => t.trim()).filter(Boolean)
+          : [];
+        const { data: validatedBook } = parseOrMessage(bookSchema, {
+          ...manualForm,
+          tags: tagsArray,
+        });
+        let coverFile = null;
+        if (manualImageFile) {
+          coverFile = await prepareCoverUpload(manualImageFile);
+        }
+        await enqueueOfflineAction({
+          type: "book:create",
+          label: `Livre manuel : ${validatedBook?.titre || manualForm.titre || "sans titre"}`,
+          payload: {
+            ...validatedBook,
+            tags: validatedBook?.tags || [],
+            disponible: validatedBook?.statut === "disponible",
+            couverture_url: validatedBook?.couverture_url || null,
+          },
+          files: coverFile ? { cover: coverFile } : {},
+        });
+        setShowManualForm(false);
+        setManualForm(emptyManualForm);
+        setManualImageFile(null);
+        setManualImagePreview(null);
+        setError("Supabase/Storage est indisponible : le livre est sauvegardé localement et sera synchronisé plus tard.");
+        return;
+      }
       setError("Erreur lors de l'ajout manuel : " + err.message);
     } finally {
       setManualLoading(false);

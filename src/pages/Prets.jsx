@@ -24,6 +24,7 @@ import ISBNScanner from "../components/ISBNScanner";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 import { loanSchema, parseOrMessage } from "../lib/validation";
+import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent";
@@ -227,6 +228,31 @@ export default function Prets() {
       setError("");
       await fetchData();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        const { data: validatedLoan } = parseOrMessage(loanSchema, form);
+        if (validatedLoan) {
+          await enqueueOfflineAction({
+            type: "loan:create",
+            label: `Prêt : ${livres.find((l) => l.id === validatedLoan.livre_id)?.titre || "livre"}`,
+            payload: {
+              ...validatedLoan,
+              statut: "en_cours",
+              rendu: false,
+            },
+          });
+          setShowForm(false);
+          setForm({
+            livre_id: "",
+            etudiant_id: "",
+            date_pret: today,
+            date_retour_prevue: defaultRetour,
+            date_rappel: defaultRappel,
+            notes: "",
+          });
+          setError("Supabase est indisponible : le prêt est sauvegardé localement et sera synchronisé plus tard.");
+          return;
+        }
+      }
       setError("Erreur lors du prêt : " + err.message);
     }
   };

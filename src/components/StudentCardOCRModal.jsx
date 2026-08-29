@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { compressImage, validateImageFile } from "../lib/images";
+import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
@@ -189,6 +190,40 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
       onComplete(data);
       onClose();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        try {
+          const userId = "offline";
+          const prepared = await prepareImage(files.recto);
+          const preparedFile = prepared
+            ? new File([prepared], "student-card-recto.jpg", { type: "image/jpeg" })
+            : files.recto;
+          const blob = await compressImage(preparedFile, {
+            maxInputSizeMb: 8,
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 1600,
+          });
+          const path = `${userId}/${crypto.randomUUID()}-recto.jpg`;
+          const payload = {
+            nom: fields.numero_etudiant.trim(),
+            prenom: "Étudiant",
+            numero_etudiant: fields.numero_etudiant.trim(),
+            email: buildStudentEmail(fields.numero_etudiant),
+            photo_carte_recto_path: path,
+          };
+          await enqueueOfflineAction({
+            type: "student:create",
+            label: `Étudiant : ${fields.numero_etudiant.trim()}`,
+            payload,
+            files: { card: { path, blob } },
+          });
+          onComplete(payload);
+          onClose();
+          return;
+        } catch (queueError) {
+          setError(`Sauvegarde locale impossible : ${queueError.message}`);
+          return;
+        }
+      }
       if (uploaded.length) await supabase.storage.from("bibli-student-cards").remove(uploaded);
       setError(`Enregistrement impossible : ${err.message}`);
     } finally {

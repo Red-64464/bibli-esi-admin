@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { AlertCircle, Camera, FileText, ImagePlus, Loader2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { compressImage, imageExtension, validateImageFile } from "../lib/images";
+import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue";
 
 function PhotoField({ label, help, file, onChange }) {
   const inputRef = useRef(null);
@@ -88,17 +89,10 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
       const compressedEvidence = await compressImage(evidence, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
       const coverPath = `${id}/cover.${imageExtension(compressedCover)}`;
       const evidencePath = `${id}/evidence.${imageExtension(compressedEvidence)}`;
-      const bucket = supabase.storage.from("bibli-pending-books");
-      const [coverUpload, evidenceUpload] = await Promise.all([
-        bucket.upload(coverPath, compressedCover, { upsert: false, contentType: compressedCover.type || "image/jpeg", cacheControl: "86400" }),
-        bucket.upload(evidencePath, compressedEvidence, { upsert: false, contentType: compressedEvidence.type || "image/jpeg", cacheControl: "86400" }),
-      ]);
-      if (coverUpload.error || evidenceUpload.error) throw new Error(coverUpload.error?.message || evidenceUpload.error?.message);
-      const isbn = rawScan.replace(/[^0-9Xx]/g, "").toUpperCase();
-      const { error: insertError } = await supabase.from("bibli_pending_books").insert({
+      const payload = {
         id,
         raw_scan: rawScan || null,
-        isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(isbn) ? isbn : null,
+        isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(rawScan.replace(/[^0-9Xx]/g, "").toUpperCase()) ? rawScan.replace(/[^0-9Xx]/g, "").toUpperCase() : null,
         titre_suggere: title.trim() || null,
         auteur_suggere: author.trim() || null,
         notes: notes.trim() || null,
@@ -109,11 +103,57 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
         lookup_sources: ["Google Books", "Open Library", "BnF"],
         last_lookup_at: new Date().toISOString(),
         created_by: authData.user.id,
-      });
+      };
+      const bucket = supabase.storage.from("bibli-pending-books");
+      const [coverUpload, evidenceUpload] = await Promise.all([
+        bucket.upload(coverPath, compressedCover, { upsert: false, contentType: compressedCover.type || "image/jpeg", cacheControl: "86400" }),
+        bucket.upload(evidencePath, compressedEvidence, { upsert: false, contentType: compressedEvidence.type || "image/jpeg", cacheControl: "86400" }),
+      ]);
+      if (coverUpload.error || evidenceUpload.error) throw new Error(coverUpload.error?.message || evidenceUpload.error?.message);
+      const { error: insertError } = await supabase.from("bibli_pending_books").insert(payload);
       if (insertError) throw insertError;
       onQueued?.();
       onClose();
     } catch (err) {
+      if (shouldQueueWriteError(err)) {
+        try {
+          const id = crypto.randomUUID();
+          const compressedCover = await compressImage(cover, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
+          const compressedEvidence = await compressImage(evidence, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
+          const coverPath = `${id}/cover.${imageExtension(compressedCover)}`;
+          const evidencePath = `${id}/evidence.${imageExtension(compressedEvidence)}`;
+          const isbn = rawScan.replace(/[^0-9Xx]/g, "").toUpperCase();
+          await enqueueOfflineAction({
+            type: "pending-book:create",
+            label: `Livre à identifier : ${title.trim() || rawScan || "sans titre"}`,
+            payload: {
+              id,
+              raw_scan: rawScan || null,
+              isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(isbn) ? isbn : null,
+              titre_suggere: title.trim() || null,
+              auteur_suggere: author.trim() || null,
+              notes: notes.trim() || null,
+              cover_path: coverPath,
+              evidence_path: evidencePath,
+              ocr_text: ocrText || null,
+              ocr_data: ocrText ? { language: ["fra", "eng"], source: "client" } : {},
+              lookup_sources: ["Google Books", "Open Library", "BnF"],
+              last_lookup_at: new Date().toISOString(),
+              created_by: null,
+            },
+            files: {
+              cover: { path: coverPath, blob: compressedCover },
+              evidence: { path: evidencePath, blob: compressedEvidence },
+            },
+          });
+          onQueued?.();
+          onClose();
+          return;
+        } catch (queueError) {
+          setError(`Sauvegarde locale impossible : ${queueError.message || "erreur inconnue"}`);
+          return;
+        }
+      }
       setError(`Envoi impossible : ${err.message || "erreur inconnue"}`);
     } finally {
       setSaving(false);
