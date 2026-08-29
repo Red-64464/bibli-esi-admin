@@ -63,33 +63,52 @@ function escapeIcsText(value = "") {
 function buildCalendarFile(pretsToExport, reminderDays) {
   const now = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const trigger = reminderDays === 0 ? "PT0M" : `-P${reminderDays}D`;
-  const events = pretsToExport.map((pret) => {
+  const events = pretsToExport.flatMap((pret) => {
     const title = pret.livres?.titre || "Livre à retourner";
     const student = pret.etudiants
       ? `${pret.etudiants.prenom || ""} ${pret.etudiants.nom || ""}`.trim()
       : "";
+    const loanDate = pret.date_pret || pret.date_retour_prevue;
+    const returnDate = pret.date_retour_prevue;
     const description = [
       `Livre : ${title}`,
       student ? `Etudiant : ${student}` : "",
-      pret.date_pret ? `Pret : ${formatDate(pret.date_pret)}` : "",
-      `Retour prevu : ${formatDate(pret.date_retour_prevue)}`,
+      loanDate ? `Pret : ${formatDate(loanDate)}` : "",
+      `Retour prevu : ${formatDate(returnDate)}`,
     ].filter(Boolean).join("\\n");
 
-    return [
+    const periodEvent = [
+      "BEGIN:VEVENT",
+      `UID:bibliesi-loan-${pret.id}@bibliesi`,
+      `DTSTAMP:${now}`,
+      `DTSTART;VALUE=DATE:${addDays(loanDate, 0)}`,
+      `DTEND;VALUE=DATE:${addDays(returnDate, 1)}`,
+      `SUMMARY:${escapeIcsText(`Prêt - ${title}`)}`,
+      `DESCRIPTION:${escapeIcsText(description)}`,
+      "STATUS:CONFIRMED",
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT",
+    ];
+
+    const returnEvent = [
       "BEGIN:VEVENT",
       `UID:bibliesi-return-${pret.id}@bibliesi`,
       `DTSTAMP:${now}`,
-      `DTSTART;VALUE=DATE:${addDays(pret.date_retour_prevue, 0)}`,
-      `DTEND;VALUE=DATE:${addDays(pret.date_retour_prevue, 1)}`,
+      `DTSTART;VALUE=DATE:${addDays(returnDate, 0)}`,
+      `DTEND;VALUE=DATE:${addDays(returnDate, 1)}`,
       `SUMMARY:${escapeIcsText(`Retour livre - ${title}`)}`,
       `DESCRIPTION:${escapeIcsText(description)}`,
+      "STATUS:CONFIRMED",
+      "TRANSP:OPAQUE",
       "BEGIN:VALARM",
       `TRIGGER:${trigger}`,
       "ACTION:DISPLAY",
       `DESCRIPTION:${escapeIcsText(`Retour livre - ${title}`)}`,
       "END:VALARM",
       "END:VEVENT",
-    ].join("\r\n");
+    ];
+
+    return [periodEvent.join("\r\n"), returnEvent.join("\r\n")];
   });
 
   return [
@@ -249,7 +268,7 @@ export default function Calendrier() {
               ))}
             </select>
           </label>
-          <button
+            <button
             onClick={exportToGoogleCalendar}
             disabled={exporting}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-biblio-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-biblio-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
@@ -262,6 +281,13 @@ export default function Calendrier() {
             Exporter Google Calendar
             <ExternalLink className="h-3.5 w-3.5 opacity-80" />
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 pb-4 text-xs text-biblio-muted">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-success" />Début du prêt</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-accent" />Prêt en cours</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-danger" />Retour prévu</span>
+          <span className="text-[11px]">Clique sur un jour pour voir tous les prêts.</span>
         </div>
       </div>
 

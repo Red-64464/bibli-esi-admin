@@ -2,9 +2,9 @@ import { Trash2, Pencil, History, QrCode, Copy, Plus } from "lucide-react";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
-  emprunte: "bg-biblio-warning/20 text-biblio-warning",
+  emprunte: "bg-biblio-danger/15 text-biblio-danger border border-biblio-danger/30",
   // legacy accented fallbacks
-  emprunté: "bg-biblio-warning/20 text-biblio-warning",
+  emprunté: "bg-biblio-danger/15 text-biblio-danger border border-biblio-danger/30",
   reserve: "bg-biblio-accent/20 text-biblio-accent",
   réservé: "bg-biblio-accent/20 text-biblio-accent",
   perdu: "bg-biblio-danger/20 text-biblio-danger",

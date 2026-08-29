@@ -54,7 +54,7 @@ const STATUT_LABEL = Object.fromEntries(
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
-  emprunte: "bg-biblio-warning/20 text-biblio-warning",
+  emprunte: "bg-biblio-danger/15 text-biblio-danger border border-biblio-danger/30",
   reserve: "bg-biblio-accent/20 text-biblio-accent",
   perdu: "bg-biblio-danger/20 text-biblio-danger",
   en_reparation: "bg-white/10 text-biblio-muted",
