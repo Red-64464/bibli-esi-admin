@@ -43,6 +43,19 @@ services:
       traefik.http.routers.bibliesi-admin.tls.certresolver: letsencrypt
       traefik.http.services.bibliesi-admin.loadbalancer.server.port: "80"
 
+  reminder-worker:
+    build:
+      context: ../reminder-worker
+    container_name: bibliesi-reminder-worker
+    restart: unless-stopped
+    networks: [coolify]
+    environment:
+      SUPABASE_URL: https://supabase.75.119.140.201.nip.io
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      VITE_EMAILJS_SERVICE_ID: ${VITE_EMAILJS_SERVICE_ID:-}
+      VITE_EMAILJS_TEMPLATE_REMINDER_ID: ${VITE_EMAILJS_TEMPLATE_REMINDER_ID:-}
+      VITE_EMAILJS_PUBLIC_KEY: ${VITE_EMAILJS_PUBLIC_KEY:-}
+
   api-proxy:
     image: nginx:1.27-alpine
     container_name: bibliesi-supabase-proxy
