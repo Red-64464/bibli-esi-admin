@@ -55,7 +55,7 @@ const BASE_NAV_GROUPS = [
         to: "/reservations",
         label: "Réservations",
         icon: BookMarked,
-        perm: "bibli_reservations",
+        perm: "reservations",
       },
       {
         to: "/calendrier",

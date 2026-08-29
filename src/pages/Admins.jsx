@@ -59,7 +59,7 @@ const PERMISSION_CATEGORIES = [
   { label: "📈 Statistiques", keys: ["statistiques"] },
   { label: "🔔 Notifications", keys: ["notifications"] },
   { label: "📜 Historique", keys: ["historique"] },
-  { label: "🔖 Réservations", keys: ["bibli_reservations"] },
+  { label: "🔖 Réservations", keys: ["reservations"] },
 ];
 
 const PERMISSION_LABELS = {
