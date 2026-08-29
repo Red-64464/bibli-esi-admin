@@ -106,15 +106,18 @@ export default function Dashboard() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportType, setExportType] = useState(null);
   const [periodFilter, setPeriodFilter] = useState("6m");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
   }, []);
-  useRealtimeTables(["bibli_livres", "bibli_etudiants", "bibli_prets"], () => fetchDashboard());
+  useRealtimeTables(["bibli_livres", "bibli_etudiants", "bibli_prets"], () => fetchDashboard(true));
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (silent = false) => {
     try {
-      setLoading(true);
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       const [livresRes, etudRes, pretsRes] = await Promise.all([
         supabase
           .from("bibli_livres")
@@ -137,10 +140,12 @@ export default function Dashboard() {
       setLivres(livresRes.data || []);
       setEtudiants(etudRes.data || []);
       setPrets(pretsRes.data || []);
+      setLastUpdated(new Date());
     } catch (err) {
       setError("Impossible de charger le tableau de bord : " + err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -824,10 +829,10 @@ export default function Dashboard() {
         <div className="flex gap-3">
           <button
             onClick={fetchDashboard}
-            disabled={loading}
+            disabled={loading || refreshing}
             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${loading || refreshing ? "animate-spin" : ""}`} />
             Actualiser
           </button>
           <button
@@ -851,6 +856,15 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-biblio-muted -mt-4">
+        <span className={`h-2 w-2 rounded-full ${refreshing ? "bg-biblio-warning animate-pulse" : "bg-biblio-success"}`} />
+        {refreshing
+          ? "Synchronisation en cours…"
+          : lastUpdated
+            ? `Synchronisé à ${lastUpdated.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+            : "Synchronisation active"}
+      </div>
+
       {error && (
         <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm">
           {error}
@@ -863,9 +877,9 @@ export default function Dashboard() {
           icon={BookOpen}
           label="Total livres"
           value={stats.totalLivres}
-          active={activeCard === "bibli_livres"}
+          active={activeCard === "livres"}
           onClick={() =>
-            setActiveCard(activeCard === "bibli_livres" ? null : "bibli_livres")
+            setActiveCard(activeCard === "livres" ? null : "livres")
           }
         />
         <StatCard
