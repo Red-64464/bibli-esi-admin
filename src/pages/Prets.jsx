@@ -23,6 +23,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import ISBNScanner from "../components/ISBNScanner";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
+import { loanSchema, parseOrMessage } from "../lib/validation";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent";
@@ -148,18 +149,15 @@ export default function Prets() {
     e.preventDefault();
     if (!form.livre_id || !form.etudiant_id) return;
     try {
-      if (form.date_retour_prevue && form.date_retour_prevue < form.date_pret) {
-        setError("La date de retour doit être postérieure ou égale à la date du prêt.");
-        return;
-      }
-      if (form.date_rappel && form.date_retour_prevue && form.date_rappel > form.date_retour_prevue) {
-        setError("La date de rappel ne peut pas être après la date de retour.");
+      const { data: validatedLoan, error: validationError } = parseOrMessage(loanSchema, form);
+      if (validationError) {
+        setError(validationError);
         return;
       }
       const { data: currentBook, error: bookCheckError } = await supabase
         .from("bibli_livres")
         .select("id, titre, disponible")
-        .eq("id", form.livre_id)
+        .eq("id", validatedLoan.livre_id)
         .maybeSingle();
       if (bookCheckError) throw bookCheckError;
       if (!currentBook || !currentBook.disponible) {
@@ -171,7 +169,7 @@ export default function Prets() {
       const { count } = await supabase
         .from("bibli_prets")
         .select("id", { count: "exact", head: true })
-        .eq("etudiant_id", form.etudiant_id)
+        .eq("etudiant_id", validatedLoan.etudiant_id)
         .eq("rendu", false);
       if (maxBooks > 0 && (count || 0) >= maxBooks) {
         setError(
@@ -182,12 +180,7 @@ export default function Prets() {
 
       const { error: err1 } = await supabase.from("bibli_prets").insert([
         {
-          livre_id: form.livre_id,
-          etudiant_id: form.etudiant_id,
-          date_pret: form.date_pret,
-          date_retour_prevue: form.date_retour_prevue || null,
-          date_rappel: form.date_rappel || null,
-          notes: form.notes,
+          ...validatedLoan,
           statut: "en_cours",
           rendu: false,
         },
@@ -197,13 +190,13 @@ export default function Prets() {
       const { error: err2 } = await supabase
         .from("bibli_livres")
         .update({ disponible: false, statut: "emprunté" })
-        .eq("id", form.livre_id);
+        .eq("id", validatedLoan.livre_id);
       if (err2) throw err2;
 
       // Journaliser l'activité
       const livreNom =
-        livres.find((l) => l.id === form.livre_id)?.titre || form.livre_id;
-      const etudNom = etudiants.find((e) => e.id === form.etudiant_id);
+        livres.find((l) => l.id === validatedLoan.livre_id)?.titre || validatedLoan.livre_id;
+      const etudNom = etudiants.find((e) => e.id === validatedLoan.etudiant_id);
       await logActivity({
         action_type: "pret_cree",
         description: `${etudNom ? `${etudNom.prenom} ${etudNom.nom}` : "Étudiant"} a emprunté « ${livreNom} »`,
@@ -216,8 +209,8 @@ export default function Prets() {
           prenom: etudNom.prenom,
           nom: etudNom.nom,
           titre: livreNom,
-          datePret: form.date_pret,
-          dateRetour: form.date_retour_prevue,
+          datePret: validatedLoan.date_pret,
+          dateRetour: validatedLoan.date_retour_prevue,
         });
         sendEmail({ to: etudNom.email, toName: `${etudNom.prenom} ${etudNom.nom}`, subject, text, titre: t, dateRetour: dr, templateType }); // fire & forget
       }
@@ -245,16 +238,13 @@ export default function Prets() {
     setError("");
     try {
       const oldLivreId = editPret.livre_id;
-      const newLivreId = editForm.livre_id;
       const isActivePret = getPretStatut(editPret) !== "retourné";
-      if (editForm.date_retour_prevue && editForm.date_retour_prevue < editForm.date_pret) {
-        setError("La date de retour doit être postérieure ou égale à la date du prêt.");
+      const { data: validatedLoan, error: validationError } = parseOrMessage(loanSchema, editForm);
+      if (validationError) {
+        setError(validationError);
         return;
       }
-      if (editForm.date_rappel && editForm.date_retour_prevue && editForm.date_rappel > editForm.date_retour_prevue) {
-        setError("La date de rappel ne peut pas être après la date de retour.");
-        return;
-      }
+      const newLivreId = validatedLoan.livre_id;
       if (isActivePret && oldLivreId !== newLivreId) {
         const { data: replacementBook, error: replacementError } = await supabase
           .from("bibli_livres")
@@ -268,11 +258,11 @@ export default function Prets() {
           return;
         }
       }
-      if (isActivePret && editForm.etudiant_id !== editPret.etudiant_id && maxBooks > 0) {
+      if (isActivePret && validatedLoan.etudiant_id !== editPret.etudiant_id && maxBooks > 0) {
         const { count, error: countError } = await supabase
           .from("bibli_prets")
           .select("id", { count: "exact", head: true })
-          .eq("etudiant_id", editForm.etudiant_id)
+          .eq("etudiant_id", validatedLoan.etudiant_id)
           .eq("rendu", false)
           .neq("id", editPret.id);
         if (countError) throw countError;
@@ -282,12 +272,7 @@ export default function Prets() {
         }
       }
       const payload = {
-        livre_id: newLivreId,
-        etudiant_id: editForm.etudiant_id,
-        date_pret: editForm.date_pret,
-        date_retour_prevue: editForm.date_retour_prevue || null,
-        date_rappel: editForm.date_rappel || null,
-        notes: editForm.notes,
+        ...validatedLoan,
       };
 
       const { error: updateError } = await supabase
@@ -310,7 +295,7 @@ export default function Prets() {
       }
 
       const livreNom = livres.find((l) => l.id === newLivreId)?.titre || editPret.livres?.titre || "Livre";
-      const etudiant = etudiants.find((item) => item.id === editForm.etudiant_id);
+      const etudiant = etudiants.find((item) => item.id === validatedLoan.etudiant_id);
       await logActivity({
         action_type: "pret_modifie",
         description: `Prêt « ${livreNom} » modifié${etudiant ? ` pour ${etudiant.prenom} ${etudiant.nom}` : ""}`,

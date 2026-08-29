@@ -24,7 +24,6 @@ import {
   FileText,
   CheckCircle2,
   Trash2,
-  CheckSquare,
 } from "lucide-react";
 import SearchISBN from "../components/SearchISBN";
 import UnresolvedBookModal from "../components/UnresolvedBookModal";
@@ -39,6 +38,8 @@ import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 import { printLabels } from "../lib/print";
+import { compressImage, imageExtension, validateImageFile } from "../lib/images";
+import { bookSchema, externalBookSchema, parseOrMessage } from "../lib/validation";
 
 const STATUTS_LIVRE = [
   { value: "disponible", label: "Disponible" },
@@ -421,11 +422,21 @@ export default function Livres() {
   };
 
   const uploadCover = async (file) => {
-    const ext = file.name.split(".").pop().toLowerCase();
+    const validation = validateImageFile(file, 8);
+    if (validation) throw new Error(validation);
+    const compressed = await compressImage(file, {
+      maxInputSizeMb: 8,
+      maxSizeMB: 0.65,
+      maxWidthOrHeight: 1400,
+    });
+    const ext = imageExtension(compressed);
     const filename = `cover_${Date.now()}.${ext}`;
     const { error } = await supabase.storage
       .from("bibli-covers")
-      .upload(filename, file);
+      .upload(filename, compressed, {
+        contentType: compressed.type || "image/jpeg",
+        cacheControl: "86400",
+      });
     if (error)
       throw new Error(
         "Upload image échoué : " +
@@ -441,7 +452,7 @@ export default function Livres() {
       // Les catalogues externes peuvent renvoyer des champs supplémentaires
       // (ex. nb_pages) absents du schéma local. On n'envoie que les colonnes
       // réellement supportées par bibli_livres pour éviter un échec d'insertion.
-      const catalogBook = {
+      const { data: catalogBook, error: validationError } = parseOrMessage(externalBookSchema, {
         titre: bookData.titre?.trim() || "Livre sans titre",
         sous_titre: bookData.sous_titre || null,
         auteur: bookData.auteur || null,
@@ -455,7 +466,11 @@ export default function Livres() {
         description: bookData.description || null,
         emplacement: bookData.emplacement || null,
         couverture_url: bookData.couverture_url || null,
-      };
+      });
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
       // Duplicate detection: check by ISBN or exact title+author
       if (catalogBook.isbn) {
         const { data: existing } = await supabase
@@ -549,33 +564,30 @@ export default function Livres() {
         }
       }
 
-      let couverture_url = manualForm.couverture_url;
-      if (manualImageFile) couverture_url = await uploadCover(manualImageFile);
-
       const tagsArray = manualForm.tags
         ? manualForm.tags
             .split(",")
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
+      const { data: validatedBook, error: validationError } = parseOrMessage(bookSchema, {
+        ...manualForm,
+        tags: tagsArray,
+      });
+      if (validationError) {
+        setError(validationError);
+        setManualLoading(false);
+        return;
+      }
+      let couverture_url = validatedBook.couverture_url;
+      if (manualImageFile) couverture_url = await uploadCover(manualImageFile);
 
       const { data: createdBook, error: err } = await supabase.from("bibli_livres").insert([
         {
-          titre: manualForm.titre.trim(),
-          auteur: manualForm.auteur || null,
-          isbn: manualForm.isbn || null,
-          editeur: manualForm.editeur || null,
-          annee: manualForm.annee || null,
-          langue: manualForm.langue || null,
-          categorie: manualForm.categorie || null,
-          tags: tagsArray,
-          emplacement: manualForm.emplacement || null,
-          nb_exemplaires: Number(manualForm.nb_exemplaires) || 1,
-          statut: manualForm.statut,
-          disponible: manualForm.statut === "disponible",
+          ...validatedBook,
+          tags: validatedBook.tags || [],
+          disponible: validatedBook.statut === "disponible",
           couverture_url: couverture_url || null,
-          resume: manualForm.resume || null,
-          description: manualForm.description || null,
         },
       ]).select("id").single();
       if (err) throw err;
@@ -692,9 +704,6 @@ export default function Livres() {
     setEditLoading(true);
     setError("");
     try {
-      let couverture_url = editForm.couverture_url;
-      if (editImageFile) couverture_url = await uploadCover(editImageFile);
-
       const statut = editForm.statut;
       const disponible = statut === "disponible";
       const tagsArray = editForm.tags
@@ -703,23 +712,24 @@ export default function Livres() {
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
+      let couverture_url = editForm.couverture_url;
+      const { data: validatedBook, error: validationError } = parseOrMessage(bookSchema, {
+        ...editForm,
+        couverture_url,
+        tags: tagsArray,
+      });
+      if (validationError) {
+        setError(validationError);
+        setEditLoading(false);
+        return;
+      }
+      if (editImageFile) couverture_url = await uploadCover(editImageFile);
 
       const updateData = {
-        titre: editForm.titre,
-        auteur: editForm.auteur || null,
-        isbn: editForm.isbn || null,
-        editeur: editForm.editeur || null,
-        annee: editForm.annee || null,
+        ...validatedBook,
+        tags: validatedBook.tags || [],
         couverture_url: couverture_url || null,
         disponible,
-        langue: editForm.langue || null,
-        categorie: editForm.categorie || null,
-        tags: tagsArray,
-        emplacement: editForm.emplacement || null,
-        nb_exemplaires: Number(editForm.nb_exemplaires) || 1,
-        statut,
-        resume: editForm.resume || null,
-        description: editForm.description || null,
       };
 
       const { error: err } = await supabase

@@ -14,8 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { compressImage, validateImageFile } from "../lib/images";
 
-const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
 
@@ -117,8 +117,8 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
 
   const selectFile = (side, file) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return setError("Choisissez une image JPG, PNG ou HEIC.");
-    if (file.size > MAX_FILE_SIZE) return setError("Chaque photo doit faire moins de 8 Mo.");
+    const validation = validateImageFile(file, 8);
+    if (validation) return setError(validation);
     setError("");
     setFiles((current) => ({ ...current, [side]: file }));
     setPreviews((current) => ({ ...current, [side]: URL.createObjectURL(file) }));
@@ -161,7 +161,15 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
     try {
       const userId = (await supabase.auth.getUser()).data.user?.id || "admin";
       const paths = {};
-      const blob = await prepareImage(files.recto);
+      const prepared = await prepareImage(files.recto);
+      const preparedFile = prepared
+        ? new File([prepared], "student-card-recto.jpg", { type: "image/jpeg" })
+        : files.recto;
+      const blob = await compressImage(preparedFile, {
+        maxInputSizeMb: 8,
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1600,
+      });
       const path = `${userId}/${crypto.randomUUID()}-recto.jpg`;
         const { error: uploadError } = await supabase.storage.from("bibli-student-cards").upload(path, blob, {
           contentType: "image/jpeg", upsert: false,

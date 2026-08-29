@@ -28,6 +28,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
 import { exportCSV, exportJSON, exportExcel } from "../lib/exports";
 import { useDebounce, getPretStatut } from "../lib/utils";
+import { parseOrMessage, studentSchema } from "../lib/validation";
 
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
@@ -393,16 +394,18 @@ export default function Etudiants() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!form.nom.trim() || !form.prenom.trim()) return;
     try {
-      const payload = {
+      const { data: payload, error: validationError } = parseOrMessage(studentSchema, {
         nom: form.nom.trim(),
         prenom: form.prenom.trim(),
-        email: buildStudentEmail(form.numero_etudiant),
         numero_etudiant: form.numero_etudiant,
         notes_admin: form.notes_admin,
         champs_custom: serializeCustomFields(form.champs_custom),
-      };
+      });
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
       const { error: err } = await supabase.from("bibli_etudiants").insert([payload]);
       if (err) {
         if (err.code === "23505")
@@ -481,14 +484,18 @@ export default function Etudiants() {
     if (!editEtudiant) return;
     setEditLoading(true);
     try {
-      const payload = {
+      const { data: payload, error: validationError } = parseOrMessage(studentSchema, {
         nom: editForm.nom.trim(),
         prenom: editForm.prenom.trim(),
-        email: buildStudentEmail(editForm.numero_etudiant),
         numero_etudiant: editForm.numero_etudiant,
         notes_admin: editForm.notes_admin,
         champs_custom: serializeCustomFields(editForm.champs_custom),
-      };
+      });
+      if (validationError) {
+        setError(validationError);
+        setEditLoading(false);
+        return;
+      }
       const { error: err } = await supabase
         .from("bibli_etudiants")
         .update(payload)

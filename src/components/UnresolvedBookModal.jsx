@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
 import { AlertCircle, Camera, FileText, ImagePlus, Loader2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+import { compressImage, imageExtension, validateImageFile } from "../lib/images";
 
 function PhotoField({ label, help, file, onChange }) {
   const inputRef = useRef(null);
@@ -40,8 +38,8 @@ function PhotoField({ label, help, file, onChange }) {
 
 function validateFile(file) {
   if (!file) return "Les deux photos sont obligatoires.";
-  if (!ALLOWED_TYPES.includes(file.type)) return "Utilisez une image JPEG, PNG ou WebP.";
-  if (file.size > MAX_FILE_SIZE) return "Chaque photo doit faire au maximum 5 Mo.";
+  const imageError = validateImageFile(file, 8);
+  if (imageError) return imageError;
   return "";
 }
 
@@ -86,13 +84,14 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw new Error("Votre session a expiré. Reconnectez-vous.");
       const id = crypto.randomUUID();
-      const ext = (file) => file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const coverPath = `${id}/cover.${ext(cover)}`;
-      const evidencePath = `${id}/evidence.${ext(evidence)}`;
+      const compressedCover = await compressImage(cover, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
+      const compressedEvidence = await compressImage(evidence, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
+      const coverPath = `${id}/cover.${imageExtension(compressedCover)}`;
+      const evidencePath = `${id}/evidence.${imageExtension(compressedEvidence)}`;
       const bucket = supabase.storage.from("bibli-pending-books");
       const [coverUpload, evidenceUpload] = await Promise.all([
-        bucket.upload(coverPath, cover, { upsert: false, contentType: cover.type, cacheControl: "3600" }),
-        bucket.upload(evidencePath, evidence, { upsert: false, contentType: evidence.type, cacheControl: "3600" }),
+        bucket.upload(coverPath, compressedCover, { upsert: false, contentType: compressedCover.type || "image/jpeg", cacheControl: "86400" }),
+        bucket.upload(evidencePath, compressedEvidence, { upsert: false, contentType: compressedEvidence.type || "image/jpeg", cacheControl: "86400" }),
       ]);
       if (coverUpload.error || evidenceUpload.error) throw new Error(coverUpload.error?.message || evidenceUpload.error?.message);
       const isbn = rawScan.replace(/[^0-9Xx]/g, "").toUpperCase();
