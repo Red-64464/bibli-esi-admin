@@ -98,6 +98,19 @@ async function markSent(loanId, kind, date, email) {
   });
 }
 
+async function logActivity(loan, kind, email) {
+  const title = loan.bibli_livres?.titre || "Livre emprunté";
+  await api("bibli_activity_logs", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      action_type: "notification_envoyee",
+      description: `Rappel automatique envoyé pour « ${title} » (${kind}) (Destinataire: ${email})`,
+      user_info: "worker automatique",
+    }),
+  });
+}
+
 async function run() {
   const now = today();
   const enabled = (await setting("send_reminder_emails")) === "true";
@@ -115,6 +128,7 @@ async function run() {
     if (!candidate || await alreadySent(loan.id, candidate[0], now)) continue;
     await sendEmail(loan, candidate[1]);
     await markSent(loan.id, candidate[0], now, email);
+    await logActivity(loan, candidate[0], email);
     console.log(`[reminders] envoyé ${candidate[0]} pour ${loan.id}`);
   }
 }

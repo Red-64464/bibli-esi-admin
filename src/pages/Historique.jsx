@@ -24,6 +24,7 @@ import {
   TrendingUp,
   MoreHorizontal,
   X,
+  Bell,
 } from "lucide-react";
 
 const ACTION_CONFIG = {
@@ -81,6 +82,11 @@ const ACTION_CONFIG = {
     label: "Paramètres modifiés",
     icon: Settings,
     color: "text-biblio-muted bg-white/5",
+  },
+  notification_envoyee: {
+    label: "Notification envoyée",
+    icon: Bell,
+    color: "text-biblio-success bg-biblio-success/10",
   },
 };
 
@@ -258,7 +264,8 @@ export default function Historique() {
     { key: "pret_retourne", label: "Retours" },
     { key: "livre_ajoute", label: "Livres" },
     { key: "etudiant_cree", label: "Étudiants" },
-    { key: "settings_modifie", label: "Paramètres" },
+  { key: "settings_modifie", label: "Paramètres" },
+    { key: "notification_envoyee", label: "Notifications" },
   ];
 
   return (
