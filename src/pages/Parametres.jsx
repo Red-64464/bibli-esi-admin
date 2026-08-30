@@ -216,14 +216,24 @@ export default function Parametres() {
     const validation = validateVideoFile(file);
     if (validation) throw new Error(validation);
     const filename = `arrival-${Date.now()}.${videoExtension(file)}`;
-    const { error: uploadError } = await supabase.storage
-      .from("bibli-route-videos")
-      .upload(filename, file, {
-        contentType: file.type || "video/mp4",
-        cacheControl: "86400",
-        upsert: false,
-      });
-    if (uploadError) throw uploadError;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("bibli-route-videos")
+        .upload(filename, file, {
+          contentType: file.type || "video/mp4",
+          cacheControl: "86400",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+    } catch (err) {
+      const rawMessage = err?.message || "";
+      if (/load failed|failed to fetch|network/i.test(rawMessage)) {
+        throw new Error(
+          "L'envoi de la vidéo a été coupé avant la fin. Vérifiez la connexion et utilisez une vidéo de moins de 80 Mo.",
+        );
+      }
+      throw err;
+    }
     const { data } = supabase.storage.from("bibli-route-videos").getPublicUrl(filename);
     return data.publicUrl;
   };
@@ -330,7 +340,7 @@ export default function Parametres() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError("Erreur lors de la sauvegarde : " + err.message);
+      setError("Erreur lors de la sauvegarde : " + (err?.message || "erreur inconnue"));
     } finally {
       setSaving(false);
     }
