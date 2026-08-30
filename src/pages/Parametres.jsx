@@ -10,6 +10,8 @@ import { logActivity } from "../lib/activityLog";
 import { useRealtimeTables } from "../lib/realtime";
 import { useAuth } from "../contexts/AuthContext";
 import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../lib/email";
+import { supabase } from "../lib/supabase";
+import { formatFileSize, validateVideoFile, videoExtension } from "../lib/videos";
 import ConfirmModal from "../components/ConfirmModal";
 import {
   Settings,
@@ -27,6 +29,9 @@ import {
   AlertOctagon,
   Send,
   Info,
+  Video,
+  Upload,
+  Trash2,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -143,6 +148,13 @@ export default function Parametres() {
   const [testSent, setTestSent] = useState(false);
   const [testError, setTestError] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [arrivalVideoFile, setArrivalVideoFile] = useState(null);
+  const [arrivalVideoPreview, setArrivalVideoPreview] = useState("");
+  const videoInputRef = useRef(null);
+
+  useEffect(() => () => {
+    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
+  }, [arrivalVideoPreview]);
 
   useEffect(() => {
     getSettings()
@@ -177,6 +189,43 @@ export default function Parametres() {
   const set = (key, value) => {
     setDirty(true);
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const selectArrivalVideo = (file) => {
+    if (!file) return;
+    const validation = validateVideoFile(file);
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
+    setArrivalVideoFile(file);
+    setArrivalVideoPreview(URL.createObjectURL(file));
+    setDirty(true);
+    setError("");
+  };
+
+  const clearArrivalVideo = () => {
+    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
+    setArrivalVideoFile(null);
+    setArrivalVideoPreview("");
+    set("library_arrival_video_url", "");
+  };
+
+  const uploadArrivalVideo = async (file) => {
+    const validation = validateVideoFile(file);
+    if (validation) throw new Error(validation);
+    const filename = `arrival-${Date.now()}.${videoExtension(file)}`;
+    const { error: uploadError } = await supabase.storage
+      .from("bibli-route-videos")
+      .upload(filename, file, {
+        contentType: file.type || "video/mp4",
+        cacheControl: "86400",
+        upsert: false,
+      });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from("bibli-route-videos").getPublicUrl(filename);
+    return data.publicUrl;
   };
 
   const setHour = (jour, field, value) => {
@@ -237,7 +286,15 @@ export default function Parametres() {
         setError(validationError);
         return;
       }
-      const payload = { ...form, library_hours: JSON.stringify(hours) };
+      let arrivalVideoUrl = form.library_arrival_video_url || "";
+      if (arrivalVideoFile) {
+        arrivalVideoUrl = await uploadArrivalVideo(arrivalVideoFile);
+      }
+      const payload = {
+        ...form,
+        library_arrival_video_url: arrivalVideoUrl,
+        library_hours: JSON.stringify(hours),
+      };
       await saveSettings(payload);
 
       // Construire une description détaillée des changements
@@ -259,6 +316,10 @@ export default function Parametres() {
         description = `Paramètres modifiés — ${details.join(" | ")}`;
       }
       originalFormRef.current = { ...payload };
+      setForm(payload);
+      setArrivalVideoFile(null);
+      if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
+      setArrivalVideoPreview("");
       setDirty(false);
 
       await logActivity({
@@ -601,6 +662,82 @@ export default function Parametres() {
             </span>
           </p>
         </Field>
+      </Section>
+
+      <Section icon={Video} title="Vidéo d'accès">
+        <Field
+          label="Titre affiché sur le site public"
+          hint="Ce titre apparaît au-dessus de la vidéo pour les élèves."
+        >
+          <input
+            type="text"
+            value={form.library_arrival_video_title || ""}
+            onChange={(e) => set("library_arrival_video_title", e.target.value)}
+            placeholder="Comment venir à la bibliothèque"
+            className={INPUT_CLASS}
+          />
+        </Field>
+
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
+          className="hidden"
+          onChange={(e) => selectArrivalVideo(e.target.files?.[0])}
+        />
+
+        <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-biblio-text">
+                Fichier vidéo
+              </p>
+              <p className="text-xs text-biblio-muted mt-0.5">
+                MP4, WebM ou MOV. Maximum 80 Mo.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-lg bg-biblio-accent px-4 py-2 text-sm font-medium text-white hover:bg-biblio-accent-hover"
+              >
+                <Upload className="h-4 w-4" />
+                Importer la vidéo
+              </button>
+              {(arrivalVideoFile || form.library_arrival_video_url) && (
+                <button
+                  type="button"
+                  onClick={clearArrivalVideo}
+                  className="inline-flex items-center gap-2 rounded-lg bg-biblio-danger/15 px-4 py-2 text-sm font-medium text-biblio-danger hover:bg-biblio-danger/25"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Retirer
+                </button>
+              )}
+            </div>
+          </div>
+
+          {arrivalVideoFile && (
+            <p className="rounded-lg bg-biblio-accent/10 px-3 py-2 text-xs text-biblio-accent">
+              Nouvelle vidéo prête : {arrivalVideoFile.name} ({formatFileSize(arrivalVideoFile.size)})
+            </p>
+          )}
+
+          {(arrivalVideoPreview || form.library_arrival_video_url) ? (
+            <video
+              src={arrivalVideoPreview || form.library_arrival_video_url}
+              controls
+              playsInline
+              preload="metadata"
+              className="aspect-video w-full rounded-lg border border-white/10 bg-black object-contain"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-white/20 text-sm text-biblio-muted">
+              Aucune vidéo importée pour le moment.
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Section : Horaires */}
