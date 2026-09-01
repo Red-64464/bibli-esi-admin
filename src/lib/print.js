@@ -3,13 +3,27 @@
  * @param {string} title - Titre du document
  * @param {string} bodyHtml - Contenu HTML du document
  */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeText(value, fallback = "—") {
+  const text = String(value ?? "").trim();
+  return escapeHtml(text || fallback);
+}
+
 function printHtml(title, bodyHtml) {
   const win = window.open("", "_blank", "width=800,height=600");
   if (!win) return;
   win.document.write(`<!DOCTYPE html>
 <html>
 <head>
-  <title>${title}</title>
+  <title>${safeText(title)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', system-ui, sans-serif; color: #0f172a; padding: 20px; }
@@ -48,10 +62,10 @@ export function printLabels(livres) {
     .map(
       (l) => `
     <div class="label-card">
-      <div class="isbn">${l.isbn || "—"}</div>
-      <div class="titre">${l.titre || "—"}</div>
-      <div class="auteur">${l.auteur || "—"}</div>
-      <div class="isbn">${l.categorie || ""}</div>
+      <div class="isbn">${safeText(l.isbn)}</div>
+      <div class="titre">${safeText(l.titre)}</div>
+      <div class="auteur">${safeText(l.auteur)}</div>
+      <div class="isbn">${safeText(l.categorie, "")}</div>
     </div>`,
     )
     .join("");
@@ -74,15 +88,15 @@ export function printFichePret(pret) {
       <h2>Informations du prêt</h2>
       <div class="fiche-row">
         <span class="fiche-label">Livre</span>
-        <span class="fiche-value">${pret.livres?.titre || "—"}</span>
+        <span class="fiche-value">${safeText(pret.livres?.titre)}</span>
       </div>
       <div class="fiche-row">
         <span class="fiche-label">ISBN</span>
-        <span class="fiche-value">${pret.livres?.isbn || "—"}</span>
+        <span class="fiche-value">${safeText(pret.livres?.isbn)}</span>
       </div>
       <div class="fiche-row">
         <span class="fiche-label">Étudiant</span>
-        <span class="fiche-value">${pret.etudiants ? `${pret.etudiants.prenom} ${pret.etudiants.nom}` : "—"}</span>
+        <span class="fiche-value">${pret.etudiants ? safeText(`${pret.etudiants.prenom ?? ""} ${pret.etudiants.nom ?? ""}`) : "—"}</span>
       </div>
       <div class="fiche-row">
         <span class="fiche-label">Date du prêt</span>
@@ -92,7 +106,7 @@ export function printFichePret(pret) {
         <span class="fiche-label">Date de retour prévue</span>
         <span class="fiche-value">${pret.date_retour_prevue ? new Date(pret.date_retour_prevue).toLocaleDateString("fr-FR") : "—"}</span>
       </div>
-      ${pret.notes ? `<div class="fiche-row"><span class="fiche-label">Notes</span><span class="fiche-value">${pret.notes}</span></div>` : ""}
+      ${pret.notes ? `<div class="fiche-row"><span class="fiche-label">Notes</span><span class="fiche-value">${safeText(pret.notes)}</span></div>` : ""}
     </div>
     <div class="signature">
       <div>Signature bibliothécaire</div>

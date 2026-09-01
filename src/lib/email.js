@@ -1,9 +1,4 @@
-import emailjs from "@emailjs/browser";
-
-const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-const TEMPLATE_REMINDER_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_REMINDER_ID;
-const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+import { supabase } from "./supabase";
 
 /**
  * Envoie un email via EmailJS.
@@ -21,8 +16,6 @@ export async function sendEmail({
   templateType = "confirmation",
 }) {
   if (!to) throw new Error("Adresse email manquante.");
-  if (!SERVICE_ID || !PUBLIC_KEY)
-    throw new Error("EmailJS non configuré. Renseignez VITE_EMAILJS_SERVICE_ID et VITE_EMAILJS_PUBLIC_KEY dans .env.");
 
   let joursRetard = 0;
   if (templateType === "reminder" && dateRetour) {
@@ -30,29 +23,23 @@ export async function sendEmail({
     joursRetard = Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)));
   }
 
-  const templateId = templateType === "reminder"
-    ? (TEMPLATE_REMINDER_ID || TEMPLATE_ID)
-    : TEMPLATE_ID;
-  if (!templateId)
-    throw new Error("Template EmailJS manquant dans .env.");
-
-  const result = await emailjs.send(
-    SERVICE_ID,
-    templateId,
-    {
-      to_email: to,
-      to_name: toName,
+  const { data, error } = await supabase.functions.invoke("send-email", {
+    body: {
+      to,
       subject: subject ?? "",
-      message: text ?? "",
+      text: text ?? "",
+      templateType,
+      // Ces informations restent utiles aux futurs fournisseurs, mais le
+      // serveur ne laisse jamais l'adresse ou le contenu être envoyés sans
+      // session et permission de notification.
+      toName,
       titre,
-      date_retour: dateRetour ? new Date(dateRetour).toLocaleDateString("fr-FR") : "—",
-      jours_retard: String(joursRetard),
+      dateRetour,
+      joursRetard,
     },
-    PUBLIC_KEY,
-  );
-
-  if (result.status !== 200)
-    throw new Error(`EmailJS erreur : ${result.text}`);
+  });
+  if (error || !data?.ok)
+    throw new Error(data?.error || error?.message || "Impossible d'envoyer l'e-mail.");
 
   return { ok: true };
 }
