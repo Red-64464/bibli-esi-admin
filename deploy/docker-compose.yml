@@ -40,9 +40,10 @@ services:
       context: ../reminder-worker
     container_name: bibliesi-reminder-worker
     restart: unless-stopped
-    networks: [coolify]
+    # Accès privé à Kong : les rappels ne dépendent plus du proxy HTTPS public.
+    networks: [coolify, supabase_default]
     environment:
-      SUPABASE_URL: https://supabase.75.119.140.201.nip.io
+      SUPABASE_URL: http://supabase-kong:8000
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       VITE_EMAILJS_SERVICE_ID: ${VITE_EMAILJS_SERVICE_ID:-}
       VITE_EMAILJS_TEMPLATE_REMINDER_ID: ${VITE_EMAILJS_TEMPLATE_REMINDER_ID:-}
