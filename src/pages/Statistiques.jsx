@@ -452,6 +452,8 @@ export default function Statistiques() {
           <BarChart data={filteredPretsByMonth} barSize={22}>
             <XAxis
               dataKey="name"
+              interval="preserveStartEnd"
+              minTickGap={18}
               tick={{ fill: "#94a3b8", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
@@ -488,6 +490,8 @@ export default function Statistiques() {
             />
             <XAxis
               dataKey="name"
+              interval="preserveStartEnd"
+              minTickGap={18}
               tick={{ fill: "#94a3b8", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
@@ -629,7 +633,7 @@ export default function Statistiques() {
           )}
           {categories.length > 0 && (
             <ChartSummary>
-              {categories.map((category) => `${category.name} : ${category.value}`).join(" · ")} livre{categories.reduce((sum, category) => sum + category.value, 0) !== 1 ? "s" : ""}.
+              {categories.map((category) => `${category.name} : ${category.value}`).join(" · ")} {categories.reduce((sum, category) => sum + category.value, 0) === 1 ? "livre" : "livres"}.
             </ChartSummary>
           )}
         </div>
