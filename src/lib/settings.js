@@ -34,7 +34,8 @@ export { DEFAULT_HOURS };
 
 /** Charge tous les paramètres depuis Supabase et merge les valeurs par défaut */
 export async function getSettings() {
-  const { data } = await supabase.from("bibli_settings").select("key, value");
+  const { data, error } = await supabase.from("bibli_settings").select("key, value");
+  if (error) throw error;
   const result = { ...SETTING_DEFAULTS };
   (data || []).forEach(({ key, value }) => {
     result[key] = value;

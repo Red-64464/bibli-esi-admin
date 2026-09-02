@@ -26,6 +26,12 @@ import {
 const INPUT_CLASS =
   "bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent w-full text-sm";
 
+function localDateKey(date = new Date()) {
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("-");
+}
+
 function Toggle({ checked, onChange, label, description }) {
   return (
     <div className="flex items-start justify-between gap-4 py-4 border-b border-white/5 last:border-0">
@@ -103,7 +109,7 @@ export default function Notifications() {
   const loadTodayReminders = async () => {
     try {
       setTodayLoading(true);
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localDateKey();
       const { data, error: err } = await supabase
         .from("bibli_prets")
         .select("*, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom, email)")
@@ -126,8 +132,8 @@ export default function Notifications() {
       const futureDate = new Date(
         today.getTime() + daysBefore * 24 * 60 * 60 * 1000,
       );
-      const futureDateStr = futureDate.toISOString().slice(0, 10);
-      const todayStr = today.toISOString().slice(0, 10);
+      const futureDateStr = localDateKey(futureDate);
+      const todayStr = localDateKey(today);
 
       // Prêts dans la fenêtre de rappel (bientôt dus)
       const { data: upcoming, error: upcomingError } = await supabase
@@ -163,10 +169,16 @@ export default function Notifications() {
     try {
       setSaving(true);
       setError("");
-      await saveSettings(settings);
+      const reminderDays = Number(settings.reminder_days_before);
+      if (!Number.isInteger(reminderDays) || reminderDays < 1 || reminderDays > 30) {
+        throw new Error("Le délai doit être un nombre entier entre 1 et 30 jours.");
+      }
+      const nextSettings = { ...settings, reminder_days_before: String(reminderDays) };
+      setSettings(nextSettings);
+      await saveSettings(nextSettings);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      await loadPreview(parseInt(settings.reminder_days_before, 10) || 3);
+      await loadPreview(reminderDays);
     } catch (err) {
       setError("Erreur lors de la sauvegarde : " + err.message);
     } finally {
@@ -195,12 +207,13 @@ export default function Notifications() {
 
   const openComposer = (prefillLoan = null) => {
     if (prefillLoan) {
-      const s = prefillLoan.etudiants;
+      const s = prefillLoan.etudiants ?? prefillLoan.bibli_etudiants;
+      const livre = prefillLoan.livres ?? prefillLoan.bibli_livres;
       setComposerStudent({ id: prefillLoan.etudiant_id, ...s });
       const { subject, text, titre, dateRetour, isOverdue } = buildReminderEmail({
         prenom: s?.prenom || "",
         nom: s?.nom || "",
-        titre: prefillLoan.livres?.titre || "",
+        titre: livre?.titre || "",
         dateRetour: prefillLoan.date_retour_prevue,
       });
       setComposerSubject(subject);
@@ -322,13 +335,13 @@ export default function Notifications() {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-biblio-text truncate">
-                    {loan.livres?.titre || "—"}
+                    {(loan.livres ?? loan.bibli_livres)?.titre || "—"}
                   </p>
                   <p className="text-xs text-biblio-muted">
-                    {loan.etudiants
-                      ? `${loan.etudiants.prenom} ${loan.etudiants.nom}`
+                    {(loan.etudiants ?? loan.bibli_etudiants)
+                      ? `${(loan.etudiants ?? loan.bibli_etudiants).prenom} ${(loan.etudiants ?? loan.bibli_etudiants).nom}`
                       : "—"}
-                    {loan.etudiants?.email ? ` · ${loan.etudiants.email}` : ""}
+                    {(loan.etudiants ?? loan.bibli_etudiants)?.email ? ` · ${(loan.etudiants ?? loan.bibli_etudiants).email}` : ""}
                   </p>
                 </div>
                 <button
@@ -449,13 +462,13 @@ export default function Notifications() {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-biblio-text truncate">
-                    {p.livres?.titre || "—"}
+                    {(p.livres ?? p.bibli_livres)?.titre || "—"}
                   </p>
                   <p className="text-xs text-biblio-muted">
-                    {p.etudiants
-                      ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                    {(p.etudiants ?? p.bibli_etudiants)
+                      ? `${(p.etudiants ?? p.bibli_etudiants).prenom} ${(p.etudiants ?? p.bibli_etudiants).nom}`
                       : "—"}
-                    {p.etudiants?.email ? ` · ${p.etudiants.email}` : ""}
+                    {(p.etudiants ?? p.bibli_etudiants)?.email ? ` · ${(p.etudiants ?? p.bibli_etudiants).email}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
