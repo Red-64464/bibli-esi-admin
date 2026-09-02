@@ -106,6 +106,12 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString("fr-FR");
 }
 
+function localDateKey(date = new Date()) {
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("-");
+}
+
 export default function Historique() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +139,7 @@ export default function Historique() {
         // Use start of next day (exclusive) to include all records on dateFin regardless of time
         const nextDay = new Date(dateFin);
         nextDay.setDate(nextDay.getDate() + 1);
-        q = q.lt("created_at", nextDay.toISOString().slice(0, 10));
+        q = q.lt("created_at", localDateKey(nextDay));
       }
       if (userFilter) q = q.eq("user_info", userFilter);
       return q;
@@ -174,10 +180,10 @@ export default function Historique() {
 
   const loadStats = useCallback(async () => {
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localDateKey();
       const weekStart = new Date();
       weekStart.setDate(weekStart.getDate() - 6);
-      const weekStartStr = weekStart.toISOString().slice(0, 10);
+      const weekStartStr = localDateKey(weekStart);
 
       const [{ count: todayCount }, { count: weekCount }] = await Promise.all([
         supabase
