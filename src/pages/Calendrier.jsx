@@ -16,6 +16,16 @@ const REMINDER_OPTIONS = [
   { value: 3, label: "3 jours avant" },
   { value: 7, label: "1 semaine avant" },
 ];
+const EVENT_COLORS = [
+  { bg: "#dbeafe", border: "#2563eb", text: "#1e3a8a" },
+  { bg: "#dcfce7", border: "#16a34a", text: "#14532d" },
+  { bg: "#fef3c7", border: "#d97706", text: "#78350f" },
+  { bg: "#fce7f3", border: "#db2777", text: "#831843" },
+  { bg: "#ede9fe", border: "#7c3aed", text: "#4c1d95" },
+  { bg: "#cffafe", border: "#0891b2", text: "#164e63" },
+  { bg: "#ffedd5", border: "#ea580c", text: "#7c2d12" },
+  { bg: "#e0e7ff", border: "#4f46e5", text: "#312e81" },
+];
 
 function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
@@ -47,6 +57,11 @@ function dateKey(year, month, day) {
 
 function dateOnly(value) {
   return value ? String(value).slice(0, 10) : "";
+}
+
+function getEventColor(prets, pret) {
+  const index = prets.findIndex((item) => item.id === pret.id);
+  return EVENT_COLORS[(index < 0 ? 0 : index) % EVENT_COLORS.length];
 }
 
 function getLoanEndDate(pret) {
@@ -294,9 +309,7 @@ export default function Calendrier() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 pb-4 text-xs text-biblio-muted">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-success" />Début du prêt</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-accent" />Prêt en cours</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-biblio-danger" />Retour prévu</span>
+          <span className="text-xs">Chaque prêt garde sa couleur unique ; le libellé indique Début, Prêt ou Retour.</span>
           <span className="text-[11px]">Clique sur un jour pour voir tous les prêts.</span>
         </div>
       </div>
@@ -384,19 +397,15 @@ export default function Calendrier() {
                       <div className="mt-1 space-y-1 overflow-hidden">
                         {dayPrets.slice(0, 2).map((pret) => {
                           const key = dateKey(year, month, day);
-                            const isStart = dateOnly(pret.date_pret) === key;
+                          const isStart = dateOnly(pret.date_pret) === key;
                           const isEnd = getLoanEndDate(pret) === key;
+                          const color = getEventColor(prets, pret);
                           return (
                             <span
                               key={pret.id}
                               title={`${isStart ? "Début" : isEnd ? "Retour" : "Prêt"} : ${(pret.livres ?? pret.bibli_livres)?.titre || "Livre"}`}
-                              className={`block truncate rounded border-l-2 px-1.5 py-0.5 text-[10px] font-medium ${
-                                isEnd
-                                  ? "border-biblio-danger bg-biblio-danger/15 text-biblio-danger"
-                                  : isStart
-                                    ? "border-biblio-success bg-biblio-success/15 text-biblio-success"
-                                    : "border-biblio-accent bg-biblio-accent/15 text-biblio-accent"
-                              }`}
+                              className="block truncate rounded border-l-2 px-1.5 py-0.5 text-[10px] font-medium"
+                              style={{ backgroundColor: color.bg, borderLeftColor: color.border, color: color.text }}
                             >
                               {isStart ? "Début" : isEnd ? "Retour" : "Prêt"} · {(pret.livres ?? pret.bibli_livres)?.titre || "Livre"}
                             </span>
