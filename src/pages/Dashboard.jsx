@@ -912,9 +912,9 @@ export default function Dashboard() {
           icon={Users}
           label="Etudiants inscrits"
           value={stats.totalEtudiants}
-          active={activeCard === "bibli_etudiants"}
+          active={activeCard === "etudiants"}
           onClick={() =>
-            setActiveCard(activeCard === "bibli_etudiants" ? null : "bibli_etudiants")
+            setActiveCard(activeCard === "etudiants" ? null : "etudiants")
           }
         />
         <StatCard
