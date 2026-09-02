@@ -100,7 +100,7 @@ function buildCalendarFile(pretsToExport, reminderDays) {
       student ? `Etudiant : ${student}` : "",
       loanDate ? `Pret : ${formatDate(loanDate)}` : "",
       `Retour prevu : ${formatDate(returnDate)}`,
-    ].filter(Boolean).join("\\n");
+    ].filter(Boolean).join("\n");
 
     const periodEvent = [
       "BEGIN:VEVENT",
