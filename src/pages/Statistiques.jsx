@@ -85,6 +85,14 @@ const PieTooltip = ({ active, payload }) => {
   );
 };
 
+function ChartSummary({ children }) {
+  return (
+    <p className="chart-summary mt-3 border-t border-white/10 pt-3 text-xs text-biblio-muted">
+      {children}
+    </p>
+  );
+}
+
 /** Retourne N mois : { label: "Jan 25", key: "2025-01" } */
 function getLastNMonths(n) {
   const months = [];
@@ -461,6 +469,9 @@ export default function Statistiques() {
             <Bar dataKey="prêts" fill="#6366f1" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        <ChartSummary>
+          Total sur la période affichée : {filteredPretsByMonth.reduce((sum, item) => sum + item.prêts, 0)} prêt{filteredPretsByMonth.reduce((sum, item) => sum + item.prêts, 0) !== 1 ? "s" : ""}.
+        </ChartSummary>
       </div>
 
       {/* Emprunts vs Retours */}
@@ -519,6 +530,9 @@ export default function Statistiques() {
             />
           </LineChart>
         </ResponsiveContainer>
+        <ChartSummary>
+          {filteredPretsByMonth.reduce((sum, item) => sum + item.prêts, 0)} emprunt{filteredPretsByMonth.reduce((sum, item) => sum + item.prêts, 0) !== 1 ? "s" : ""} et {filteredPretsByMonth.reduce((sum, item) => sum + item.retours, 0)} retour{filteredPretsByMonth.reduce((sum, item) => sum + item.retours, 0) !== 1 ? "s" : ""} sur la période affichée.
+        </ChartSummary>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -562,6 +576,11 @@ export default function Statistiques() {
                 <Bar dataKey="prêts" fill="#6366f1" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          )}
+          {topLivres.length > 0 && (
+            <ChartSummary>
+              {topLivres.map((book) => `${book.name} : ${book.prêts}`).join(" · ")}.
+            </ChartSummary>
           )}
         </div>
 
@@ -607,6 +626,11 @@ export default function Statistiques() {
                 />
               </PieChart>
             </ResponsiveContainer>
+          )}
+          {categories.length > 0 && (
+            <ChartSummary>
+              {categories.map((category) => `${category.name} : ${category.value}`).join(" · ")} livre{categories.reduce((sum, category) => sum + category.value, 0) !== 1 ? "s" : ""}.
+            </ChartSummary>
           )}
         </div>
       </div>
@@ -683,8 +707,14 @@ export default function Statistiques() {
                   return <Cell key={i} fill={`rgb(${r},${g},${b})`} />;
                 })}
               </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          <ChartSummary>
+            {heatmapJours.filter((day) => day.prêts > 0).length > 0
+              ? heatmapJours.filter((day) => day.prêts > 0).map((day) => `${day.name} : ${day.prêts}`).join(" · ")
+              : "Aucun prêt enregistré."}
+            .
+          </ChartSummary>
         </div>
 
         <div className="bg-biblio-card rounded-xl border border-white/10 p-5">
@@ -708,8 +738,14 @@ export default function Statistiques() {
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
               <Bar dataKey="prêts" fill="#a855f7" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          <ChartSummary>
+            {heatmapHeures.filter((hour) => hour.prêts > 0).length > 0
+              ? heatmapHeures.filter((hour) => hour.prêts > 0).map((hour) => `${hour.name} : ${hour.prêts}`).join(" · ")
+              : "Aucun prêt enregistré."}
+            .
+          </ChartSummary>
         </div>
       </div>
 

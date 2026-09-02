@@ -239,8 +239,30 @@ nav::-webkit-scrollbar-thumb:hover {
   }
 
   /* No page break inside cards */
-  .rounded-xl {
-    break-inside: avoid;
+  .statistics-report > .bg-biblio-card,
+  .statistics-report > .grid > .bg-biblio-card,
+  .statistics-report .chart-summary {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .statistics-report > .grid {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .statistics-report .recharts-responsive-container,
+  .statistics-report .recharts-wrapper {
+    max-width: 100% !important;
+  }
+
+  .statistics-report .recharts-cartesian-axis-tick-value {
+    font-size: 9px !important;
+  }
+
+  .statistics-report .chart-summary {
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
   }
 
   .statistics-report {
