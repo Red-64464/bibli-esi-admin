@@ -444,7 +444,11 @@ export default function Calendrier() {
           ) : (
             <div className="divide-y divide-white/5">
               {selectedPrets.map((p) => (
-                <div key={p.id} className="px-6 py-4 space-y-3">
+                <div
+                  key={p.id}
+                  className="border-l-4 px-6 py-4 space-y-3"
+                  style={{ borderLeftColor: getEventColor(prets, p).border, backgroundColor: `${getEventColor(prets, p).bg}55` }}
+                >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-biblio-text flex items-center gap-2">
