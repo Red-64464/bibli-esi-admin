@@ -30,11 +30,15 @@ function getFirstDayOfMonth(year, month) {
 function addDays(dateStr, days) {
   const date = new Date(`${dateStr}T00:00:00`);
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10).replaceAll("-", "");
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("");
 }
 
 function toDateKey(date) {
-  return date.toISOString().slice(0, 10);
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join("-");
 }
 
 function dateKey(year, month, day) {
@@ -151,8 +155,8 @@ export default function Calendrier() {
   const fetchPrets = useCallback(async () => {
     try {
       setLoading(true);
-      const start = new Date(year, month, 1).toISOString().slice(0, 10);
-      const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+      const start = dateKey(year, month, 1);
+      const end = dateKey(year, month, getDaysInMonth(year, month));
 
       const { data, error: err } = await supabase
         .from("bibli_prets")
