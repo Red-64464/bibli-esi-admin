@@ -12,10 +12,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.0",
     "@tailwindcss/vite": "^4.2.1",
-    "@zxing/browser": "0.2.0",
+    "@zxing/browser": "^0.2.1",
     "browser-image-compression": "^2.0.2",
     "dexie": "^4.4.5",
-    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.577.0",
     "papaparse": "^5.5.3",
     "react": "^18.3.1",

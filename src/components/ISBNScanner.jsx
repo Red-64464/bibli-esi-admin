@@ -31,10 +31,11 @@ function stopMedia(stream) {
   stream?.getTracks?.().forEach((track) => track.stop());
 }
 
-/** Scanner hybride : BarcodeDetector natif, ZXing, puis html5-qrcode et photo. */
+/** Scanner hybride : BarcodeDetector natif, ZXing et photo locale. */
 export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   const [status, setStatus] = useState("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  const [cameraPermissionPending, setCameraPermissionPending] = useState(false);
   const [engine, setEngine] = useState("");
   const [torch, setTorch] = useState(false);
   const [sound, setSound] = useState(true);
@@ -46,6 +47,8 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   const controlsRef = useRef(null);
   const scannerRef = useRef(null);
   const animationRef = useRef(null);
+  const permissionTimerRef = useRef(null);
+  const lastNativeScanAtRef = useRef(0);
   const scanHandledRef = useRef(false);
   const onScanRef = useRef(onScan);
   const soundRef = useRef(sound);
@@ -57,6 +60,9 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   const stopEverything = useCallback(async () => {
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
     animationRef.current = null;
+    if (permissionTimerRef.current) clearTimeout(permissionTimerRef.current);
+    permissionTimerRef.current = null;
+    setCameraPermissionPending(false);
     controlsRef.current?.stop?.();
     controlsRef.current = null;
     stopMedia(streamRef.current);
@@ -93,8 +99,11 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   }, [mode, stopEverything]);
 
   const startZXing = useCallback(async () => {
-    const { BrowserMultiFormatReader } = await import("@zxing/browser");
+    const { BarcodeFormat, BrowserMultiFormatReader } = await import("@zxing/browser");
     const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 250, delayBetweenScanSuccess: 1500 });
+    reader.possibleFormats = mode === "isbn"
+      ? [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]
+      : [BarcodeFormat.QR_CODE];
     const video = videoRef.current;
     if (!video) throw new Error("video_unavailable");
     setEngine("ZXing");
@@ -103,25 +112,19 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
       video,
       (result) => { if (result) handleDetected(result.getText()); },
     );
+    if (permissionTimerRef.current) clearTimeout(permissionTimerRef.current);
+    permissionTimerRef.current = null;
+    setCameraPermissionPending(false);
     if (!scanHandledRef.current) setStatus("scanning");
-  }, [facingMode, handleDetected]);
-
-  const startLegacy = useCallback(async () => {
-    const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
-    const formats = mode === "isbn"
-      ? [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E]
-      : [Html5QrcodeSupportedFormats.QR_CODE];
-    const scanner = new Html5Qrcode(containerId.current, { formatsToSupport: formats });
-    scannerRef.current = scanner;
-    setEngine("compatibilité");
-    await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 280, height: 180 } }, handleDetected, () => undefined);
-    if (!scanHandledRef.current) setStatus("scanning");
-  }, [handleDetected, mode]);
+  }, [facingMode, handleDetected, mode]);
 
   const startCamera = useCallback(async () => {
     await stopEverything();
     setStatus("loading");
     setErrorMsg("");
+    permissionTimerRef.current = setTimeout(() => {
+      setCameraPermissionPending(true);
+    }, 800);
     try {
       if ("BarcodeDetector" in window) {
         const formats = await window.BarcodeDetector.getSupportedFormats?.() ?? [];
@@ -129,6 +132,9 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
         if (wanted.some((format) => formats.includes(format))) {
           const detector = new window.BarcodeDetector({ formats: wanted.filter((format) => formats.includes(format)) });
           const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+          if (permissionTimerRef.current) clearTimeout(permissionTimerRef.current);
+          permissionTimerRef.current = null;
+          setCameraPermissionPending(false);
           streamRef.current = stream;
           const video = videoRef.current;
           video.srcObject = stream;
@@ -137,20 +143,24 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
           setStatus("scanning");
           const scanFrame = async () => {
             if (scanHandledRef.current || !videoRef.current) return;
-            try { const results = await detector.detect(video); if (results[0]?.rawValue) handleDetected(results[0].rawValue); } catch { /* frame illisible, on continue */ }
+            const now = performance.now();
+            if (now - lastNativeScanAtRef.current >= 100) {
+              lastNativeScanAtRef.current = now;
+              try { const results = await detector.detect(video); if (results[0]?.rawValue) handleDetected(results[0].rawValue); } catch { /* frame illisible, on continue */ }
+            }
             animationRef.current = requestAnimationFrame(scanFrame);
           };
           animationRef.current = requestAnimationFrame(scanFrame);
           return;
         }
       }
-      try { await startZXing(); } catch { await startLegacy(); }
+      await startZXing();
     } catch (error) {
       await stopEverything();
       setStatus("idle");
       setErrorMsg(error?.name === "NotAllowedError" ? "Autorisez la caméra ou utilisez le bouton photo ci-dessous." : "Caméra indisponible. Utilisez une photo du code-barres.");
     }
-  }, [facingMode, handleDetected, mode, startLegacy, startZXing, stopEverything]);
+  }, [facingMode, handleDetected, mode, startZXing, stopEverything]);
 
   useEffect(() => {
     scanHandledRef.current = false;
@@ -195,7 +205,7 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
       <div className="w-full max-w-sm space-y-4 overflow-hidden rounded-xl border border-white/10 bg-biblio-card">
         <div className="flex items-center justify-between px-5 pt-5"><h2 className="flex items-center gap-2 text-base font-semibold"><Camera className="h-5 w-5 text-biblio-accent" />{mode === "isbn" ? "Scanner un ISBN" : "Scanner un QR code"}</h2><button onClick={onClose} aria-label="Fermer" className="rounded-full p-2 text-biblio-muted hover:bg-white/10"><X className="h-5 w-5" /></button></div>
         <div className="space-y-4 px-5">
-          {status === "loading" && <div className="flex flex-col items-center gap-3 py-10"><Loader2 className="h-8 w-8 animate-spin text-biblio-accent" /><span className="text-sm text-biblio-muted">Préparation du scanner…</span></div>}
+          {status === "loading" && <div className="flex flex-col items-center gap-3 py-10"><Loader2 className="h-8 w-8 animate-spin text-biblio-accent" /><span className="text-center text-sm text-biblio-muted">{cameraPermissionPending ? "Autorisez la caméra dans le navigateur ou utilisez une photo." : "Préparation du scanner…"}</span></div>}
           <div id={containerId.current} className="relative min-h-44 overflow-hidden rounded-lg bg-black"><video ref={videoRef} muted playsInline className="h-56 w-full object-cover" /><div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" /></div>
           {status === "scanning" && <p className="text-center text-xs text-biblio-muted">Cadrez le code-barres horizontalement. Évitez les reflets et rapprochez légèrement le téléphone.</p>}
           {status === "detected" && <div className="space-y-3 rounded-lg border border-biblio-success/40 bg-biblio-success/10 p-4"><p className="text-sm font-medium text-biblio-success">ISBN détecté et vérifié ✅</p><p className="break-all font-mono text-lg font-semibold text-biblio-text">{pendingCode}</p><div className="flex gap-2"><button onClick={confirmScan} className="flex-1 rounded-lg bg-biblio-success py-3 text-sm font-semibold text-white hover:brightness-110">Rechercher ce livre</button><button onClick={() => { setPendingCode(""); scanHandledRef.current = false; void startCamera(); }} className="rounded-lg bg-white/10 px-4 py-3 text-sm font-medium hover:bg-white/20">Re-scanner</button></div></div>}
