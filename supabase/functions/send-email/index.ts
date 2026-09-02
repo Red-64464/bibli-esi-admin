@@ -92,8 +92,9 @@ async function sendWithEmailJs(payload: Record<string, unknown>) {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: headers(request) });
+  const resendReady = Boolean(resendApiKey && fromEmail);
   const emailJsReady = Boolean(emailJsServiceId && emailJsTemplateId && emailJsPublicKey);
-  if (request.method !== "POST" || !supabaseUrl || !anonKey || !serviceRoleKey || (!resendApiKey && !emailJsReady))
+  if (request.method !== "POST" || !supabaseUrl || !anonKey || !serviceRoleKey || (!resendReady && !emailJsReady))
     return reply(request, 503, { error: "Service e-mail indisponible." });
 
   const token = request.headers.get("authorization");
@@ -140,7 +141,7 @@ Deno.serve(async (request) => {
   if (!student && !member) return reply(request, 400, { error: "Le destinataire doit être un étudiant inscrit ou un compte bibliothèque." });
 
   try {
-    const response = resendApiKey && fromEmail
+    const response = resendReady
       ? await sendWithTimeout({ from: `Bibliothèque ESI <${fromEmail}>`, to: [to], subject, text })
       : await sendWithEmailJs({
           service_id: emailJsServiceId,

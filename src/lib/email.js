@@ -43,8 +43,17 @@ export async function sendEmail({
       joursRetard,
     },
   });
-  if (error || !data?.ok)
-    throw new Error(data?.error || error?.message || "Impossible d'envoyer l'e-mail.");
+  if (error || !data?.ok) {
+    let serverMessage = data?.error;
+    if (!serverMessage && error?.context) {
+      try {
+        serverMessage = (await error.context.clone().json())?.error;
+      } catch {
+        // Keep the generic client message when the response is not JSON.
+      }
+    }
+    throw new Error(serverMessage || error?.message || "Impossible d'envoyer l'e-mail.");
+  }
 
   return { ok: true };
 }
