@@ -43,6 +43,8 @@ export function PretCard({ pret, onReturn, onEdit }) {
   const statut = getPretStatut(pret);
   const isRetourne = statut === "retourné";
   const isRetard = statut === "en_retard";
+  const livre = pret.livres ?? pret.bibli_livres;
+  const etudiant = pret.etudiants ?? pret.bibli_etudiants;
 
   return (
     <div
@@ -53,7 +55,7 @@ export function PretCard({ pret, onReturn, onEdit }) {
       {/* Titre + badge statut */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold text-biblio-text leading-snug">
-          {pret.livres?.titre || "—"}
+          {livre?.titre || "—"}
         </p>
         <StatusBadge statut={statut} pret={pret} />
       </div>
@@ -63,8 +65,8 @@ export function PretCard({ pret, onReturn, onEdit }) {
         <div>
           <span className="block text-biblio-muted/60">Étudiant</span>
           <span className="text-biblio-text">
-            {pret.etudiants
-              ? `${pret.etudiants.prenom} ${pret.etudiants.nom}`
+            {etudiant
+              ? `${etudiant.prenom} ${etudiant.nom}`
               : "—"}
           </span>
         </div>
@@ -113,17 +115,19 @@ export default function PretRow({ pret, onReturn, onEdit }) {
   const statut = getPretStatut(pret);
   const isRetard = statut === "en_retard";
   const isRetourne = statut === "retourné";
+  const livre = pret.livres ?? pret.bibli_livres;
+  const etudiant = pret.etudiants ?? pret.bibli_etudiants;
 
   return (
     <tr
       className={`border-b border-white/5 ${isRetard ? "bg-biblio-danger/5" : ""}`}
     >
       <td className="px-4 py-3 text-sm font-medium text-biblio-text">
-        {pret.livres?.titre || "—"}
+        {livre?.titre || "—"}
       </td>
       <td className="px-4 py-3 text-sm text-biblio-muted">
-        {pret.etudiants
-          ? `${pret.etudiants.prenom} ${pret.etudiants.nom}`
+        {etudiant
+          ? `${etudiant.prenom} ${etudiant.nom}`
           : "—"}
       </td>
       <td className="px-4 py-3 text-sm text-biblio-muted">

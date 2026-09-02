@@ -323,7 +323,7 @@ export default function Prets() {
         if (newBookError) throw newBookError;
       }
 
-      const livreNom = livres.find((l) => l.id === newLivreId)?.titre || editPret.livres?.titre || "Livre";
+      const livreNom = livres.find((l) => l.id === newLivreId)?.titre || editPret.livres?.titre || editPret.bibli_livres?.titre || "Livre";
       const etudiant = etudiants.find((item) => item.id === validatedLoan.etudiant_id);
       await logActivity({
         action_type: "pret_modifie",
@@ -367,7 +367,7 @@ export default function Prets() {
       const pret = prets.find((p) => p.id === pretId);
       await logActivity({
         action_type: "pret_retourne",
-        description: `Livre « ${pret?.livres?.titre || "—"} » retourné${pret?.etudiants ? ` par ${pret.etudiants.prenom} ${pret.etudiants.nom}` : ""}`,
+        description: `Livre « ${(pret?.livres ?? pret?.bibli_livres)?.titre || "—"} » retourné${(pret?.etudiants ?? pret?.bibli_etudiants) ? ` par ${(pret.etudiants ?? pret.bibli_etudiants).prenom} ${(pret.etudiants ?? pret.bibli_etudiants).nom}` : ""}`,
         user_info: session?.username || "",
       });
 
@@ -384,10 +384,10 @@ export default function Prets() {
       .from("bibli_prets")
       .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email)");
     const rows = (data || []).map((p) => ({
-      Livre: p.livres?.titre || "",
-      ISBN: p.livres?.isbn || "",
-      Étudiant: p.etudiants ? `${p.etudiants.prenom} ${p.etudiants.nom}` : "",
-      Email: p.etudiants?.email || "",
+      Livre: (p.livres ?? p.bibli_livres)?.titre || "",
+      ISBN: (p.livres ?? p.bibli_livres)?.isbn || "",
+      Étudiant: (p.etudiants ?? p.bibli_etudiants) ? `${(p.etudiants ?? p.bibli_etudiants).prenom} ${(p.etudiants ?? p.bibli_etudiants).nom}` : "",
+      Email: (p.etudiants ?? p.bibli_etudiants)?.email || "",
       "Date de prêt": formatDate(p.date_pret),
       "Retour prévu": formatDate(p.date_retour_prevue),
       Rappel: formatDate(p.date_rappel),
@@ -426,9 +426,10 @@ export default function Prets() {
     // Filtre par recherche
     if (search) {
       const q = search.toLowerCase();
-      const livreMatch = (p.livres?.titre || "").toLowerCase().includes(q);
-      const etudMatch = p.etudiants
-        ? `${p.etudiants.prenom} ${p.etudiants.nom} ${p.etudiants.email || ""} ${p.etudiants.numero_etudiant || ""}`.toLowerCase().includes(q)
+      const livreMatch = ((p.livres ?? p.bibli_livres)?.titre || "").toLowerCase().includes(q);
+      const etudiant = p.etudiants ?? p.bibli_etudiants;
+      const etudMatch = etudiant
+        ? `${etudiant.prenom} ${etudiant.nom} ${etudiant.email || ""} ${etudiant.numero_etudiant || ""}`.toLowerCase().includes(q)
         : false;
       if (!livreMatch && !etudMatch) return false;
     }
@@ -448,8 +449,8 @@ export default function Prets() {
     ? [
         {
           id: editPret.livre_id,
-          titre: editPret.livres?.titre || "Livre actuel",
-          isbn: editPret.livres?.isbn || "",
+          titre: (editPret.livres ?? editPret.bibli_livres)?.titre || "Livre actuel",
+          isbn: (editPret.livres ?? editPret.bibli_livres)?.isbn || "",
         },
         ...livres,
       ]
