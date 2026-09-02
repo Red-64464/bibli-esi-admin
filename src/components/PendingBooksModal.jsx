@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, Loader2, PlusCircle, Search, X } from "lucide-react";
+import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, Loader2, PlusCircle, Search, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { usePermissions } from "../contexts/PermissionsContext";
+import ConfirmModal from "./ConfirmModal";
 
 const STATUS = {
   pending: "À identifier",
@@ -11,11 +13,14 @@ const STATUS = {
 };
 
 export default function PendingBooksModal({ onClose, onAdd }) {
+  const { can } = usePermissions();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copiedIsbn, setCopiedIsbn] = useState("");
   const [preview, setPreview] = useState(null);
+  const [bookToDelete, setBookToDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -28,7 +33,10 @@ export default function PendingBooksModal({ onClose, onAdd }) {
         .order("created_at", { ascending: false })
         .limit(50);
       if (queryError) {
-        if (active) setError(queryError.message);
+        if (active) {
+          setError(queryError.message);
+          setLoading(false);
+        }
         return;
       }
       const bucket = supabase.storage.from("bibli-pending-books");
@@ -50,6 +58,32 @@ export default function PendingBooksModal({ onClose, onAdd }) {
       .eq("id", book.id);
     if (updateError) return setError(updateError.message);
     onAdd(book);
+  };
+
+  const deleteBook = async () => {
+    if (!bookToDelete) return;
+    setDeletingId(bookToDelete.id);
+    setError("");
+    try {
+      const paths = [bookToDelete.cover_path, bookToDelete.evidence_path].filter(Boolean);
+      if (paths.length) {
+        const { error: storageError } = await supabase.storage
+          .from("bibli-pending-books")
+          .remove(paths);
+        if (storageError) throw storageError;
+      }
+      const { error: deleteError } = await supabase
+        .from("bibli_pending_books")
+        .delete()
+        .eq("id", bookToDelete.id);
+      if (deleteError) throw deleteError;
+      setBooks((current) => current.filter((book) => book.id !== bookToDelete.id));
+      setBookToDelete(null);
+    } catch (deleteError) {
+      setError(`Suppression impossible : ${deleteError.message}`);
+    } finally {
+      setDeletingId("");
+    }
   };
 
   const openPreview = (book, index) => {
@@ -139,7 +173,14 @@ export default function PendingBooksModal({ onClose, onAdd }) {
                   </a>
                 ))}
               </div>
-              <button onClick={() => prepareAdd(book)} className="mt-3 flex items-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm text-white"><PlusCircle className="h-4 w-4" /> Préparer l'ajout</button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => prepareAdd(book)} className="flex items-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm text-white"><PlusCircle className="h-4 w-4" /> Préparer l'ajout</button>
+                {can("livres_supprimer") && (
+                  <button type="button" onClick={() => setBookToDelete(book)} disabled={deletingId === book.id} className="inline-flex items-center gap-2 rounded-lg bg-biblio-danger/15 px-3 py-2 text-sm text-biblio-danger hover:bg-biblio-danger/25 disabled:opacity-50">
+                    <Trash2 className="h-4 w-4" /> Supprimer
+                  </button>
+                )}
+              </div>
             </article>)}
           </div>
         </div>
@@ -171,6 +212,15 @@ export default function PendingBooksModal({ onClose, onAdd }) {
             </div>
           </div>
         </div>
+      )}
+      {bookToDelete && (
+        <ConfirmModal
+          title="Supprimer ce livre à identifier"
+          message="Les deux photos privées et la fiche seront supprimées définitivement."
+          danger
+          onConfirm={deleteBook}
+          onCancel={() => setBookToDelete(null)}
+        />
       )}
     </div>
   );

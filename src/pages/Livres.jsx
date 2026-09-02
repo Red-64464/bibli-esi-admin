@@ -253,7 +253,7 @@ export default function Livres() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvRows, setCsvRows] = useState([]); // all parsed rows
   const [importLoading, setImportLoading] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(null); // number inserted
+  const [importSuccess, setImportSuccess] = useState(null); // { inserted, skipped }
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -453,6 +453,21 @@ export default function Livres() {
     return { blob: compressed, path: filename };
   };
 
+  const removePendingBook = async (pendingBook) => {
+    const paths = [pendingBook.cover_path, pendingBook.evidence_path].filter(Boolean);
+    if (paths.length) {
+      const { error: storageError } = await supabase.storage
+        .from("bibli-pending-books")
+        .remove(paths);
+      if (storageError) throw storageError;
+    }
+    const { error: recordError } = await supabase
+      .from("bibli_pending_books")
+      .delete()
+      .eq("id", pendingBook.id);
+    if (recordError) throw recordError;
+  };
+
   const handleAddBook = async (bookData) => {
     try {
       // Les catalogues externes peuvent renvoyer des champs supplémentaires
@@ -609,6 +624,24 @@ export default function Livres() {
         setManualLoading(false);
         return;
       }
+      if (validatedBook.titre) {
+        const { data: byTitle } = await supabase
+          .from("bibli_livres")
+          .select("id, titre, auteur")
+          .ilike("titre", validatedBook.titre);
+        const duplicate = byTitle?.find(
+          (book) =>
+            book.auteur?.toLowerCase() ===
+            (validatedBook.auteur || "").toLowerCase(),
+        );
+        if (duplicate) {
+          setError(
+            `Doublon possible : « ${duplicate.titre} » du même auteur existe déjà.`,
+          );
+          setManualLoading(false);
+          return;
+        }
+      }
       let couverture_url = validatedBook.couverture_url;
       let queuedCover = null;
       if (manualImageFile) {
@@ -632,13 +665,14 @@ export default function Livres() {
       };
       const { data: createdBook, error: err } = await supabase.from("bibli_livres").insert([payload]).select("id").single();
       if (err) throw err;
+      let pendingCleanupError = "";
       if (pendingToAdd && createdBook?.id) {
-        const { error: pendingError } = await supabase
-          .from("bibli_pending_books")
-          .update({ status: "added", resolved_livre_id: createdBook.id, updated_at: new Date().toISOString() })
-          .eq("id", pendingToAdd.id);
-        if (pendingError) {
-          setError("Livre ajouté, mais la fiche en attente n'a pas pu être mise à jour : " + pendingError.message);
+        try {
+          await removePendingBook(pendingToAdd);
+        } catch (pendingError) {
+          pendingCleanupError =
+            "Le livre a été ajouté, mais la fiche à identifier doit encore être supprimée : " +
+            pendingError.message;
         }
       }
       setShowManualForm(false);
@@ -646,6 +680,7 @@ export default function Livres() {
       setManualImageFile(null);
       setManualImagePreview(null);
       setPendingToAdd(null);
+      setError(pendingCleanupError);
       await logActivity({
         action_type: "livre_ajoute",
         description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement (ISBN: ${manualForm.isbn || "—"} | Auteur: ${manualForm.auteur || "—"} | Catégorie: ${manualForm.categorie || "—"} | Langue: ${manualForm.langue || "—"} | Année: ${manualForm.annee || "—"} | Éditeur: ${manualForm.editeur || "—"} | Exemplaires: ${manualForm.nb_exemplaires || 1})`,
@@ -888,6 +923,11 @@ export default function Livres() {
       skipEmptyLines: true,
       transformHeader: (h) => h.trim().toLowerCase(),
       complete: (results) => {
+        if (results.errors?.length) {
+          setError(`CSV invalide : ${results.errors[0].message}`);
+          setCsvRows([]);
+          return;
+        }
         setCsvRows(results.data || []);
       },
     });
@@ -898,22 +938,63 @@ export default function Livres() {
     setImportLoading(true);
     setError("");
     try {
-      const toInsert = csvRows.map((row) => ({
-        titre: (row.titre || "").trim() || "Sans titre",
-        auteur: row.auteur?.trim() || null,
-        isbn: row.isbn?.trim() || null,
-        editeur: row.editeur?.trim() || null,
-        annee: row.annee?.trim() || null,
-        langue: row.langue?.trim() || null,
-        categorie:
-          normalizeCategory(row.categorie?.trim() || "") ||
-          row.categorie?.trim() ||
-          null,
-        emplacement: row.emplacement?.trim() || null,
-        disponible: true,
-        statut: "disponible",
-        nb_exemplaires: 1,
-      }));
+      const invalidRows = [];
+      const candidates = csvRows.flatMap((row, index) => {
+        const { data, error: validationError } = parseOrMessage(bookSchema, {
+          titre: row.titre || "",
+          auteur: row.auteur || null,
+          isbn: row.isbn || null,
+          editeur: row.editeur || null,
+          annee: row.annee || null,
+          langue: row.langue || null,
+          categorie:
+            normalizeCategory(row.categorie?.trim() || "") ||
+            row.categorie?.trim() ||
+            null,
+          emplacement: row.emplacement || null,
+          tags: [],
+          disponible: true,
+          statut: "disponible",
+          nb_exemplaires: 1,
+        });
+        if (validationError) {
+          invalidRows.push(`ligne ${index + 2} : ${validationError}`);
+          return [];
+        }
+        return [{ ...data, disponible: true, statut: "disponible" }];
+      });
+      if (invalidRows.length) {
+        throw new Error(`Corrigez ${invalidRows.slice(0, 3).join(" ; ")}${invalidRows.length > 3 ? "…" : ""}`);
+      }
+
+      const duplicateIsbnInFile = new Set();
+      const seenIsbns = new Set();
+      candidates.forEach((book) => {
+        if (!book.isbn) return;
+        if (seenIsbns.has(book.isbn)) duplicateIsbnInFile.add(book.isbn);
+        seenIsbns.add(book.isbn);
+      });
+      if (duplicateIsbnInFile.size) {
+        throw new Error(`ISBN dupliqué dans le fichier : ${[...duplicateIsbnInFile].slice(0, 3).join(", ")}`);
+      }
+
+      const existingIsbns = new Set();
+      const isbns = [...seenIsbns];
+      const LOOKUP_CHUNK = 100;
+      for (let i = 0; i < isbns.length; i += LOOKUP_CHUNK) {
+        const { data: existing, error: existingError } = await supabase
+          .from("bibli_livres")
+          .select("isbn")
+          .in("isbn", isbns.slice(i, i + LOOKUP_CHUNK));
+        if (existingError) throw existingError;
+        existing?.forEach((book) => existingIsbns.add(book.isbn));
+      }
+      const toInsert = candidates.filter((book) => !book.isbn || !existingIsbns.has(book.isbn));
+      const skipped = candidates.length - toInsert.length;
+      if (!toInsert.length) {
+        setError("Aucun livre importé : tous les ISBN sont déjà présents dans le catalogue.");
+        return;
+      }
 
       // Batch insert in chunks of 100
       const CHUNK = 100;
@@ -930,7 +1011,7 @@ export default function Livres() {
         description: `Import CSV : ${inserted} livre(s) importé(s)`,
         user_info: session?.username || "",
       });
-      setImportSuccess(inserted);
+      setImportSuccess({ inserted, skipped });
       setCsvRows([]);
       await fetchLivres();
     } catch (err) {
@@ -1961,10 +2042,15 @@ export default function Livres() {
                 <div className="flex flex-col items-center gap-3 py-6">
                   <CheckCircle2 className="w-12 h-12 text-biblio-success" />
                   <p className="text-lg font-semibold text-biblio-text">
-                    {importSuccess} livre{importSuccess !== 1 ? "s" : ""}{" "}
+                    {importSuccess.inserted} livre{importSuccess.inserted !== 1 ? "s" : ""}{" "}
                     importé
-                    {importSuccess !== 1 ? "s" : ""} avec succès !
+                    {importSuccess.inserted !== 1 ? "s" : ""} avec succès !
                   </p>
+                  {importSuccess.skipped > 0 && (
+                    <p className="text-sm text-biblio-muted">
+                      {importSuccess.skipped} doublon{importSuccess.skipped !== 1 ? "s" : ""} ignoré{importSuccess.skipped !== 1 ? "s" : ""}.
+                    </p>
+                  )}
                   <button
                     onClick={() => {
                       setShowImportModal(false);
