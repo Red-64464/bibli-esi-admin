@@ -48,6 +48,10 @@ const CHART_COLORS = [
   "#14b8a6",
 ];
 
+const firstRelation = (value) => (Array.isArray(value) ? value[0] : value);
+const livreOf = (pret) => firstRelation(pret.livres ?? pret.bibli_livres);
+const etudiantOf = (pret) => firstRelation(pret.etudiants ?? pret.bibli_etudiants);
+
 const DarkTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -282,8 +286,9 @@ export default function Dashboard() {
 
   const topLivresMap = {};
   prets.forEach((p) => {
-    if (p.livres?.titre) {
-      const k = p.livres.titre;
+    const livre = livreOf(p);
+    if (livre?.titre) {
+      const k = livre.titre;
       topLivresMap[k] = (topLivresMap[k] || 0) + 1;
     }
   });
@@ -306,11 +311,12 @@ export default function Dashboard() {
 
   const lecteurMap = {};
   prets.forEach((p) => {
-    if (p.etudiants) {
+    const etudiant = etudiantOf(p);
+    if (etudiant) {
       const k = p.etudiant_id;
       if (!lecteurMap[k])
         lecteurMap[k] = {
-          nom: `${p.etudiants.prenom} ${p.etudiants.nom}`,
+          nom: `${etudiant.prenom} ${etudiant.nom}`,
           count: 0,
         };
       lecteurMap[k].count++;
@@ -348,12 +354,12 @@ export default function Dashboard() {
           .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email)")
           .eq("rendu", false);
         const rows = (data || []).map((p) => ({
-          Livre: p.livres?.titre || "",
-          ISBN: p.livres?.isbn || "",
-          Etudiant: p.etudiants
-            ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+          Livre: livreOf(p)?.titre || "",
+          ISBN: livreOf(p)?.isbn || "",
+          Etudiant: etudiantOf(p)
+            ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
             : "",
-          Email: p.etudiants?.email || "",
+          Email: etudiantOf(p)?.email || "",
           "Date de pret": new Date(p.date_pret).toLocaleDateString("fr-FR"),
           "Retour prevu": p.date_retour_prevue
             ? new Date(p.date_retour_prevue).toLocaleDateString("fr-FR")
@@ -559,10 +565,10 @@ export default function Dashboard() {
                     className="flex items-center justify-between text-sm"
                   >
                     <div className="min-w-0">
-                      <p className="truncate">{p.livres?.titre || "-"}</p>
+                      <p className="truncate">{livreOf(p)?.titre || "-"}</p>
                       <p className="text-xs text-biblio-muted">
-                        {p.etudiants
-                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                        {etudiantOf(p)
+                          ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
                           : "-"}
                       </p>
                     </div>
@@ -685,11 +691,11 @@ export default function Dashboard() {
                   {retards.map((p) => (
                     <tr key={p.id} className="border-b border-white/5">
                       <td className="px-3 py-2 text-sm font-medium">
-                        {p.livres?.titre || "-"}
+                        {livreOf(p)?.titre || "-"}
                       </td>
                       <td className="px-3 py-2 text-sm text-biblio-muted">
-                        {p.etudiants
-                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                        {etudiantOf(p)
+                          ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
                           : "-"}
                       </td>
                       <td className="px-3 py-2 text-sm text-biblio-muted">
@@ -763,11 +769,11 @@ export default function Dashboard() {
                     return (
                       <tr key={p.id} className="border-b border-white/5">
                         <td className="px-3 py-2 text-sm">
-                          {p.livres?.titre || "-"}
+                          {livreOf(p)?.titre || "-"}
                         </td>
                         <td className="px-3 py-2 text-sm text-biblio-muted">
-                          {p.etudiants
-                            ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                          {etudiantOf(p)
+                            ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
                             : "-"}
                         </td>
                         <td className="px-3 py-2 text-sm text-biblio-muted">
@@ -1095,11 +1101,11 @@ export default function Dashboard() {
                 {retards.map((p) => (
                   <tr key={p.id} className="border-b border-white/5">
                     <td className="px-4 py-3 text-sm">
-                      {p.livres?.titre || "-"}
+                      {livreOf(p)?.titre || "-"}
                     </td>
                     <td className="px-4 py-3 text-sm text-biblio-muted">
-                      {p.etudiants
-                        ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                      {etudiantOf(p)
+                        ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
                         : "-"}
                     </td>
                     <td className="px-4 py-3 text-sm text-biblio-muted">
@@ -1153,11 +1159,11 @@ export default function Dashboard() {
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
-                          {p.livres?.titre || "-"}
+                          {livreOf(p)?.titre || "-"}
                         </p>
                         <p className="text-xs text-biblio-muted">
-                          {p.etudiants
-                            ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                          {etudiantOf(p)
+                            ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
                             : "-"}
                         </p>
                       </div>
@@ -1186,16 +1192,16 @@ export default function Dashboard() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {p.livres?.titre || "-"}
+                          {livreOf(p)?.titre || "-"}
                       </p>
                       <p className="text-xs text-biblio-muted">
-                        {p.etudiants
-                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
-                          : "-"}
+                          {etudiantOf(p)
+                            ? `${etudiantOf(p).prenom} ${etudiantOf(p).nom}`
+                            : "-"}
                       </p>
                     </div>
                     <span className="text-xs px-2 py-1 rounded-full bg-biblio-accent/20 text-biblio-accent shrink-0">
-                      {p.etudiants?.email || "rappel"}
+                      {etudiantOf(p)?.email || "rappel"}
                     </span>
                   </div>
                 ))}
