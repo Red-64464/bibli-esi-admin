@@ -1,4 +1,4 @@
-import { Pencil, RotateCcw, Printer } from "lucide-react";
+import { Eye, Pencil, RotateCcw, Printer } from "lucide-react";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
 import { printFichePret } from "../lib/print";
 
@@ -39,7 +39,7 @@ function StatusBadge({ statut, pret }) {
 }
 
 /** Carte mobile pour un prêt — visible uniquement sur petits écrans */
-export function PretCard({ pret, onReturn, onEdit }) {
+export function PretCard({ pret, onReturn, onEdit, onView }) {
   const statut = getPretStatut(pret);
   const isRetourne = statut === "retourné";
   const isRetard = statut === "en_retard";
@@ -89,6 +89,9 @@ export function PretCard({ pret, onReturn, onEdit }) {
       </div>
 
       <div className="flex gap-2">
+        <button onClick={() => onView(pret)} title="Visualiser le prêt" className="flex items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text transition-colors hover:bg-white/20" aria-label="Visualiser le prêt">
+          <Eye className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={() => onEdit(pret)}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-white/10 hover:bg-white/20 text-biblio-text rounded-lg transition-colors"
@@ -111,7 +114,7 @@ export function PretCard({ pret, onReturn, onEdit }) {
 }
 
 /** Ligne de tableau desktop */
-export default function PretRow({ pret, onReturn, onEdit }) {
+export default function PretRow({ pret, onReturn, onEdit, onView }) {
   const statut = getPretStatut(pret);
   const isRetard = statut === "en_retard";
   const isRetourne = statut === "retourné";
@@ -141,6 +144,10 @@ export default function PretRow({ pret, onReturn, onEdit }) {
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
+          <button onClick={() => onView(pret)} title="Visualiser le prêt" className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-biblio-text hover:bg-white/20" aria-label="Visualiser le prêt">
+            <Eye className="h-3.5 w-3.5" />
+            Visualiser
+          </button>
           {!isRetourne && (
             <button
               onClick={() => onReturn(pret.id, pret.livre_id)}

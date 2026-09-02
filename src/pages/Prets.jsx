@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import PretRow, { PretCard } from "../components/PretRow";
+import PretDetailModal from "../components/PretDetailModal";
 import ExportModal from "../components/ExportModal";
 import ConfirmModal from "../components/ConfirmModal";
 import ISBNScanner from "../components/ISBNScanner";
@@ -47,6 +48,7 @@ export default function Prets() {
   const [page, setPage] = useState(1);
   const [confirmReturn, setConfirmReturn] = useState(null); // {pretId, livreId}
   const [maxBooks, setMaxBooks] = useState(3);
+  const [viewPret, setViewPret] = useState(null);
   const [showStudentScanner, setShowStudentScanner] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
   const [editPret, setEditPret] = useState(null);
@@ -97,7 +99,7 @@ export default function Prets() {
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
         supabase
           .from("bibli_prets")
-          .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email, numero_etudiant)")
+          .select("*, livres:bibli_livres(titre, isbn, auteur, editeur, annee, categorie, couverture_url, langue, emplacement), etudiants:bibli_etudiants(nom, prenom, email, numero_etudiant)")
           .order("date_pret", { ascending: false }),
         supabase
           .from("bibli_livres")
@@ -713,6 +715,7 @@ export default function Prets() {
                       pret={pret}
                       onReturn={handleReturn}
                       onEdit={openEditPret}
+                      onView={setViewPret}
                     />
                   ))}
                 </tbody>
@@ -728,6 +731,7 @@ export default function Prets() {
                 pret={pret}
                 onReturn={handleReturn}
                 onEdit={openEditPret}
+                onView={setViewPret}
               />
             ))}
           </div>
@@ -898,6 +902,8 @@ export default function Prets() {
           onCancel={() => setConfirmReturn(null)}
         />
       )}
+
+      {viewPret && <PretDetailModal pret={viewPret} onClose={() => setViewPret(null)} />}
 
       {showStudentScanner && (
         <ISBNScanner
