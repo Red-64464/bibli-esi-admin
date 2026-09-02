@@ -35,9 +35,9 @@ export default function PretDetailModal({ pret, onClose }) {
 
         <div className="space-y-5 p-5">
           <div className="grid gap-5 sm:grid-cols-[128px_1fr]">
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 aspect-[3/4]">
+            <div className="mx-auto aspect-[3/4] w-28 overflow-hidden rounded-xl border border-white/10 bg-white/5 sm:mx-0 sm:w-32">
               {livre.couverture_url ? (
-                <img src={livre.couverture_url} alt={`Couverture de ${livre.titre || "livre"}`} className="h-full w-full object-cover" />
+                <img src={livre.couverture_url} alt={`Couverture de ${livre.titre || "livre"}`} className="h-full w-full object-contain" />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-biblio-muted">
                   <LibraryBig className="h-8 w-8" />
