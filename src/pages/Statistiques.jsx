@@ -114,7 +114,7 @@ export default function Statistiques() {
         supabase
           .from("bibli_prets")
           .select(
-            "*, bibli_livres(id, titre, categorie), bibli_etudiants(id, nom, prenom)",
+            "*, livres:bibli_livres(id, titre, categorie), etudiants:bibli_etudiants(id, nom, prenom)",
           ),
         supabase
           .from("bibli_livres")

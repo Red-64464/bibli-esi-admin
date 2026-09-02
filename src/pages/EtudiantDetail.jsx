@@ -63,7 +63,7 @@ export default function EtudiantDetail() {
         supabase.from("bibli_etudiants").select("*").eq("id", id).single(),
         supabase
           .from("bibli_prets")
-          .select("*, bibli_livres(titre, isbn, auteur)")
+          .select("*, livres:bibli_livres(titre, isbn, auteur)")
           .eq("etudiant_id", id)
           .order("date_pret", { ascending: false }),
       ]);

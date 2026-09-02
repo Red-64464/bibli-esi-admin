@@ -62,7 +62,7 @@ export default function Reservations() {
       const [resRes, livresRes, etudRes] = await Promise.all([
         supabase
           .from("bibli_reservations")
-          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom)")
+          .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom)")
           .order("created_at", { ascending: false }),
         supabase.from("bibli_livres").select("id, titre, isbn, disponible, statut"),
         supabase.from("bibli_etudiants").select("id, nom, prenom, numero_etudiant"),

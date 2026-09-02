@@ -140,7 +140,7 @@ export default function Layout({ children }) {
     try {
       const { data } = await supabase
         .from("bibli_prets")
-        .select("id, statut, rendu, date_pret, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)")
+        .select("id, statut, rendu, date_pret, date_retour_prevue, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom)")
         .eq("rendu", false);
       if (data) {
         const overdue = data.filter((pret) => getPretStatut(pret) === "en_retard");
@@ -169,7 +169,7 @@ export default function Layout({ children }) {
         const { data } = await supabase
           .from("bibli_prets")
           .select(
-            "id, statut, rendu, date_pret, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)",
+            "id, statut, rendu, date_pret, date_retour_prevue, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom)",
           )
           .eq("rendu", false);
         if (data) {

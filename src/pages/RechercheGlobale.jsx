@@ -58,7 +58,7 @@ export default function RechercheGlobale() {
           .limit(10),
         supabase
           .from("bibli_prets")
-          .select("id, date_pret, rendu, statut, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)")
+          .select("id, date_pret, rendu, statut, date_retour_prevue, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom)")
           .or(`livres.titre.ilike.%${term}%,etudiants.nom.ilike.%${term}%,etudiants.prenom.ilike.%${term}%`)
           .limit(10),
       ]);

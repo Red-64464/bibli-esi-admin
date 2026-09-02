@@ -337,7 +337,7 @@ export default function Etudiants() {
           .order("date_inscription", { ascending: false }),
         supabase
           .from("bibli_prets")
-          .select("*, bibli_livres(titre)")
+          .select("*, livres:bibli_livres(titre)")
           .eq("rendu", false),
       ]);
       if (etudRes.error) throw etudRes.error;

@@ -97,7 +97,7 @@ export default function Prets() {
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
         supabase
           .from("bibli_prets")
-          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email, numero_etudiant)")
+          .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email, numero_etudiant)")
           .order("date_pret", { ascending: false }),
         supabase
           .from("bibli_livres")
@@ -382,7 +382,7 @@ export default function Prets() {
   const handleExport = async (format) => {
     const { data } = await supabase
       .from("bibli_prets")
-      .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email)");
+      .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email)");
     const rows = (data || []).map((p) => ({
       Livre: p.livres?.titre || "",
       ISBN: p.livres?.isbn || "",

@@ -106,7 +106,7 @@ export default function Notifications() {
       const todayStr = new Date().toISOString().slice(0, 10);
       const { data, error: err } = await supabase
         .from("bibli_prets")
-        .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
+        .select("*, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .eq("date_rappel", todayStr)
         .order("date_retour_prevue", { ascending: true });
@@ -132,7 +132,7 @@ export default function Notifications() {
       // Prêts dans la fenêtre de rappel (bientôt dus)
       const { data: upcoming, error: upcomingError } = await supabase
         .from("bibli_prets")
-        .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
+        .select("*, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .gte("date_retour_prevue", todayStr)
         .lte("date_retour_prevue", futureDateStr)
@@ -142,7 +142,7 @@ export default function Notifications() {
       // Prêts en retard
       const { data: overdue, error: overdueError } = await supabase
         .from("bibli_prets")
-        .select("*, bibli_livres(titre), bibli_etudiants(nom, prenom, email)")
+        .select("*, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom, email)")
         .eq("rendu", false)
         .lt("date_retour_prevue", todayStr)
         .order("date_retour_prevue", { ascending: true });
