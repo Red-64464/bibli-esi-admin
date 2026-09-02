@@ -19,10 +19,8 @@ import {
   AlertCircle,
   Upload,
   ArrowUpDown,
-  ScanLine,
 } from "lucide-react";
 import EtudiantCard from "../components/EtudiantCard";
-import StudentCardOCRModal from "../components/StudentCardOCRModal";
 import ExportModal from "../components/ExportModal";
 import ConfirmModal from "../components/ConfirmModal";
 import Pagination from "../components/Pagination";
@@ -309,7 +307,6 @@ export default function Etudiants() {
   const [editLoading, setEditLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showCardOCR, setShowCardOCR] = useState(false);
 
   // Confirm delete
   const [confirmDelete, setConfirmDelete] = useState(null); // etudiant id
@@ -397,8 +394,8 @@ export default function Etudiants() {
     e.preventDefault();
     try {
       const { data: payload, error: validationError } = parseOrMessage(studentSchema, {
-        nom: form.nom.trim(),
-        prenom: form.prenom.trim(),
+        nom: form.numero_etudiant.trim(),
+        prenom: "Étudiant",
         numero_etudiant: form.numero_etudiant,
         notes_admin: form.notes_admin,
         champs_custom: serializeCustomFields(form.champs_custom),
@@ -426,8 +423,8 @@ export default function Etudiants() {
     } catch (err) {
       if (shouldQueueWriteError(err)) {
         const { data: payload } = parseOrMessage(studentSchema, {
-          nom: form.nom.trim(),
-          prenom: form.prenom.trim(),
+          nom: form.numero_etudiant.trim(),
+          prenom: "Étudiant",
           numero_etudiant: form.numero_etudiant,
           notes_admin: form.notes_admin,
           champs_custom: serializeCustomFields(form.champs_custom),
@@ -648,25 +645,8 @@ export default function Etudiants() {
             <UserPlus className="w-5 h-5" />
             Ajouter un étudiant
           </button>
-          <button
-            onClick={() => setShowCardOCR(true)}
-            className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <ScanLine className="w-5 h-5" />
-            Ajouter par carte
-          </button>
         </div>
       </div>
-
-      {showCardOCR && (
-        <StudentCardOCRModal
-          onClose={() => setShowCardOCR(false)}
-          onComplete={async () => {
-            setError("");
-            await fetchData();
-          }}
-        />
-      )}
 
       {/* Formulaire d'ajout */}
       {showForm && (
@@ -675,75 +655,22 @@ export default function Etudiants() {
           className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-5"
         >
           <h2 className="text-lg font-semibold">Nouvel étudiant</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Prénom *
-              </label>
-              <input
-                required
-                value={form.prenom}
-                onChange={(e) => setForm({ ...form, prenom: e.target.value })}
-                placeholder="Prénom"
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Nom *
-              </label>
-              <input
-                required
-                value={form.nom}
-                onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                placeholder="Nom"
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Numéro étudiant
-              </label>
-              <input
-                value={form.numero_etudiant}
-                onChange={(e) =>
-                  setForm({ ...form, numero_etudiant: e.target.value })
-                }
-                placeholder="Numéro étudiant"
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-biblio-muted block mb-1">
-                Email automatique
-              </label>
-              <div className={`${INPUT_CLASS} bg-white/3 text-biblio-muted`}>
-                {buildStudentEmail(form.numero_etudiant) || "matricule@etu.he2b.be"}
-              </div>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-biblio-muted block mb-1 flex items-center gap-1">
-                <StickyNote className="w-3 h-3" /> Notes administrateur
-              </label>
-              <textarea
-                rows={2}
-                value={form.notes_admin}
-                onChange={(e) =>
-                  setForm({ ...form, notes_admin: e.target.value })
-                }
-                placeholder="Notes internes…"
-                className={INPUT_CLASS + " resize-none"}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-biblio-muted block mb-2">
-                Champs personnalisés
-              </label>
-              <CustomFieldsEditor
-                fields={form.champs_custom}
-                onChange={(v) => setForm({ ...form, champs_custom: v })}
-              />
-            </div>
+          <div>
+            <label className="text-xs font-medium text-biblio-muted block mb-1">
+              Matricule *
+            </label>
+            <input
+              required
+              inputMode="numeric"
+              pattern="[0-9]{4,12}"
+              value={form.numero_etudiant}
+              onChange={(e) => setForm({ ...form, numero_etudiant: e.target.value })}
+              placeholder="Ex. 64464"
+              className={INPUT_CLASS}
+            />
+            <p className="mt-2 text-xs text-biblio-muted">
+              L&apos;identité technique et l&apos;e-mail sont générés automatiquement.
+            </p>
           </div>
           <div className="flex gap-3">
             <button
