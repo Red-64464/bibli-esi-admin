@@ -9,7 +9,12 @@ import {
 import { logActivity } from "../lib/activityLog";
 import { useRealtimeTables } from "../lib/realtime";
 import { useAuth } from "../contexts/AuthContext";
-import { sendEmail, buildLoanConfirmationEmail, buildReminderEmail } from "../lib/email";
+import {
+  sendEmail,
+  buildLoanConfirmationEmail,
+  buildReminderEmail,
+  normalizeNotificationRecipient,
+} from "../lib/email";
 import { supabase } from "../lib/supabase";
 import { formatFileSize, validateVideoFile, videoExtension } from "../lib/videos";
 import ConfirmModal from "../components/ConfirmModal";
@@ -371,7 +376,7 @@ export default function Parametres() {
   };
 
   const handleTestNotifications = async () => {
-    const email = testEmail.trim();
+    const email = normalizeNotificationRecipient(testEmail);
     if (!email) {
       setError("Indiquez une adresse e-mail pour le test.");
       return;
@@ -593,10 +598,10 @@ export default function Parametres() {
               Tester les notifications par e-mail
             </p>
             <p className="text-xs text-biblio-muted mt-0.5">
-              Envoie une confirmation de prêt et un rappel de retard à l'adresse choisie.
+              Envoie une confirmation de prêt et un rappel de retard à l'adresse choisie. Vous pouvez saisir un matricule ou une adresse e-mail.
             </p>
           </div>
-          <Field label="Adresse e-mail de test">
+          <Field label="Adresse e-mail ou matricule de test">
             <input
               type="email"
               value={testEmail}
@@ -605,7 +610,7 @@ export default function Parametres() {
                 setTestSent(false);
                 setTestError("");
               }}
-              placeholder="ex : test@esi.dz"
+              placeholder="ex : 64957 ou 64957@etu.he2b.be"
               className={INPUT_CLASS}
               autoComplete="email"
             />

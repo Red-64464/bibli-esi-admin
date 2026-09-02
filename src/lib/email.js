@@ -1,5 +1,10 @@
 import { supabase } from "./supabase";
 
+export function normalizeNotificationRecipient(value) {
+  const recipient = String(value || "").trim().toLowerCase();
+  return /^\d+$/.test(recipient) ? `${recipient}@etu.he2b.be` : recipient;
+}
+
 /**
  * Envoie un email via EmailJS.
  * - templateType "confirmation" → TEMPLATE_ID (envoi auto à la création d'un prêt)
