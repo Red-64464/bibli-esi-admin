@@ -81,7 +81,10 @@ async function sendWithEmailJs(payload: Record<string, unknown>) {
   try {
     return await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
+      // EmailJS may enforce the allowed-origin list even for server-side calls.
+      Origin: allowedOrigin,
+      Referer: `${allowedOrigin}/`,
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
