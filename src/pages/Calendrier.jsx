@@ -64,9 +64,11 @@ function buildCalendarFile(pretsToExport, reminderDays) {
   const now = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const trigger = reminderDays === 0 ? "PT0M" : `-P${reminderDays}D`;
   const events = pretsToExport.flatMap((pret) => {
-    const title = pret.livres?.titre || "Livre à retourner";
-    const student = pret.etudiants
-      ? `${pret.etudiants.prenom || ""} ${pret.etudiants.nom || ""}`.trim()
+    const livre = pret.livres ?? pret.bibli_livres;
+    const etudiant = pret.etudiants ?? pret.bibli_etudiants;
+    const title = livre?.titre || "Livre à retourner";
+    const student = etudiant
+      ? `${etudiant.prenom || ""} ${etudiant.nom || ""}`.trim()
       : "";
     const loanDate = pret.date_pret || pret.date_retour_prevue;
     const returnDate = pret.date_retour_prevue;
@@ -387,7 +389,7 @@ export default function Calendrier() {
                                     : "bg-biblio-accent/20 text-biblio-accent"
                               }`}
                             >
-                              {isStart ? "Début" : isEnd ? "Retour" : "Prêt"} · {pret.livres?.titre || "Livre"}
+                              {isStart ? "Début" : isEnd ? "Retour" : "Prêt"} · {(pret.livres ?? pret.bibli_livres)?.titre || "Livre"}
                             </span>
                           );
                         })}
@@ -429,11 +431,11 @@ export default function Calendrier() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-biblio-text flex items-center gap-2">
                         <BookOpen className="h-4 w-4 text-biblio-accent shrink-0" />
-                        <span className="line-clamp-1">{p.livres?.titre || "—"}</span>
+                        <span className="line-clamp-1">{(p.livres ?? p.bibli_livres)?.titre || "—"}</span>
                       </p>
-                      {p.livres?.isbn && (
+                      {(p.livres ?? p.bibli_livres)?.isbn && (
                         <p className="mt-1 text-xs font-mono text-biblio-muted">
-                          ISBN : {p.livres.isbn}
+                          ISBN : {(p.livres ?? p.bibli_livres).isbn}
                         </p>
                       )}
                     </div>
@@ -445,12 +447,12 @@ export default function Calendrier() {
                     <p className="flex items-center gap-2">
                       <User className="h-3.5 w-3.5 text-biblio-accent" />
                       <span className="text-biblio-text">
-                        {p.etudiants
-                          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                        {(p.etudiants ?? p.bibli_etudiants)
+                          ? `${(p.etudiants ?? p.bibli_etudiants).prenom} ${(p.etudiants ?? p.bibli_etudiants).nom}`
                           : "Étudiant inconnu"}
                       </span>
-                      {p.etudiants?.numero_etudiant && (
-                        <span className="font-mono">· {p.etudiants.numero_etudiant}</span>
+                      {(p.etudiants ?? p.bibli_etudiants)?.numero_etudiant && (
+                        <span className="font-mono">· {(p.etudiants ?? p.bibli_etudiants).numero_etudiant}</span>
                       )}
                     </p>
                     <p className="flex items-center gap-2">
