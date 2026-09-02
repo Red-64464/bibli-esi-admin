@@ -21,15 +21,15 @@ const INPUT_CLASS =
 const STATUT_STYLE = {
   en_attente: "bg-biblio-warning/20 text-biblio-warning",
   confirmee: "bg-biblio-accent/20 text-biblio-accent",
-  convertie: "bg-biblio-success/20 text-biblio-success",
-  annulee: "bg-white/10 text-biblio-muted",
+  honorée: "bg-biblio-success/20 text-biblio-success",
+  annulée: "bg-white/10 text-biblio-muted",
 };
 
 const STATUT_LABEL = {
   en_attente: "En attente",
   confirmee: "Confirmée",
-  convertie: "Convertie en prêt",
-  annulee: "Annulée",
+  honorée: "Convertie en prêt",
+  annulée: "Annulée",
 };
 
 export default function Reservations() {
@@ -68,6 +68,8 @@ export default function Reservations() {
         supabase.from("bibli_etudiants").select("id, nom, prenom, numero_etudiant"),
       ]);
       if (resRes.error) throw resRes.error;
+      if (livresRes.error) throw livresRes.error;
+      if (etudRes.error) throw etudRes.error;
       setReservations(resRes.data || []);
       setLivres(livresRes.data || []);
       setEtudiants(etudRes.data || []);
@@ -114,6 +116,12 @@ export default function Reservations() {
 
   const handleConvertToPret = async (res) => {
     try {
+      const { data: previousBook, error: previousBookError } = await supabase
+        .from("bibli_livres")
+        .select("disponible, statut")
+        .eq("id", res.livre_id)
+        .maybeSingle();
+      if (previousBookError) throw previousBookError;
       // Créer le prêt
       const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         .toISOString()
@@ -143,13 +151,22 @@ export default function Reservations() {
       // Marquer la réservation comme convertie
       const { error: err2 } = await supabase
         .from("bibli_reservations")
-        .update({ statut: "convertie" })
+        .update({ statut: "honorée" })
         .eq("id", res.id);
-      if (err2) throw err2;
+      if (err2) {
+        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
+        if (previousBook) {
+          await supabase
+            .from("bibli_livres")
+            .update({ disponible: previousBook.disponible, statut: previousBook.statut })
+            .eq("id", res.livre_id);
+        }
+        throw err2;
+      }
 
       await logActivity({
         action_type: "reservation_convertie",
-        description: `Réservation de « ${res.livres?.titre} » convertie en prêt`,
+        description: `Réservation de « ${(res.livres ?? res.bibli_livres)?.titre || "livre"} » convertie en prêt`,
         user_info: session?.username || "",
       });
 
@@ -163,7 +180,7 @@ export default function Reservations() {
     try {
       const { error: err } = await supabase
         .from("bibli_reservations")
-        .update({ statut: "annulee" })
+        .update({ statut: "annulée" })
         .eq("id", id);
       if (err) throw err;
       await fetchData();
@@ -178,7 +195,7 @@ export default function Reservations() {
     (r) => r.statut === "en_attente" || r.statut === "confirmee",
   );
   const doneReservations = reservations.filter(
-    (r) => r.statut === "convertie" || r.statut === "annulee",
+    (r) => r.statut === "honorée" || r.statut === "annulée",
   );
 
   return (
@@ -331,11 +348,11 @@ export default function Reservations() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-biblio-text">
-                        {r.livres?.titre || "—"}
+                        {(r.livres ?? r.bibli_livres)?.titre || "—"}
                       </p>
                       <p className="text-xs text-biblio-muted">
-                        {r.etudiants
-                          ? `${r.etudiants.prenom} ${r.etudiants.nom}`
+                        {(r.etudiants ?? r.bibli_etudiants)
+                          ? `${(r.etudiants ?? r.bibli_etudiants).prenom} ${(r.etudiants ?? r.bibli_etudiants).nom}`
                           : "—"}{" "}
                         · Réservé le {formatDate(r.date_reservation)}
                         {r.date_souhaitee &&
@@ -391,11 +408,11 @@ export default function Reservations() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm text-biblio-text line-clamp-1">
-                        {r.livres?.titre || "—"}
+                        {(r.livres ?? r.bibli_livres)?.titre || "—"}
                       </p>
                       <p className="text-xs text-biblio-muted">
-                        {r.etudiants
-                          ? `${r.etudiants.prenom} ${r.etudiants.nom}`
+                        {(r.etudiants ?? r.bibli_etudiants)
+                          ? `${(r.etudiants ?? r.bibli_etudiants).prenom} ${(r.etudiants ?? r.bibli_etudiants).nom}`
                           : "—"}{" "}
                         · {formatDate(r.date_reservation)}
                       </p>
