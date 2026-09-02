@@ -159,14 +159,21 @@ Deno.serve(async (request) => {
             date_retour: dateRetour,
             jours_retard: String(joursRetard),
           },
-        });
-    const data = await response.json().catch(() => null);
+    });
+    const responseText = await response.text();
+    const data = (() => {
+      try {
+        return JSON.parse(responseText || "null");
+      } catch {
+        return null;
+      }
+    })();
     if (!response.ok) {
       const providerMessage = typeof data?.text === "string"
         ? data.text.slice(0, 240)
         : typeof data?.error === "string"
           ? data.error.slice(0, 240)
-          : "Réponse sans détail.";
+          : responseText.slice(0, 240) || "Réponse sans détail.";
       console.error("send-email provider", response.status, providerMessage);
       return reply(request, 502, {
         error: `Le fournisseur e-mail a refusé l'envoi (${response.status}).`,
