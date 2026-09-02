@@ -130,7 +130,7 @@ export default function Dashboard() {
         supabase
           .from("bibli_prets")
           .select(
-            "*, bibli_livres(id, titre, isbn, categorie), bibli_etudiants(id, nom, prenom, email)",
+            "*, livres:bibli_livres(id, titre, isbn, categorie), etudiants:bibli_etudiants(id, nom, prenom, email)",
           )
           .order("date_pret", { ascending: false }),
       ]);
@@ -345,7 +345,7 @@ export default function Dashboard() {
       } else {
         const { data } = await supabase
           .from("bibli_prets")
-          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email)")
+          .select("*, livres:bibli_livres(titre, isbn), etudiants:bibli_etudiants(nom, prenom, email)")
           .eq("rendu", false);
         const rows = (data || []).map((p) => ({
           Livre: p.livres?.titre || "",
