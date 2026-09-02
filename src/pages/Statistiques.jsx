@@ -124,6 +124,7 @@ export default function Statistiques() {
 
       if (pretsRes.error) throw pretsRes.error;
       if (livresRes.error) throw livresRes.error;
+      if (etudiantsRes.error) throw etudiantsRes.error;
 
       const prets = pretsRes.data || [];
       const livres = livresRes.data || [];
@@ -188,8 +189,9 @@ export default function Statistiques() {
       // ─── Top 10 livres empruntés ─────────────────────────────────────────────
       const pretsByBook = {};
       prets.forEach((p) => {
-        const id = p.livres?.id;
-        const titre = p.livres?.titre || "Inconnu";
+        const livre = p.livres ?? p.bibli_livres;
+        const id = livre?.id;
+        const titre = livre?.titre || "Inconnu";
         if (!id) return;
         if (!pretsByBook[id]) pretsByBook[id] = { name: titre, count: 0 };
         pretsByBook[id].count++;
@@ -202,10 +204,11 @@ export default function Statistiques() {
       // ─── Top 5 étudiants ─────────────────────────────────────────────────────
       const pretsByStudent = {};
       prets.forEach((p) => {
-        const id = p.etudiants?.id;
+        const etudiant = p.etudiants ?? p.bibli_etudiants;
+        const id = etudiant?.id;
         if (!id) return;
-        const name = p.etudiants
-          ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+        const name = etudiant
+          ? `${etudiant.prenom} ${etudiant.nom}`
           : "Inconnu";
         if (!pretsByStudent[id]) pretsByStudent[id] = { name, count: 0 };
         pretsByStudent[id].count++;
@@ -333,7 +336,7 @@ export default function Statistiques() {
   } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="statistics-report mx-auto w-full max-w-[1200px] space-y-6">
       {/* En-tête */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>

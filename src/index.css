@@ -199,6 +199,11 @@ nav::-webkit-scrollbar-thumb:hover {
 
 /* ── Print / PDF export ── */
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
   /* Force white background and dark text */
   body {
     background-color: #ffffff !important;
@@ -236,5 +241,10 @@ nav::-webkit-scrollbar-thumb:hover {
   /* No page break inside cards */
   .rounded-xl {
     break-inside: avoid;
+  }
+
+  .statistics-report {
+    max-width: none !important;
+    margin: 0 !important;
   }
 }
