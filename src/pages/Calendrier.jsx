@@ -28,7 +28,7 @@ function getFirstDayOfMonth(year, month) {
 }
 
 function addDays(dateStr, days) {
-  const date = new Date(`${dateStr}T00:00:00`);
+  const date = new Date(`${dateOnly(dateStr)}T00:00:00`);
   date.setDate(date.getDate() + days);
   return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
     .map((part) => String(part).padStart(2, "0"))
@@ -45,8 +45,12 @@ function dateKey(year, month, day) {
   return toDateKey(new Date(year, month, day));
 }
 
+function dateOnly(value) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
 function getLoanEndDate(pret) {
-  return pret.date_retour || pret.date_retour_prevue || pret.date_pret;
+  return dateOnly(pret.date_retour || pret.date_retour_prevue || pret.date_pret);
 }
 
 function isBetweenDays(day, start, end) {
@@ -194,7 +198,7 @@ export default function Calendrier() {
   const pretsByDay = {};
   prets.forEach((p) => {
     if (!p.date_pret) return;
-    const start = p.date_pret;
+    const start = dateOnly(p.date_pret);
     const end = getLoanEndDate(p);
     for (let day = 1; day <= getDaysInMonth(year, month); day += 1) {
       const key = dateKey(year, month, day);
@@ -380,7 +384,7 @@ export default function Calendrier() {
                       <div className="mt-1 space-y-1 overflow-hidden">
                         {dayPrets.slice(0, 2).map((pret) => {
                           const key = dateKey(year, month, day);
-                          const isStart = pret.date_pret === key;
+                            const isStart = dateOnly(pret.date_pret) === key;
                           const isEnd = getLoanEndDate(pret) === key;
                           return (
                             <span
