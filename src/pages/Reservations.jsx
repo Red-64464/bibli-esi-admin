@@ -118,7 +118,7 @@ export default function Reservations() {
       const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
-      const { error: err1 } = await supabase.from("bibli_prets").insert([
+      const { data: createdLoan, error: err1 } = await supabase.from("bibli_prets").insert([
         {
           livre_id: res.livre_id,
           etudiant_id: res.etudiant_id,
@@ -127,14 +127,18 @@ export default function Reservations() {
           statut: "en_cours",
           rendu: false,
         },
-      ]);
+      ]).select("id").single();
       if (err1) throw err1;
 
       // Marquer le livre comme emprunté
-      await supabase
+      const { error: bookError } = await supabase
         .from("bibli_livres")
-        .update({ disponible: false, statut: "emprunté" })
+        .update({ disponible: false, statut: "emprunte" })
         .eq("id", res.livre_id);
+      if (bookError) {
+        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
+        throw bookError;
+      }
 
       // Marquer la réservation comme convertie
       const { error: err2 } = await supabase

@@ -100,13 +100,20 @@ async function replayAction(action) {
     if (!currentBook?.disponible) {
       throw new Error("Livre indisponible au moment de la synchronisation.");
     }
-    const { error: loanError } = await supabase.from("bibli_prets").insert([action.payload]);
+    const { data: createdLoan, error: loanError } = await supabase
+      .from("bibli_prets")
+      .insert([action.payload])
+      .select("id")
+      .single();
     if (loanError) throw loanError;
     const { error: bookUpdateError } = await supabase
       .from("bibli_livres")
-      .update({ disponible: false, statut: "emprunté" })
+      .update({ disponible: false, statut: "emprunte" })
       .eq("id", action.payload.livre_id);
-    if (bookUpdateError) throw bookUpdateError;
+    if (bookUpdateError) {
+      await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
+      throw bookUpdateError;
+    }
     return;
   }
 

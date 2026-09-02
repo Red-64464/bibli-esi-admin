@@ -179,20 +179,23 @@ export default function Prets() {
         return;
       }
 
-      const { error: err1 } = await supabase.from("bibli_prets").insert([
+      const { data: createdLoan, error: err1 } = await supabase.from("bibli_prets").insert([
         {
           ...validatedLoan,
           statut: "en_cours",
           rendu: false,
         },
-      ]);
+      ]).select("id").single();
       if (err1) throw err1;
 
       const { error: err2 } = await supabase
         .from("bibli_livres")
-        .update({ disponible: false, statut: "emprunté" })
+        .update({ disponible: false, statut: "emprunte" })
         .eq("id", validatedLoan.livre_id);
-      if (err2) throw err2;
+      if (err2) {
+        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
+        throw err2;
+      }
 
       // Journaliser l'activité
       const livreNom =
@@ -315,7 +318,7 @@ export default function Prets() {
         if (oldBookError) throw oldBookError;
         const { error: newBookError } = await supabase
           .from("bibli_livres")
-          .update({ disponible: false, statut: "emprunté" })
+          .update({ disponible: false, statut: "emprunte" })
           .eq("id", newLivreId);
         if (newBookError) throw newBookError;
       }
