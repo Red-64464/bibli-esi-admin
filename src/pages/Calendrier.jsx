@@ -370,7 +370,7 @@ export default function Calendrier() {
                       setSelectedDay(selectedDay === day ? null : day)
                     }
                     className={`h-20 rounded-lg flex flex-col items-stretch justify-start p-1.5 transition-colors relative text-left
-                      ${dayPrets.length ? "bg-biblio-accent/10 border border-biblio-accent/25" : "border border-transparent"}
+                      ${dayPrets.length ? "bg-biblio-card border border-biblio-accent/20" : "border border-transparent"}
                       ${isSelected ? "bg-biblio-accent/20 border-biblio-accent" : "hover:bg-white/5"}
                       ${isToday ? "ring-1 ring-biblio-accent" : ""}
                     `}
@@ -389,12 +389,13 @@ export default function Calendrier() {
                           return (
                             <span
                               key={pret.id}
-                              className={`block truncate rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                              title={`${isStart ? "Début" : isEnd ? "Retour" : "Prêt"} : ${(pret.livres ?? pret.bibli_livres)?.titre || "Livre"}`}
+                              className={`block truncate rounded border-l-2 px-1.5 py-0.5 text-[10px] font-medium ${
                                 isEnd
-                                  ? "bg-biblio-danger/25 text-biblio-danger"
+                                  ? "border-biblio-danger bg-biblio-danger/15 text-biblio-danger"
                                   : isStart
-                                    ? "bg-biblio-success/25 text-biblio-success"
-                                    : "bg-biblio-accent/20 text-biblio-accent"
+                                    ? "border-biblio-success bg-biblio-success/15 text-biblio-success"
+                                    : "border-biblio-accent bg-biblio-accent/15 text-biblio-accent"
                               }`}
                             >
                               {isStart ? "Début" : isEnd ? "Retour" : "Prêt"} · {(pret.livres ?? pret.bibli_livres)?.titre || "Livre"}
