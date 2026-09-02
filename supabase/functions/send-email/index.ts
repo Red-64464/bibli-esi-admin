@@ -81,7 +81,7 @@ async function sendWithEmailJs(payload: Record<string, unknown>) {
   try {
     return await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
-    headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       // EmailJS may enforce the allowed-origin list even for server-side calls.
       Origin: allowedOrigin,
       Referer: `${allowedOrigin}/`,
@@ -162,8 +162,16 @@ Deno.serve(async (request) => {
         });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      console.error("send-email provider", response.status);
-      return reply(request, 502, { error: "Le fournisseur e-mail a refusé l'envoi." });
+      const providerMessage = typeof data?.text === "string"
+        ? data.text.slice(0, 240)
+        : typeof data?.error === "string"
+          ? data.error.slice(0, 240)
+          : "Réponse sans détail.";
+      console.error("send-email provider", response.status, providerMessage);
+      return reply(request, 502, {
+        error: `Le fournisseur e-mail a refusé l'envoi (${response.status}).`,
+        detail: providerMessage,
+      });
     }
     await admin.from("bibli_activity_logs").insert({
       actor_id: callerData.user.id,
