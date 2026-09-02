@@ -153,6 +153,7 @@ export default function Parametres() {
   const [testSent, setTestSent] = useState(false);
   const [testError, setTestError] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [customHours, setCustomHours] = useState({ debut: "08:00", fin: "10:00" });
   const [arrivalVideoFile, setArrivalVideoFile] = useState(null);
   const [arrivalVideoPreview, setArrivalVideoPreview] = useState("");
   const videoInputRef = useRef(null);
@@ -259,6 +260,22 @@ export default function Parametres() {
         next[key] = preset === "closed"
           ? { ouvert: false, debut: "", fin: "" }
           : { ouvert: !["samedi", "dimanche"].includes(key), debut: "08:00", fin: "17:00" };
+      });
+      return next;
+    });
+  };
+
+  const applyCustomHours = () => {
+    if (!customHours.debut || !customHours.fin || customHours.debut >= customHours.fin) {
+      setError("Le raccourci personnel doit avoir une heure de début avant l'heure de fin.");
+      return;
+    }
+    setError("");
+    setDirty(true);
+    setHours((prev) => {
+      const next = { ...prev };
+      JOURS.forEach(({ key }) => {
+        next[key] = { ouvert: true, debut: customHours.debut, fin: customHours.fin };
       });
       return next;
     });
@@ -790,6 +807,30 @@ export default function Parametres() {
             className="rounded-lg bg-white/10 px-3 py-2 text-xs text-biblio-text hover:bg-white/20 transition-colors">
             Fermer tous les jours
           </button>
+          <div className="flex w-full flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs text-biblio-muted">Raccourci personnel (tous les jours)</span>
+            <input
+              aria-label="Début du raccourci personnel"
+              type="time"
+              value={customHours.debut}
+              onChange={(e) => setCustomHours((prev) => ({ ...prev, debut: e.target.value }))}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-biblio-text"
+              style={{ colorScheme: "dark" }}
+            />
+            <span className="text-xs text-biblio-muted">→</span>
+            <input
+              aria-label="Fin du raccourci personnel"
+              type="time"
+              value={customHours.fin}
+              onChange={(e) => setCustomHours((prev) => ({ ...prev, fin: e.target.value }))}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-biblio-text"
+              style={{ colorScheme: "dark" }}
+            />
+            <button type="button" onClick={applyCustomHours}
+              className="rounded-lg bg-biblio-accent/20 px-3 py-2 text-xs font-medium text-biblio-accent hover:bg-biblio-accent/30 transition-colors">
+              Appliquer partout
+            </button>
+          </div>
         </div>
         <div className="space-y-2 mt-2">
           <div className="hidden sm:grid grid-cols-[110px_60px_1fr_16px_1fr] gap-2 items-center mb-1">
