@@ -2265,6 +2265,11 @@ export default function Livres() {
             setShowPendingBooks(false);
             fetchPendingCount();
           }}
+          onCreate={() => {
+            setShowPendingBooks(false);
+            setUnresolvedRawScan("");
+            setShowUnresolvedBook(true);
+          }}
           onAdd={(book) => {
             setPendingToAdd(book);
             setManualForm({

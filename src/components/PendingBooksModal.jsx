@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, Loader2, PlusCircle, Search, Trash2, X } from "lucide-react";
+import { AlertCircle, BookOpen, Camera, ChevronLeft, ChevronRight, Copy, ExternalLink, Loader2, PlusCircle, Search, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../contexts/PermissionsContext";
 import ConfirmModal from "./ConfirmModal";
@@ -12,7 +12,7 @@ const STATUS = {
   rejected: "Écarté",
 };
 
-export default function PendingBooksModal({ onClose, onAdd }) {
+export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
   const { can } = usePermissions();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +140,10 @@ export default function PendingBooksModal({ onClose, onAdd }) {
       <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
           <div><h2 className="flex items-center gap-2 text-lg font-semibold"><BookOpen className="h-5 w-5 text-biblio-accent" /> Livres à identifier</h2><p className="mt-1 text-sm text-biblio-muted">Deux photos privées sont conservées pour chaque livre non reconnu.</p></div>
-          <button onClick={onClose} className="text-biblio-muted hover:text-biblio-danger" aria-label="Fermer"><X className="h-5 w-5" /></button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={onCreate} className="inline-flex items-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm font-medium text-white hover:bg-biblio-accent-hover"><Camera className="h-4 w-4" /> Ajouter des photos</button>
+            <button onClick={onClose} className="text-biblio-muted hover:text-biblio-danger" aria-label="Fermer"><X className="h-5 w-5" /></button>
+          </div>
         </div>
         <div className="p-6">
           {loading && <div className="flex justify-center py-10"><Loader2 className="h-7 w-7 animate-spin text-biblio-accent" /></div>}
