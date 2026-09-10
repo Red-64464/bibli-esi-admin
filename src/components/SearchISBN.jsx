@@ -48,9 +48,8 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
   useEffect(() => {
     if (!defaultIsbn) return;
     setQuery(defaultIsbn);
+    void handleSearch(defaultIsbn);
     onDefaultIsbnUsed?.();
-    const timer = setTimeout(() => void handleSearch(defaultIsbn), 100);
-    return () => clearTimeout(timer);
   }, [defaultIsbn]); // handleSearch intentionally uses the scanned value once
 
   const confirm = (book) => {
