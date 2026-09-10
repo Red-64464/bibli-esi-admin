@@ -1,6 +1,7 @@
 /**
- * Liste officielle des catégories de la bibliothèque ESI.
- * Toujours utiliser ces valeurs pour stocker en base.
+ * Catégories proposées par défaut dans la bibliothèque ESI.
+ * Les administrateurs peuvent compléter cette liste avec leurs propres
+ * catégories, qui sont ensuite conservées avec les livres en base.
  */
 export const CATEGORIES = [
   "Algorithmique",
@@ -24,6 +25,36 @@ export const CATEGORIES = [
   "Technologie & Ingénierie",
   "Autre",
 ];
+
+export const OTHER_CATEGORY = "Autre";
+
+export const normaliseCategoryName = (value = "") =>
+  value.replace(/\s+/g, " ").trim();
+
+export const getSelectableCategories = (savedCategories = []) => {
+  const categories = [
+    ...CATEGORIES.filter((category) => category !== OTHER_CATEGORY),
+    ...savedCategories,
+  ];
+  const uniqueByName = new Map();
+
+  categories.forEach((category) => {
+    const name = normaliseCategoryName(category);
+    if (name && name.localeCompare(OTHER_CATEGORY, "fr", { sensitivity: "accent" }) !== 0) {
+      const key = name.toLocaleLowerCase("fr-FR");
+      if (!uniqueByName.has(key)) uniqueByName.set(key, name);
+    }
+  });
+
+  return [...uniqueByName.values()].sort((left, right) => left.localeCompare(right, "fr"));
+};
+
+export const resolveCategorySelection = (selection, customCategory = "") => {
+  if (selection !== OTHER_CATEGORY) return normaliseCategoryName(selection);
+
+  const category = normaliseCategoryName(customCategory);
+  return category.toLocaleLowerCase("fr-FR") === OTHER_CATEGORY.toLocaleLowerCase("fr-FR") ? "" : category;
+};
 
 /**
  * Convertit une catégorie brute (souvent en anglais, issue de Google Books

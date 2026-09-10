@@ -28,7 +28,12 @@ import {
 import SearchISBN from "../components/SearchISBN";
 import UnresolvedBookModal from "../components/UnresolvedBookModal";
 import PendingBooksModal from "../components/PendingBooksModal";
-import { CATEGORIES, normalizeCategory } from "../lib/categories";
+import {
+  OTHER_CATEGORY,
+  getSelectableCategories,
+  normalizeCategory,
+  resolveCategorySelection,
+} from "../lib/categories";
 import { useRealtimeTables } from "../lib/realtime";
 import ISBNScanner from "../components/ISBNScanner";
 import QRCodeModal from "../components/QRCodeModal";
@@ -227,6 +232,9 @@ export default function Livres() {
   const [manualLoading, setManualLoading] = useState(false);
   const [manualImageFile, setManualImageFile] = useState(null);
   const [manualImagePreview, setManualImagePreview] = useState(null);
+  const [manualCustomCategory, setManualCustomCategory] = useState("");
+  const [editCustomCategory, setEditCustomCategory] = useState("");
+  const [allCategories, setAllCategories] = useState([]);
 
   // History modal
   const [historique, setHistorique] = useState(null);
@@ -331,12 +339,14 @@ export default function Livres() {
     fetchLivres();
     fetchBorrowCounts();
     fetchPendingCount();
+    fetchCategories();
   }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
 
-  useRealtimeTables(["bibli_livres", "bibli_prets", "bibli_pending_books"], () => {
+  useRealtimeTables(["bibli_livres", "bibli_categories", "bibli_prets", "bibli_pending_books"], () => {
     fetchLivres();
     fetchBorrowCounts();
     fetchPendingCount();
+    fetchCategories();
   });
 
   // Reset page when filters/search/view change
@@ -492,6 +502,10 @@ export default function Livres() {
         setError(validationError);
         return;
       }
+      if (!catalogBook.categorie?.trim()) {
+        setError("Choisissez une catégorie avant d'ajouter le livre.");
+        return;
+      }
       // Duplicate detection: check by ISBN or exact title+author
       if (catalogBook.isbn) {
         const { data: existing } = await supabase
@@ -543,6 +557,7 @@ export default function Livres() {
       });
       setError("");
       await fetchLivres();
+      await fetchCategories();
     } catch (err) {
       if (shouldQueueWriteError(err)) {
         await enqueueOfflineAction({
@@ -590,33 +605,42 @@ export default function Livres() {
   const handleManualAdd = async (e) => {
     e.preventDefault();
     if (!manualForm.titre.trim()) return;
+    const categorie = resolveCategorySelection(
+      manualForm.categorie,
+      manualCustomCategory,
+    );
+    if (!categorie) {
+      setError("Choisissez une catégorie ou indiquez le nom de la nouvelle catégorie.");
+      return;
+    }
+    const bookInput = { ...manualForm, categorie };
     setManualLoading(true);
     setError("");
     try {
       // Duplicate detection
-      if (manualForm.isbn) {
+      if (bookInput.isbn) {
         const { data: existing } = await supabase
           .from("bibli_livres")
           .select("id, titre, isbn")
-          .eq("isbn", manualForm.isbn.trim())
+          .eq("isbn", bookInput.isbn.trim())
           .limit(1);
         if (existing?.length) {
           setError(
-            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${manualForm.isbn}).`,
+            `Doublon détecté : « ${existing[0].titre} » a déjà cet ISBN (${bookInput.isbn}).`,
           );
           setManualLoading(false);
           return;
         }
       }
 
-      const tagsArray = manualForm.tags
-        ? manualForm.tags
+      const tagsArray = bookInput.tags
+        ? bookInput.tags
             .split(",")
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
       const { data: validatedBook, error: validationError } = parseOrMessage(bookSchema, {
-        ...manualForm,
+        ...bookInput,
         tags: tagsArray,
       });
       if (validationError) {
@@ -677,24 +701,26 @@ export default function Livres() {
       }
       setShowManualForm(false);
       setManualForm(emptyManualForm);
+      setManualCustomCategory("");
       setManualImageFile(null);
       setManualImagePreview(null);
       setPendingToAdd(null);
       setError(pendingCleanupError);
       await logActivity({
         action_type: "livre_ajoute",
-        description: `Livre « ${manualForm.titre.trim()} » ajouté manuellement (ISBN: ${manualForm.isbn || "—"} | Auteur: ${manualForm.auteur || "—"} | Catégorie: ${manualForm.categorie || "—"} | Langue: ${manualForm.langue || "—"} | Année: ${manualForm.annee || "—"} | Éditeur: ${manualForm.editeur || "—"} | Exemplaires: ${manualForm.nb_exemplaires || 1})`,
+        description: `Livre « ${bookInput.titre.trim()} » ajouté manuellement (ISBN: ${bookInput.isbn || "—"} | Auteur: ${bookInput.auteur || "—"} | Catégorie: ${bookInput.categorie || "—"} | Langue: ${bookInput.langue || "—"} | Année: ${bookInput.annee || "—"} | Éditeur: ${bookInput.editeur || "—"} | Exemplaires: ${bookInput.nb_exemplaires || 1})`,
         user_info: session?.username || "",
       });
       await fetchLivres();
+      await fetchCategories();
       await fetchPendingCount();
     } catch (err) {
       if (shouldQueueWriteError(err)) {
-        const tagsArray = manualForm.tags
-          ? manualForm.tags.split(",").map((t) => t.trim()).filter(Boolean)
+        const tagsArray = bookInput.tags
+          ? bookInput.tags.split(",").map((t) => t.trim()).filter(Boolean)
           : [];
         const { data: validatedBook } = parseOrMessage(bookSchema, {
-          ...manualForm,
+          ...bookInput,
           tags: tagsArray,
         });
         let coverFile = null;
@@ -703,7 +729,7 @@ export default function Livres() {
         }
         await enqueueOfflineAction({
           type: "book:create",
-          label: `Livre manuel : ${validatedBook?.titre || manualForm.titre || "sans titre"}`,
+          label: `Livre manuel : ${validatedBook?.titre || bookInput.titre || "sans titre"}`,
           payload: {
             ...validatedBook,
             tags: validatedBook?.tags || [],
@@ -714,6 +740,7 @@ export default function Livres() {
         });
         setShowManualForm(false);
         setManualForm(emptyManualForm);
+        setManualCustomCategory("");
         setManualImageFile(null);
         setManualImagePreview(null);
         setError("Supabase/Storage est indisponible : le livre est sauvegardé localement et sera synchronisé plus tard.");
@@ -768,6 +795,7 @@ export default function Livres() {
         user_info: session?.username || "",
       });
       await fetchLivres();
+      await fetchCategories();
     } catch (err) {
       setError("Erreur lors de la duplication : " + err.message);
     }
@@ -782,6 +810,7 @@ export default function Livres() {
     setEditImageFile(null);
     setEditImagePreview(null);
     setEditImagePreviewError(false);
+    setEditCustomCategory("");
     setEditForm({
       titre: livre.titre || "",
       auteur: livre.auteur || "",
@@ -810,17 +839,27 @@ export default function Livres() {
     setEditLoading(true);
     setError("");
     try {
+      const categorie = resolveCategorySelection(
+        editForm.categorie,
+        editCustomCategory,
+      );
+      if (!categorie) {
+        setError("Choisissez une catégorie ou indiquez le nom de la nouvelle catégorie.");
+        setEditLoading(false);
+        return;
+      }
+      const editInput = { ...editForm, categorie };
       const statut = editForm.statut;
       const disponible = statut === "disponible";
-      const tagsArray = editForm.tags
-        ? editForm.tags
+      const tagsArray = editInput.tags
+        ? editInput.tags
             .split(",")
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
-      let couverture_url = editForm.couverture_url;
+      let couverture_url = editInput.couverture_url;
       const { data: validatedBook, error: validationError } = parseOrMessage(bookSchema, {
-        ...editForm,
+        ...editInput,
         couverture_url,
         tags: tagsArray,
       });
@@ -846,14 +885,16 @@ export default function Livres() {
 
       await logActivity({
         action_type: "livre_modifie",
-        description: `Livre « ${editForm.titre} » modifié (ISBN: ${editForm.isbn || "—"} | Auteur: ${editForm.auteur || "—"} | Catégorie: ${editForm.categorie || "—"} | Éditeur: ${editForm.editeur || "—"} | Année: ${editForm.annee || "—"} | Statut: ${editForm.statut || "—"})`,
+        description: `Livre « ${editInput.titre} » modifié (ISBN: ${editInput.isbn || "—"} | Auteur: ${editInput.auteur || "—"} | Catégorie: ${editInput.categorie || "—"} | Éditeur: ${editInput.editeur || "—"} | Année: ${editInput.annee || "—"} | Statut: ${editInput.statut || "—"})`,
         user_info: session?.username || "",
       });
 
       setEditLivre(null);
+      setEditCustomCategory("");
       setEditImageFile(null);
       setEditImagePreview(null);
       await fetchLivres();
+      await fetchCategories();
     } catch (err) {
       const msg = err?.message || String(err);
       if (
@@ -1014,6 +1055,7 @@ export default function Livres() {
       setImportSuccess({ inserted, skipped });
       setCsvRows([]);
       await fetchLivres();
+      await fetchCategories();
     } catch (err) {
       setError("Erreur lors de l'import CSV : " + err.message);
     } finally {
@@ -1022,24 +1064,19 @@ export default function Livres() {
   };
 
   // ── Filtering + sorting + pagination (server-side) ──
-  // Categories: fetch distinct from DB for filter pills
-  const [allCategories, setAllCategories] = useState([]);
-  useEffect(() => {
-    supabase
-      .from("bibli_livres")
-      .select("categorie")
-      .not("categorie", "is", null)
-      .then(({ data }) => {
-        if (data) {
-          const cats = [
-            ...new Set(data.map((d) => d.categorie).filter(Boolean)),
-          ].sort();
-          setAllCategories(cats);
-        }
-      });
-  }, [totalCount]);
+  const fetchCategories = async () => {
+    const { data, error: categoriesError } = await supabase
+      .from("bibli_categories")
+      .select("name")
+      .order("name", { ascending: true });
+
+    if (!categoriesError) {
+      setAllCategories((data || []).map((category) => category.name));
+    }
+  };
 
   const categories = allCategories;
+  const selectableCategories = getSelectableCategories(allCategories);
 
   // Server-side: livres IS the current page already
   const livresFiltres = livres;
@@ -1103,6 +1140,7 @@ export default function Livres() {
 
       <SearchISBN
         onBookFound={handleAddBook}
+        categories={selectableCategories}
         defaultIsbn={scannedIsbn}
         onDefaultIsbnUsed={() => setScannedIsbn(null)}
         onUnresolved={(raw) => {
@@ -1596,22 +1634,30 @@ export default function Livres() {
                 <Field label="Catégorie">
                   <select
                     value={manualForm.categorie}
-                    onChange={(e) =>
-                      setManualForm({
-                        ...manualForm,
-                        categorie: e.target.value,
-                      })
-                    }
+                    onChange={(e) => {
+                      setManualForm({ ...manualForm, categorie: e.target.value });
+                      if (e.target.value !== OTHER_CATEGORY) setManualCustomCategory("");
+                    }}
                     className={INPUT_CLASS}
                     style={{ colorScheme: "dark" }}
                   >
                     <option value="">— Choisir une catégorie —</option>
-                    {CATEGORIES.map((c) => (
+                    {selectableCategories.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
                     ))}
+                    <option value={OTHER_CATEGORY}>Autre (créer une catégorie)</option>
                   </select>
+                  {manualForm.categorie === OTHER_CATEGORY && (
+                    <input
+                      value={manualCustomCategory}
+                      onChange={(e) => setManualCustomCategory(e.target.value)}
+                      placeholder="Nom de la nouvelle catégorie"
+                      maxLength={80}
+                      className={INPUT_CLASS + " mt-2"}
+                    />
+                  )}
                 </Field>
                 <Field label="Tags (séparés par virgules)">
                   <input
@@ -1853,19 +1899,30 @@ export default function Livres() {
                 <Field label="Catégorie">
                   <select
                     value={editForm.categorie}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, categorie: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setEditForm({ ...editForm, categorie: e.target.value });
+                      if (e.target.value !== OTHER_CATEGORY) setEditCustomCategory("");
+                    }}
                     className={INPUT_CLASS}
                     style={{ colorScheme: "dark" }}
                   >
                     <option value="">— Choisir une catégorie —</option>
-                    {CATEGORIES.map((c) => (
+                    {selectableCategories.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
                     ))}
+                    <option value={OTHER_CATEGORY}>Autre (créer une catégorie)</option>
                   </select>
+                  {editForm.categorie === OTHER_CATEGORY && (
+                    <input
+                      value={editCustomCategory}
+                      onChange={(e) => setEditCustomCategory(e.target.value)}
+                      placeholder="Nom de la nouvelle catégorie"
+                      maxLength={80}
+                      className={INPUT_CLASS + " mt-2"}
+                    />
+                  )}
                 </Field>
                 <Field label="Tags (séparés par virgules)">
                   <input
