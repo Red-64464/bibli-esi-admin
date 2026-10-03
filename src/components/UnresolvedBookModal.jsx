@@ -47,8 +47,8 @@ function validateFile(file) {
 export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued }) {
   const [cover, setCover] = useState(null);
   const [evidence, setEvidence] = useState(null);
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
+  const [shelfNumber, setShelfNumber] = useState("");
+  const [shelfLetter, setShelfLetter] = useState("");
   const [notes, setNotes] = useState("");
   const [ocrText, setOcrText] = useState("");
   const [processingOcr, setProcessingOcr] = useState(false);
@@ -67,7 +67,6 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
       await worker.terminate();
       const text = pages.map((page) => page.data.text.trim()).filter(Boolean).join("\n\n").slice(0, 6000);
       setOcrText(text);
-      if (!title && text) setTitle(text.split("\n").map((line) => line.trim()).find((line) => line.length > 3 && line.length < 140) || "");
     } catch {
       setError("L'analyse du texte n'a pas pu aboutir. Les photos peuvent quand même être envoyées.");
     } finally {
@@ -77,6 +76,10 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
 
   const save = async (event) => {
     event.preventDefault();
+    if (!shelfNumber || !shelfLetter) {
+      setError("Choisissez un chiffre de 1 à 5 et une lettre de A à E pour l’emplacement.");
+      return;
+    }
     const fileError = validateFile(cover) || validateFile(evidence);
     if (fileError) return setError(fileError);
     setSaving(true);
@@ -93,8 +96,7 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
         id,
         raw_scan: rawScan || null,
         isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(rawScan.replace(/[^0-9Xx]/g, "").toUpperCase()) ? rawScan.replace(/[^0-9Xx]/g, "").toUpperCase() : null,
-        titre_suggere: title.trim() || null,
-        auteur_suggere: author.trim() || null,
+        emplacement: `${shelfNumber}${shelfLetter}`,
         notes: notes.trim() || null,
         cover_path: coverPath,
         evidence_path: evidencePath,
@@ -125,13 +127,12 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
           const isbn = rawScan.replace(/[^0-9Xx]/g, "").toUpperCase();
           await enqueueOfflineAction({
             type: "pending-book:create",
-            label: `Livre à identifier : ${title.trim() || rawScan || "sans titre"}`,
+            label: `Livre à identifier : ${rawScan || `${shelfNumber}${shelfLetter}`}`,
             payload: {
               id,
               raw_scan: rawScan || null,
               isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(isbn) ? isbn : null,
-              titre_suggere: title.trim() || null,
-              auteur_suggere: author.trim() || null,
+              emplacement: `${shelfNumber}${shelfLetter}`,
               notes: notes.trim() || null,
               cover_path: coverPath,
               evidence_path: evidencePath,
@@ -182,10 +183,24 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
             {processingOcr ? "Lecture du texte en cours…" : "Lire le texte des deux photos (optionnel)"}
           </button>
           {ocrText && <textarea readOnly value={ocrText} className="h-24 w-full rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-biblio-muted" aria-label="Texte détecté" />}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-xs font-medium text-biblio-muted">Titre suggéré<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" /></label>
-            <label className="text-xs font-medium text-biblio-muted">Auteur suggéré<input value={author} onChange={(event) => setAuthor(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" /></label>
-          </div>
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-biblio-muted">Emplacement <span className="text-biblio-danger">*</span></legend>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-medium text-biblio-muted">Chiffre
+                <select required value={shelfNumber} onChange={(event) => setShelfNumber(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text">
+                  <option value="">Choisir (1 à 5)</option>
+                  {[1, 2, 3, 4, 5].map((number) => <option key={number} value={number}>{number}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-biblio-muted">Lettre
+                <select required value={shelfLetter} onChange={(event) => setShelfLetter(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text">
+                  <option value="">Choisir (A à E)</option>
+                  {["A", "B", "C", "D", "E"].map((letter) => <option key={letter} value={letter}>{letter}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="text-xs text-biblio-muted">Exemple : 1E</p>
+          </fieldset>
           <label className="block text-xs font-medium text-biblio-muted">Note pour l'équipe (optionnel)<textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 h-20 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" placeholder="Ex. Édition abîmée, titre difficile à lire…" /></label>
         </div>
         <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4"><button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2.5 text-sm">Annuler</button><button disabled={saving} className="flex items-center gap-2 rounded-lg bg-biblio-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Envoyer dans « À identifier »</button></div>

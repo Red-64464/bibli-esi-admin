@@ -28,7 +28,7 @@ export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
       setLoading(true);
       const { data, error: queryError } = await supabase
         .from("bibli_pending_books")
-        .select("id, status, isbn, raw_scan, titre_suggere, auteur_suggere, notes, cover_path, evidence_path, ocr_text, created_at")
+        .select("id, status, isbn, raw_scan, emplacement, titre_suggere, auteur_suggere, notes, cover_path, evidence_path, ocr_text, created_at")
         .in("status", ["pending", "researching", "ready"])
         .order("created_at", { ascending: false })
         .limit(50);
@@ -163,7 +163,7 @@ export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
                   </button>
                 )}
               </div>
-              <div className="mt-3 space-y-1"><p className="font-medium">{book.titre_suggere || "Titre non encore identifié"}</p><p className="text-xs text-biblio-muted">{book.auteur_suggere || "Auteur inconnu"}{book.isbn ? ` · ISBN ${book.isbn}` : ""}</p><p className="text-xs text-biblio-accent">{STATUS[book.status] || book.status}</p>{book.notes && <p className="text-xs text-biblio-muted">Note : {book.notes}</p>}</div>
+              <div className="mt-3 space-y-1"><p className="font-medium">{book.titre_suggere || "Titre non encore identifié"}</p><p className="text-xs text-biblio-muted">{book.auteur_suggere || "Auteur inconnu"}{book.isbn ? ` · ISBN ${book.isbn}` : ""}</p>{book.emplacement && <p className="text-xs text-biblio-muted">Emplacement : {book.emplacement}</p>}<p className="text-xs text-biblio-accent">{STATUS[book.status] || book.status}</p>{book.notes && <p className="text-xs text-biblio-muted">Note : {book.notes}</p>}</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {book.isbn && (
                   <button type="button" onClick={() => copyIsbn(book.isbn)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text hover:bg-white/20">

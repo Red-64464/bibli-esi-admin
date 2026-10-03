@@ -2277,6 +2277,7 @@ export default function Livres() {
               titre: book.titre_suggere || "",
               auteur: book.auteur_suggere || "",
               isbn: book.isbn || "",
+              emplacement: book.emplacement || "",
               description: book.ocr_text || "",
             });
             setShowPendingBooks(false);
