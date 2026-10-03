@@ -496,6 +496,16 @@ export default function Parametres() {
         </div>
       </Section>
 
+      <Section icon={Library} title="Affluence et accès">
+        <p className="text-sm text-biblio-muted">Mets à jour le nombre quand une personne entre ou sort. Les étudiants voient directement si une place est disponible.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Capacité maximale" hint="Exemple : 3 personnes dans le local."><input type="number" min="1" max="20" value={form.library_capacity || "3"} onChange={(e) => set("library_capacity", e.target.value)} className={INPUT_CLASS} /></Field>
+          <Field label="Personnes présentes maintenant" hint="Exemple : 0 = vide, 2/3 = presque complet."><input type="number" min="0" max="20" value={form.library_current_occupancy || "0"} onChange={(e) => set("library_current_occupancy", e.target.value)} className={INPUT_CLASS} /></Field>
+        </div>
+        <Field label="Lien de la vidéo pour venir" hint="Colle un lien YouTube non répertorié ou un autre lien public."><input type="url" value={form.library_arrival_video_url || ""} onChange={(e) => set("library_arrival_video_url", e.target.value)} placeholder="https://..." className={INPUT_CLASS} /></Field>
+        <Field label="Titre de la vidéo"><input type="text" value={form.library_arrival_video_title || ""} onChange={(e) => set("library_arrival_video_title", e.target.value)} className={INPUT_CLASS} /></Field>
+      </Section>
+
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
         <button

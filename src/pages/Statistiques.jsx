@@ -111,14 +111,14 @@ export default function Statistiques() {
 
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
         supabase
-          .from("prets")
+          .from("bibli_prets")
           .select(
-            "*, livres(id, titre, categorie), etudiants(id, nom, prenom)",
+            "*, bibli_livres(id, titre, categorie), bibli_etudiants(id, nom, prenom)",
           ),
         supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, categorie, statut, created_at"),
-        supabase.from("etudiants").select("id", { count: "exact" }),
+        supabase.from("bibli_etudiants").select("id", { count: "exact" }),
       ]);
 
       if (pretsRes.error) throw pretsRes.error;

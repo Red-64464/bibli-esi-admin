@@ -55,18 +55,18 @@ export default function Reservations() {
   }, []);
 
   // Realtime: auto-refresh on reservations changes
-  useRealtimeTable("reservations", () => fetchData());
+  useRealtimeTable("bibli_reservations", () => fetchData());
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const [resRes, livresRes, etudRes] = await Promise.all([
         supabase
-          .from("reservations")
-          .select("*, livres(titre, isbn), etudiants(nom, prenom)")
+          .from("bibli_reservations")
+          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom)")
           .order("created_at", { ascending: false }),
-        supabase.from("livres").select("id, titre, isbn, disponible, statut"),
-        supabase.from("etudiants").select("id, nom, prenom, numero_etudiant"),
+        supabase.from("bibli_livres").select("id, titre, isbn, disponible, statut"),
+        supabase.from("bibli_etudiants").select("id, nom, prenom, numero_etudiant"),
       ]);
       if (resRes.error) throw resRes.error;
       setReservations(resRes.data || []);
@@ -83,7 +83,7 @@ export default function Reservations() {
     e.preventDefault();
     if (!form.livre_id || !form.etudiant_id) return;
     try {
-      const { error: err } = await supabase.from("reservations").insert([
+      const { error: err } = await supabase.from("bibli_reservations").insert([
         {
           livre_id: form.livre_id,
           etudiant_id: form.etudiant_id,
@@ -119,7 +119,7 @@ export default function Reservations() {
       const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
-      const { error: err1 } = await supabase.from("prets").insert([
+      const { error: err1 } = await supabase.from("bibli_prets").insert([
         {
           livre_id: res.livre_id,
           etudiant_id: res.etudiant_id,
@@ -133,13 +133,13 @@ export default function Reservations() {
 
       // Marquer le livre comme emprunté
       await supabase
-        .from("livres")
+        .from("bibli_livres")
         .update({ disponible: false, statut: "emprunté" })
         .eq("id", res.livre_id);
 
       // Marquer la réservation comme convertie
       const { error: err2 } = await supabase
-        .from("reservations")
+        .from("bibli_reservations")
         .update({ statut: "convertie" })
         .eq("id", res.id);
       if (err2) throw err2;
@@ -159,7 +159,7 @@ export default function Reservations() {
   const handleCancel = async (id) => {
     try {
       const { error: err } = await supabase
-        .from("reservations")
+        .from("bibli_reservations")
         .update({ statut: "annulee" })
         .eq("id", id);
       if (err) throw err;

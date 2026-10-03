@@ -256,7 +256,7 @@ export default function Livres() {
     try {
       const ids = [...selectedIds];
       const { error: err } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .delete()
         .in("id", ids);
       if (err) throw err;
@@ -280,7 +280,7 @@ export default function Livres() {
     try {
       const ids = [...selectedIds];
       const { error: err } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .update({
           statut: newStatut,
           disponible: newStatut === "disponible",
@@ -307,7 +307,7 @@ export default function Livres() {
   }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
 
   // Realtime: auto-refresh when livres table changes
-  useRealtimeTable("livres", () => {
+  useRealtimeTable("bibli_livres", () => {
     fetchLivres();
     fetchBorrowCounts();
   });
@@ -324,7 +324,7 @@ export default function Livres() {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      let query = supabase.from("livres").select("*", { count: "exact" });
+      let query = supabase.from("bibli_livres").select("*", { count: "exact" });
 
       // Server-side search
       if (recherche) {
@@ -376,7 +376,7 @@ export default function Livres() {
 
   const fetchBorrowCounts = async () => {
     try {
-      const { data } = await supabase.from("prets").select("livre_id");
+      const { data } = await supabase.from("bibli_prets").select("livre_id");
       const counts = {};
       (data || []).forEach((p) => {
         counts[p.livre_id] = (counts[p.livre_id] || 0) + 1;
@@ -391,7 +391,7 @@ export default function Livres() {
     const ext = file.name.split(".").pop().toLowerCase();
     const filename = `cover_${Date.now()}.${ext}`;
     const { error } = await supabase.storage
-      .from("covers")
+      .from("bibli-covers")
       .upload(filename, file);
     if (error)
       throw new Error(
@@ -399,7 +399,7 @@ export default function Livres() {
           error.message +
           " (créez un bucket public nommé 'covers' dans Supabase Storage)",
       );
-    const { data } = supabase.storage.from("covers").getPublicUrl(filename);
+    const { data } = supabase.storage.from("bibli-covers").getPublicUrl(filename);
     return data.publicUrl;
   };
 
@@ -408,7 +408,7 @@ export default function Livres() {
       // Duplicate detection: check by ISBN or exact title+author
       if (bookData.isbn) {
         const { data: existing } = await supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, isbn")
           .eq("isbn", bookData.isbn)
           .limit(1);
@@ -421,7 +421,7 @@ export default function Livres() {
       }
       if (bookData.titre) {
         const { data: byTitle } = await supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, auteur")
           .ilike("titre", bookData.titre.trim());
         const dup = byTitle?.find(
@@ -436,7 +436,7 @@ export default function Livres() {
         }
       }
 
-      const { error: err } = await supabase.from("livres").insert([
+      const { error: err } = await supabase.from("bibli_livres").insert([
         {
           ...bookData,
           statut: "disponible",
@@ -485,7 +485,7 @@ export default function Livres() {
       // Duplicate detection
       if (manualForm.isbn) {
         const { data: existing } = await supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, isbn")
           .eq("isbn", manualForm.isbn.trim())
           .limit(1);
@@ -508,7 +508,7 @@ export default function Livres() {
             .filter(Boolean)
         : [];
 
-      const { error: err } = await supabase.from("livres").insert([
+      const { error: err } = await supabase.from("bibli_livres").insert([
         {
           titre: manualForm.titre.trim(),
           auteur: manualForm.auteur || null,
@@ -552,7 +552,7 @@ export default function Livres() {
     try {
       const livre = livres.find((l) => l.id === id);
       const { error: err } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .delete()
         .eq("id", id);
       if (err) throw err;
@@ -570,7 +570,7 @@ export default function Livres() {
   const handleDuplicate = async (livre) => {
     try {
       const { id, date_ajout, ...rest } = livre;
-      const { error: err } = await supabase.from("livres").insert([
+      const { error: err } = await supabase.from("bibli_livres").insert([
         {
           ...rest,
           titre: `${livre.titre} (Copie)`,
@@ -658,7 +658,7 @@ export default function Livres() {
       };
 
       const { error: err } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .update(updateData)
         .eq("id", editLivre.id);
       if (err) throw err;
@@ -694,8 +694,8 @@ export default function Livres() {
   const openHistorique = async (livre) => {
     try {
       const { data, error: err } = await supabase
-        .from("prets")
-        .select("*, etudiants(nom, prenom)")
+        .from("bibli_prets")
+        .select("*, bibli_etudiants(nom, prenom)")
         .eq("livre_id", livre.id)
         .order("date_pret", { ascending: false });
       if (err) throw err;
@@ -706,7 +706,7 @@ export default function Livres() {
   };
 
   const handleExport = async (format) => {
-    const { data } = await supabase.from("livres").select("*");
+    const { data } = await supabase.from("bibli_livres").select("*");
     const rows = (data || []).map((l) => ({
       ISBN: l.isbn,
       Titre: l.titre,
@@ -774,7 +774,7 @@ export default function Livres() {
       let inserted = 0;
       for (let i = 0; i < toInsert.length; i += CHUNK) {
         const chunk = toInsert.slice(i, i + CHUNK);
-        const { error: err } = await supabase.from("livres").insert(chunk);
+        const { error: err } = await supabase.from("bibli_livres").insert(chunk);
         if (err) throw err;
         inserted += chunk.length;
       }
@@ -799,7 +799,7 @@ export default function Livres() {
   const [allCategories, setAllCategories] = useState([]);
   useEffect(() => {
     supabase
-      .from("livres")
+      .from("bibli_livres")
       .select("categorie")
       .not("categorie", "is", null)
       .then(({ data }) => {

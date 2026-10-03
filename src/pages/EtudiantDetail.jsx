@@ -58,10 +58,10 @@ export default function EtudiantDetail() {
     try {
       setLoading(true);
       const [etudRes, pretsRes] = await Promise.all([
-        supabase.from("etudiants").select("*").eq("id", id).single(),
+        supabase.from("bibli_etudiants").select("*").eq("id", id).single(),
         supabase
-          .from("prets")
-          .select("*, livres(titre, isbn, auteur)")
+          .from("bibli_prets")
+          .select("*, bibli_livres(titre, isbn, auteur)")
           .eq("etudiant_id", id)
           .order("date_pret", { ascending: false }),
       ]);

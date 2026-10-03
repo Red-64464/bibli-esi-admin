@@ -68,7 +68,7 @@ export default function Prets() {
   }, []);
 
   // Realtime: auto-refresh on prets changes
-  useRealtimeTable("prets", () => fetchData());
+  useRealtimeTable("bibli_prets", () => fetchData());
 
   // Reset page quand filtre ou search change
   useEffect(() => {
@@ -80,15 +80,15 @@ export default function Prets() {
       setLoading(true);
       const [pretsRes, livresRes, etudiantsRes] = await Promise.all([
         supabase
-          .from("prets")
-          .select("*, livres(titre, isbn), etudiants(nom, prenom)")
+          .from("bibli_prets")
+          .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom)")
           .order("date_pret", { ascending: false }),
         supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, isbn")
           .eq("disponible", true),
         supabase
-          .from("etudiants")
+          .from("bibli_etudiants")
           .select("id, nom, prenom, email, numero_etudiant"),
       ]);
       if (pretsRes.error) throw pretsRes.error;
@@ -110,7 +110,7 @@ export default function Prets() {
     try {
       // Vérifier le quota max_books_per_student
       const { count } = await supabase
-        .from("prets")
+        .from("bibli_prets")
         .select("id", { count: "exact", head: true })
         .eq("etudiant_id", form.etudiant_id)
         .eq("rendu", false);
@@ -121,7 +121,7 @@ export default function Prets() {
         return;
       }
 
-      const { error: err1 } = await supabase.from("prets").insert([
+      const { error: err1 } = await supabase.from("bibli_prets").insert([
         {
           livre_id: form.livre_id,
           etudiant_id: form.etudiant_id,
@@ -136,7 +136,7 @@ export default function Prets() {
       if (err1) throw err1;
 
       const { error: err2 } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .update({ disponible: false, statut: "emprunté" })
         .eq("id", form.livre_id);
       if (err2) throw err2;
@@ -187,7 +187,7 @@ export default function Prets() {
   const doReturn = async (pretId, livreId) => {
     try {
       const { error: err1 } = await supabase
-        .from("prets")
+        .from("bibli_prets")
         .update({
           rendu: true,
           date_retour: new Date().toISOString(),
@@ -196,7 +196,7 @@ export default function Prets() {
         .eq("id", pretId);
       if (err1) throw err1;
       const { error: err2 } = await supabase
-        .from("livres")
+        .from("bibli_livres")
         .update({ disponible: true, statut: "disponible" })
         .eq("id", livreId);
       if (err2) throw err2;
@@ -219,8 +219,8 @@ export default function Prets() {
 
   const handleExport = async (format) => {
     const { data } = await supabase
-      .from("prets")
-      .select("*, livres(titre, isbn), etudiants(nom, prenom, email)");
+      .from("bibli_prets")
+      .select("*, bibli_livres(titre, isbn), bibli_etudiants(nom, prenom, email)");
     const rows = (data || []).map((p) => ({
       Livre: p.livres?.titre || "",
       ISBN: p.livres?.isbn || "",

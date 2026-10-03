@@ -142,7 +142,7 @@ export default function Historique() {
         const to = from + PAGE_SIZE - 1;
 
         const base = supabase
-          .from("activity_logs")
+          .from("bibli_activity_logs")
           .select("*", { count: "exact" })
           .order("created_at", { ascending: false })
           .range(from, to);
@@ -174,11 +174,11 @@ export default function Historique() {
 
       const [{ count: todayCount }, { count: weekCount }] = await Promise.all([
         supabase
-          .from("activity_logs")
+          .from("bibli_activity_logs")
           .select("id", { count: "exact", head: true })
           .gte("created_at", todayStr),
         supabase
-          .from("activity_logs")
+          .from("bibli_activity_logs")
           .select("id", { count: "exact", head: true })
           .gte("created_at", weekStartStr),
       ]);
@@ -193,7 +193,7 @@ export default function Historique() {
   const loadUsers = useCallback(async () => {
     try {
       const { data } = await supabase
-        .from("users")
+        .from("bibli_profiles")
         .select("username")
         .order("username", { ascending: true });
       setUsers((data || []).map((u) => u.username));
@@ -206,7 +206,7 @@ export default function Historique() {
     try {
       setExporting(true);
       const base = supabase
-        .from("activity_logs")
+        .from("bibli_activity_logs")
         .select("*")
         .order("created_at", { ascending: false });
 

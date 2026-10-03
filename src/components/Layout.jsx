@@ -53,7 +53,7 @@ const BASE_NAV_GROUPS = [
         to: "/reservations",
         label: "Réservations",
         icon: BookMarked,
-        perm: "reservations",
+        perm: "bibli_reservations",
       },
       {
         to: "/calendrier",
@@ -124,7 +124,7 @@ export default function Layout({ children }) {
   // Appliquer la couleur d'accentuation sauvegardée au démarrage
   useEffect(() => {
     supabase
-      .from("settings")
+      .from("bibli_settings")
       .select("value")
       .eq("key", "accent_color")
       .maybeSingle()
@@ -138,9 +138,9 @@ export default function Layout({ children }) {
     const fetchOverdue = async () => {
       try {
         const { data } = await supabase
-          .from("prets")
+          .from("bibli_prets")
           .select(
-            "id, statut, rendu, date_pret, date_retour_prevue, livres(titre), etudiants(nom, prenom)",
+            "id, statut, rendu, date_pret, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)",
           )
           .eq("rendu", false);
         if (data) {

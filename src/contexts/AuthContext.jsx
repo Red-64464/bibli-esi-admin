@@ -1,55 +1,55 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import bcrypt from "bcryptjs";
 
 const AuthContext = createContext(null);
-const SESSION_KEY = "biblio_admin_session";
 
 export function AuthProvider({ children }) {
-  // undefined = loading, null = not logged in, object = logged in
   const [session, setSession] = useState(undefined);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SESSION_KEY);
-      setSession(stored ? JSON.parse(stored) : null);
-    } catch {
+  const loadProfile = async (authUser) => {
+    if (!authUser) {
       setSession(null);
+      return;
     }
-  }, []);
-
-  const signIn = async (username, password) => {
     const { data, error } = await supabase
-      .from("users")
-      .select("id, username, role, password_hash, permissions")
-      .eq("username", username)
-      .single();
-
-    if (error || !data) throw new Error("Utilisateur introuvable.");
-
-    const valid = await bcrypt.compare(password, data.password_hash);
-    if (!valid) throw new Error("Mot de passe incorrect.");
-
-    const sess = {
-      id: data.id,
-      username: data.username,
-      role: data.role,
-      permissions: data.permissions || {},
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
-    setSession(sess);
+      .from("bibli_profiles")
+      .select("id, username, display_name, email, role, permissions")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    if (error || !data) {
+      await supabase.auth.signOut();
+      setSession(null);
+      return;
+    }
+    setSession({ ...data, username: data.username || authUser.email, permissions: data.permissions || {} });
   };
 
-  const signOut = () => {
-    localStorage.removeItem(SESSION_KEY);
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session: authSession } }) => {
+      if (active) loadProfile(authSession?.user ?? null);
+    });
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, authSession) => {
+      if (active) loadProfile(authSession?.user ?? null);
+    });
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error("E-mail ou mot de passe incorrect.");
+    await loadProfile(data.user);
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
     setSession(null);
   };
 
-  return (
-    <AuthContext.Provider value={{ session, signIn, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ session, signIn, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

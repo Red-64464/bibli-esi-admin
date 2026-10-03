@@ -24,13 +24,17 @@ export const SETTING_DEFAULTS = {
   library_hours: JSON.stringify(DEFAULT_HOURS),
   library_closed_message: "",
   library_is_closed: "false",
+  library_capacity: "3",
+  library_current_occupancy: "0",
+  library_arrival_video_url: "",
+  library_arrival_video_title: "Comment venir à la bibliothèque",
 };
 
 export { DEFAULT_HOURS };
 
 /** Charge tous les paramètres depuis Supabase et merge les valeurs par défaut */
 export async function getSettings() {
-  const { data } = await supabase.from("settings").select("key, value");
+  const { data } = await supabase.from("bibli_settings").select("key, value");
   const result = { ...SETTING_DEFAULTS };
   (data || []).forEach(({ key, value }) => {
     result[key] = value;
@@ -41,13 +45,13 @@ export async function getSettings() {
 /** Sauvegarde un objet entier de paramètres {@link {[key]: value}} */
 export async function saveSettings(obj) {
   const rows = Object.entries(obj).map(([key, value]) => ({ key, value }));
-  const { error } = await supabase.from("settings").upsert(rows);
+  const { error } = await supabase.from("bibli_settings").upsert(rows);
   if (error) throw error;
 }
 
 /** Sauvegarde un seul paramètre */
 export async function saveSetting(key, value) {
-  const { error } = await supabase.from("settings").upsert({ key, value });
+  const { error } = await supabase.from("bibli_settings").upsert({ key, value });
   if (error) throw error;
 }
 

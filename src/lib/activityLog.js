@@ -16,7 +16,7 @@ export async function logActivity({
 }) {
   try {
     await supabase
-      .from("activity_logs")
+      .from("bibli_activity_logs")
       .insert([{ action_type, description, user_info }]);
   } catch {
     /* log silently fails — ne bloque jamais l'UI */

@@ -4,7 +4,6 @@ import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import { ALL_PERMISSIONS } from "../contexts/PermissionsContext";
 import ConfirmModal from "../components/ConfirmModal";
-import bcrypt from "bcryptjs";
 import {
   UserCog,
   Plus,
@@ -56,7 +55,7 @@ const PERMISSION_CATEGORIES = [
   { label: "📈 Statistiques", keys: ["statistiques"] },
   { label: "🔔 Notifications", keys: ["notifications"] },
   { label: "📜 Historique", keys: ["historique"] },
-  { label: "🔖 Réservations", keys: ["reservations"] },
+  { label: "🔖 Réservations", keys: ["bibli_reservations"] },
 ];
 
 const PERMISSION_LABELS = {
@@ -205,6 +204,7 @@ export default function Admins() {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({
     username: "",
+    email: "",
     password: "",
     role: "librarian",
     permissions: { ...DEFAULT_PERMISSIONS },
@@ -246,7 +246,7 @@ export default function Admins() {
     try {
       setLoading(true);
       const { data, error: err } = await supabase
-        .from("users")
+        .from("bibli_profiles")
         .select(
           "id, username, display_name, email, role, created_at, last_login, permissions",
         )
@@ -268,21 +268,21 @@ export default function Admins() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!addForm.username.trim() || !addForm.password) return;
+    if (!addForm.username.trim() || !addForm.email.trim() || !addForm.password) return;
     try {
       setAddLoading(true);
       setError("");
 
-      const hash = await bcrypt.hash(addForm.password, 10);
-      const payload = {
-        username: addForm.username.trim(),
-        password_hash: hash,
-        role: addForm.role,
-      };
-      if (addForm.role === "librarian") {
-        payload.permissions = addForm.permissions;
-      }
-      const { error: err } = await supabase.from("users").insert([payload]);
+      const { error: err } = await supabase.functions.invoke("bibli-admin", {
+        body: {
+          action: "create",
+          username: addForm.username.trim(),
+          email: addForm.email.trim(),
+          password: addForm.password,
+          role: addForm.role,
+          permissions: addForm.permissions,
+        },
+      });
       if (err) throw err;
 
       await logActivity({
@@ -293,6 +293,7 @@ export default function Admins() {
 
       setAddForm({
         username: "",
+        email: "",
         password: "",
         role: "librarian",
         permissions: { ...DEFAULT_PERMISSIONS },
@@ -319,10 +320,9 @@ export default function Admins() {
       onConfirm: async () => {
         closeConfirm();
         try {
-          const { error: err } = await supabase
-            .from("users")
-            .delete()
-            .eq("id", admin.id);
+          const { error: err } = await supabase.functions.invoke("bibli-admin", {
+            body: { action: "delete", id: admin.id },
+          });
           if (err) throw err;
 
           await logActivity({
@@ -341,18 +341,16 @@ export default function Admins() {
   };
 
   const handleChangePassword = async (adminId) => {
-    if (!newPwd || newPwd.length < 6) {
-      setError("Le nouveau mot de passe doit avoir au moins 6 caractères.");
+    if (!newPwd || newPwd.length < 12) {
+      setError("Le nouveau mot de passe doit avoir au moins 12 caractères.");
       return;
     }
     try {
       setPwdLoading(true);
       setError("");
-      const hash = await bcrypt.hash(newPwd, 10);
-      const { error: err } = await supabase
-        .from("users")
-        .update({ password_hash: hash })
-        .eq("id", adminId);
+      const { error: err } = await supabase.functions.invoke("bibli-admin", {
+        body: { action: "set-password", id: adminId, password: newPwd },
+      });
       if (err) throw err;
 
       setChangePwdId(null);
@@ -373,10 +371,9 @@ export default function Admins() {
     try {
       setRoleLoading(true);
       setError("");
-      const { error: err } = await supabase
-        .from("users")
-        .update({ role: newRole })
-        .eq("id", adminId);
+      const { error: err } = await supabase.functions.invoke("bibli-admin", {
+        body: { action: "set-role", id: adminId, role: newRole },
+      });
       if (err) throw err;
 
       const admin = admins.find((a) => a.id === adminId);
@@ -407,15 +404,15 @@ export default function Admins() {
     try {
       setProfileLoading(true);
       setError("");
-      const payload = {
-        username: newUsername,
-        display_name: editProfile.display_name.trim() || null,
-        email: editProfile.email.trim() || null,
-      };
-      const { error: err } = await supabase
-        .from("users")
-        .update(payload)
-        .eq("id", adminId);
+      const { error: err } = await supabase.functions.invoke("bibli-admin", {
+        body: {
+          action: "update-profile",
+          id: adminId,
+          username: newUsername,
+          display_name: editProfile.display_name.trim() || null,
+          email: editProfile.email.trim(),
+        },
+      });
       if (err) throw err;
 
       await logActivity({
@@ -438,10 +435,9 @@ export default function Admins() {
     try {
       setPermsLoading(true);
       setError("");
-      const { error: err } = await supabase
-        .from("users")
-        .update({ permissions: editPerms })
-        .eq("id", adminId);
+      const { error: err } = await supabase.functions.invoke("bibli-admin", {
+        body: { action: "set-permissions", id: adminId, permissions: editPerms },
+      });
       if (err) throw err;
 
       const admin = admins.find((a) => a.id === adminId);
@@ -581,7 +577,20 @@ export default function Admins() {
                 onChange={(e) =>
                   setAddForm({ ...addForm, password: e.target.value })
                 }
-                placeholder="Min. 6 caractères"
+                placeholder="Min. 12 caractères"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-biblio-muted block mb-1">
+                E-mail *
+              </label>
+              <input
+                type="email"
+                value={addForm.email}
+                onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                placeholder="admin@exemple.com"
+                required
+                className={INPUT_CLASS}
               />
             </div>
             <div>

@@ -46,18 +46,18 @@ export default function RechercheGlobale() {
 
       const [livresRes, etudRes, pretsRes] = await Promise.all([
         supabase
-          .from("livres")
+          .from("bibli_livres")
           .select("id, titre, auteur, isbn, statut, disponible")
           .or(`titre.ilike.%${term}%,auteur.ilike.%${term}%,isbn.ilike.%${term}%`)
           .limit(10),
         supabase
-          .from("etudiants")
+          .from("bibli_etudiants")
           .select("id, nom, prenom, email, numero_etudiant")
           .or(`nom.ilike.%${term}%,prenom.ilike.%${term}%,email.ilike.%${term}%,numero_etudiant.ilike.%${term}%`)
           .limit(10),
         supabase
-          .from("prets")
-          .select("id, date_pret, rendu, statut, date_retour_prevue, livres(titre), etudiants(nom, prenom)")
+          .from("bibli_prets")
+          .select("id, date_pret, rendu, statut, date_retour_prevue, bibli_livres(titre), bibli_etudiants(nom, prenom)")
           .or(`livres.titre.ilike.%${term}%,etudiants.nom.ilike.%${term}%,etudiants.prenom.ilike.%${term}%`)
           .limit(10),
       ]);
