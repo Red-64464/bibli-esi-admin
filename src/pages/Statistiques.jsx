@@ -33,14 +33,14 @@ import {
 import StatCard from "../components/StatCard";
 
 const CHART_COLORS = [
-  "#6366f1",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#0ea5e9",
-  "#a855f7",
-  "#f97316",
-  "#14b8a6",
+  "var(--color-biblio-accent)",
+  "var(--color-biblio-success)",
+  "var(--color-biblio-warning)",
+  "var(--color-biblio-danger)",
+  "#789699",
+  "#b88791",
+  "#c49170",
+  "#7b9f8a",
 ];
 
 const DarkTooltip = ({ active, payload, label }) => {
@@ -48,18 +48,18 @@ const DarkTooltip = ({ active, payload, label }) => {
   return (
     <div
       style={{
-        background: "#1e293b",
+        background: "var(--color-biblio-card)",
         border: "1px solid rgba(255,255,255,0.1)",
         borderRadius: "8px",
         padding: "8px 12px",
       }}
     >
       {label && (
-        <p style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "4px" }}>
+        <p style={{ color: "var(--color-biblio-muted)", fontSize: "12px", marginBottom: "4px" }}>
           {label}
         </p>
       )}
-      <p style={{ color: "#f1f5f9", fontWeight: 600, fontSize: "14px" }}>
+      <p style={{ color: "var(--color-biblio-text)", fontWeight: 600, fontSize: "14px" }}>
         {payload[0].value}
       </p>
     </div>
@@ -71,14 +71,14 @@ const PieTooltip = ({ active, payload }) => {
   return (
     <div
       style={{
-        background: "#1e293b",
+        background: "var(--color-biblio-card)",
         border: "1px solid rgba(255,255,255,0.1)",
         borderRadius: "8px",
         padding: "8px 12px",
       }}
     >
-      <p style={{ color: "#94a3b8", fontSize: "12px" }}>{payload[0].name}</p>
-      <p style={{ color: "#f1f5f9", fontWeight: 600 }}>
+      <p style={{ color: "var(--color-biblio-muted)", fontSize: "12px" }}>{payload[0].name}</p>
+      <p style={{ color: "var(--color-biblio-text)", fontWeight: 600 }}>
         {payload[0].value} livre{payload[0].value !== 1 ? "s" : ""}
       </p>
     </div>
@@ -454,12 +454,12 @@ export default function Statistiques() {
               dataKey="name"
               interval="preserveStartEnd"
               minTickGap={18}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               allowDecimals={false}
@@ -468,7 +468,7 @@ export default function Statistiques() {
               content={<DarkTooltip />}
               cursor={{ fill: "rgba(255,255,255,0.04)" }}
             />
-            <Bar dataKey="prêts" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="prêts" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
         <ChartSummary>
@@ -492,34 +492,34 @@ export default function Statistiques() {
               dataKey="name"
               interval="preserveStartEnd"
               minTickGap={18}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               allowDecimals={false}
             />
             <Tooltip
               contentStyle={{
-                background: "#1e293b",
+                background: "var(--color-biblio-card)",
                 border: "1px solid rgba(255,255,255,0.1)",
                 borderRadius: "8px",
               }}
-              labelStyle={{ color: "#94a3b8", fontSize: "12px" }}
-              itemStyle={{ color: "#f1f5f9" }}
+              labelStyle={{ color: "var(--color-biblio-muted)", fontSize: "12px" }}
+              itemStyle={{ color: "var(--color-biblio-text)" }}
             />
             <Legend
               formatter={(v) => (
-                <span style={{ color: "#94a3b8", fontSize: "11px" }}>{v}</span>
+                <span style={{ color: "var(--color-biblio-muted)", fontSize: "11px" }}>{v}</span>
               )}
             />
             <Line
               type="monotone"
               dataKey="prêts"
-              stroke="#6366f1"
+              stroke="var(--color-biblio-accent)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
@@ -527,7 +527,7 @@ export default function Statistiques() {
             <Line
               type="monotone"
               dataKey="retours"
-              stroke="#22c55e"
+              stroke="var(--color-biblio-success)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
@@ -560,7 +560,7 @@ export default function Statistiques() {
               >
                 <XAxis
                   type="number"
-                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   allowDecimals={false}
@@ -568,7 +568,7 @@ export default function Statistiques() {
                 <YAxis
                   type="category"
                   dataKey="name"
-                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   width={130}
@@ -577,7 +577,7 @@ export default function Statistiques() {
                   content={<DarkTooltip />}
                   cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 />
-                <Bar dataKey="prêts" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="prêts" fill="var(--color-biblio-accent)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -623,7 +623,7 @@ export default function Statistiques() {
                 <Legend
                   iconSize={8}
                   formatter={(v) => (
-                    <span style={{ color: "#94a3b8", fontSize: "11px" }}>
+                    <span style={{ color: "var(--color-biblio-muted)", fontSize: "11px" }}>
                       {v}
                     </span>
                   )}
@@ -687,12 +687,12 @@ export default function Statistiques() {
             <BarChart data={heatmapJours} barSize={30}>
               <XAxis
                 dataKey="name"
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -727,12 +727,12 @@ export default function Statistiques() {
             <BarChart data={heatmapHeures} barSize={16}>
               <XAxis
                 dataKey="name"
-                tick={{ fill: "#94a3b8", fontSize: 10 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -741,7 +741,7 @@ export default function Statistiques() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="prêts" fill="#a855f7" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="prêts" fill="#b88791" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           <ChartSummary>

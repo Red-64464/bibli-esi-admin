@@ -24,13 +24,15 @@ export const SETTING_DEFAULTS = {
   library_hours: JSON.stringify(DEFAULT_HOURS),
   library_closed_message: "",
   library_is_closed: "false",
-  library_capacity: "3",
-  library_current_occupancy: "0",
-  library_arrival_video_url: "",
-  library_arrival_video_title: "Comment venir à la bibliothèque",
 };
 
 export { DEFAULT_HOURS };
+
+// Old tabs/offline drafts must never recreate removed visitor settings.
+const RETIRED_SETTINGS = new Set([
+  "library_capacity", "library_current_occupancy",
+  "library_arrival_video_url", "library_arrival_video_title",
+]);
 
 /** Charge tous les paramètres depuis Supabase et merge les valeurs par défaut */
 export async function getSettings() {
@@ -38,20 +40,22 @@ export async function getSettings() {
   if (error) throw error;
   const result = { ...SETTING_DEFAULTS };
   (data || []).forEach(({ key, value }) => {
-    result[key] = value;
+    if (!RETIRED_SETTINGS.has(key)) result[key] = value;
   });
   return result;
 }
 
 /** Sauvegarde un objet entier de paramètres {@link {[key]: value}} */
 export async function saveSettings(obj) {
-  const rows = Object.entries(obj).map(([key, value]) => ({ key, value }));
+  const rows = Object.entries(obj).filter(([key]) => !RETIRED_SETTINGS.has(key)).map(([key, value]) => ({ key, value }));
+  if (!rows.length) return;
   const { error } = await supabase.from("bibli_settings").upsert(rows);
   if (error) throw error;
 }
 
 /** Sauvegarde un seul paramètre */
 export async function saveSetting(key, value) {
+  if (RETIRED_SETTINGS.has(key)) throw new Error("Ce paramètre n'est plus utilisé.");
   const { error } = await supabase.from("bibli_settings").upsert({ key, value });
   if (error) throw error;
 }
@@ -66,14 +70,8 @@ export const ACCENT_COLOR_HEX_MAP = {
 };
 
 /** Applique la couleur d'accentuation via CSS custom properties */
-export function applyAccentColor(key) {
-  const colors = ACCENT_COLOR_HEX_MAP[key] || ACCENT_COLOR_HEX_MAP.indigo;
-  document.documentElement.style.setProperty(
-    "--color-biblio-accent",
-    colors.color,
-  );
-  document.documentElement.style.setProperty(
-    "--color-biblio-accent-hover",
-    colors.hover,
-  );
+export function applyAccentColor() {
+  // The shared identity now follows the light/dark theme, including legacy settings.
+    document.documentElement.style.removeProperty("--color-biblio-accent");
+    document.documentElement.style.removeProperty("--color-biblio-accent-hover");
 }

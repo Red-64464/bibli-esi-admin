@@ -25,7 +25,6 @@ import {
   Search,
   BookMarked,
   Calendar,
-  Gauge,
   Sun,
   Moon,
 } from "lucide-react";
@@ -102,12 +101,6 @@ const SUPER_ADMIN_GROUP = {
   ],
 };
 
-const AFFLUENCE_GROUP = {
-  items: [
-    { to: "/affluence", label: "Affluence", icon: Gauge, perm: "dashboard" },
-  ],
-};
-
 const ROLE_LABELS = {
   super_admin: "Super Admin",
   librarian: "Bibliothécaire",
@@ -126,7 +119,7 @@ export default function Layout({ children }) {
 
   const isSuperAdmin = session?.role === "super_admin";
   const navGroups = isSuperAdmin
-    ? [AFFLUENCE_GROUP, ...BASE_NAV_GROUPS, SUPER_ADMIN_GROUP]
+    ? [...BASE_NAV_GROUPS, SUPER_ADMIN_GROUP]
     : BASE_NAV_GROUPS;
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -225,7 +218,7 @@ export default function Layout({ children }) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-2">
             <img
-              src="/logo.png"
+              src={theme === "light" ? "/images/brand/logo-light.png" : "/images/brand/logo-dark.png"}
               alt="Bibl'ESI"
               className="h-9 w-auto object-contain"
             />
@@ -313,7 +306,7 @@ export default function Layout({ children }) {
             <Menu className="w-6 h-6" />
           </button>
           <img
-            src="/logo.png"
+            src={theme === "light" ? "/images/brand/logo-light.png" : "/images/brand/logo-dark.png"}
             alt="Bibl'ESI"
             className="absolute left-1/2 h-12 w-auto -translate-x-1/2 object-contain lg:hidden"
           />

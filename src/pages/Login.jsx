@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session, signIn } = useAuth();
+  const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,13 +29,13 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="admin-login min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="bg-biblio-card rounded-2xl border border-white/10 p-8 space-y-7 shadow-2xl">
           {/* Logo */}
           <div className="flex flex-col items-center gap-3">
             <img
-              src="/logo-full.png"
+              src={theme === "light" ? "/images/brand/logo-light.png" : "/images/brand/logo-dark.png"}
               alt="Bibl'ESI"
               className="h-16 w-auto object-contain"
             />
