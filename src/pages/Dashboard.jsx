@@ -31,22 +31,7 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
-
-const CHART_COLORS = [
-  "#6366f1",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#0ea5e9",
-  "#a855f7",
-  "#f97316",
-  "#14b8a6",
-];
 
 const firstRelation = (value) => (Array.isArray(value) ? value[0] : value);
 const livreOf = (pret) => firstRelation(pret.livres ?? pret.bibli_livres);
@@ -57,7 +42,7 @@ const DarkTooltip = ({ active, payload, label }) => {
     return (
       <div
         style={{
-          background: "#1e293b",
+          background: "var(--color-biblio-card)",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "8px",
           padding: "8px 12px",
@@ -65,34 +50,13 @@ const DarkTooltip = ({ active, payload, label }) => {
       >
         {label && (
           <p
-            style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "4px" }}
+            style={{ color: "var(--color-biblio-muted)", fontSize: "12px", marginBottom: "4px" }}
           >
             {label}
           </p>
         )}
-        <p style={{ color: "#f1f5f9", fontWeight: 600, fontSize: "14px" }}>
+        <p style={{ color: "var(--color-biblio-text)", fontWeight: 600, fontSize: "14px" }}>
           {payload[0].value}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const PieTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div
-        style={{
-          background: "#1e293b",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "8px",
-          padding: "8px 12px",
-        }}
-      >
-        <p style={{ color: "#94a3b8", fontSize: "12px" }}>{payload[0].name}</p>
-        <p style={{ color: "#f1f5f9", fontWeight: 600 }}>
-          {payload[0].value} livre{payload[0].value !== 1 ? "s" : ""}
         </p>
       </div>
     );
@@ -308,6 +272,13 @@ export default function Dashboard() {
   const categoriesData = Object.entries(categoriesMap)
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value }));
+  const categoryChartData = categoriesData.slice(0, 6);
+  if (categoriesData.length > 6) {
+    categoryChartData.push({
+      name: "Autres",
+      value: categoriesData.slice(6).reduce((total, category) => total + category.value, 0),
+    });
+  }
 
   const lecteurMap = {};
   prets.forEach((p) => {
@@ -947,12 +918,12 @@ export default function Dashboard() {
       {renderDetailPanel()}
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 bg-biblio-card rounded-xl border border-white/10 p-6">
+      <div className="grid min-w-0 grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="min-w-0 xl:col-span-2 bg-biblio-card rounded-xl border border-white/10 p-5 sm:p-6">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-biblio-accent" /> Prets par
-              periode
+            <h2 className="dashboard-chart-title flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-biblio-accent" /> Prêts par
+              période
             </h2>
             <div className="flex gap-1 flex-wrap">
               {["7j", "1m", "3m", "6m", "1an", "tout"].map((p) => (
@@ -974,12 +945,12 @@ export default function Dashboard() {
             <BarChart data={chartData} barCategoryGap="30%">
               <XAxis
                 dataKey="label"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -988,43 +959,45 @@ export default function Dashboard() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-biblio-card rounded-xl border border-white/10 p-6">
-          <h2 className="text-base font-semibold mb-5 flex items-center gap-2">
-            <Tag className="w-4 h-4 text-biblio-accent" /> Categories
+        <div className="min-w-0 bg-biblio-card rounded-xl border border-white/10 p-5 sm:p-6">
+          <h2 className="dashboard-chart-title mb-1 flex items-center gap-2">
+            <Tag className="w-4 h-4 shrink-0 text-biblio-accent" /> Livres par catégorie
           </h2>
+          <p className="mb-4 text-xs text-biblio-muted">
+            {categoriesData.length > 6 ? "6 principales et les autres" : "Répartition du catalogue"}
+          </p>
           {categoriesData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={categoriesData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={70}
-                  dataKey="value"
-                  paddingAngle={3}
-                >
-                  {categoriesData.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={CHART_COLORS[i % CHART_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip content={<PieTooltip />} />
-                <Legend
-                  formatter={(v) => (
-                    <span style={{ color: "#94a3b8", fontSize: "11px" }}>
-                      {v}
-                    </span>
-                  )}
+            <ResponsiveContainer width="100%" height={Math.max(190, categoryChartData.length * 34 + 28)}>
+              <BarChart
+                layout="vertical"
+                data={categoryChartData}
+                margin={{ top: 2, right: 8, bottom: 0, left: 0 }}
+                barCategoryGap="28%"
+              >
+                <XAxis
+                  type="number"
+                  allowDecimals={false}
+                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
                 />
-              </PieChart>
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={112}
+                  tickFormatter={(name) => name.length > 17 ? `${name.slice(0, 16)}…` : name}
+                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip content={<DarkTooltip />} cursor={{ fill: "var(--library-soft)" }} />
+                <Bar dataKey="value" fill="var(--color-biblio-accent)" radius={[0, 5, 5, 0]} maxBarSize={19} />
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-48 flex items-center justify-center text-sm text-biblio-muted">
@@ -1036,10 +1009,10 @@ export default function Dashboard() {
 
       {/* Top livres horizontal bar */}
       {topLivres.length > 0 && (
-        <div className="bg-biblio-card rounded-xl border border-white/10 p-6">
-          <h2 className="text-base font-semibold mb-5 flex items-center gap-2">
+        <div className="min-w-0 bg-biblio-card rounded-xl border border-white/10 p-5 sm:p-6">
+          <h2 className="dashboard-chart-title mb-5 flex items-center gap-2">
             <ArrowLeftRight className="w-4 h-4 text-biblio-accent" /> Top livres
-            les plus empruntes
+            les plus empruntés
           </h2>
           <ResponsiveContainer
             width="100%"
@@ -1053,7 +1026,7 @@ export default function Dashboard() {
             >
               <XAxis
                 type="number"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -1061,16 +1034,17 @@ export default function Dashboard() {
               <YAxis
                 dataKey="titre"
                 type="category"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "var(--color-biblio-muted)", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
-                width={160}
+              width={128}
+              tickFormatter={(title) => title.length > 19 ? `${title.slice(0, 18)}…` : title}
               />
               <Tooltip
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="count" fill="#22c55e" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="count" fill="var(--color-biblio-success)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

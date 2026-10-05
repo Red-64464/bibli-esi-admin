@@ -15,8 +15,6 @@ import {
   buildReminderEmail,
   normalizeNotificationRecipient,
 } from "../lib/email";
-import { supabase } from "../lib/supabase";
-import { formatFileSize, validateVideoFile, videoExtension } from "../lib/videos";
 import ConfirmModal from "../components/ConfirmModal";
 import {
   Settings,
@@ -31,12 +29,8 @@ import {
   Palette,
   RotateCcw,
   CalendarDays,
-  AlertOctagon,
   Send,
   Info,
-  Video,
-  Upload,
-  Trash2,
 } from "lucide-react";
 
 const INPUT_CLASS =
@@ -106,10 +100,6 @@ const SETTINGS_LABELS = {
   library_hours: "Horaires d'ouverture",
   library_closed_message: "Message de fermeture",
   library_is_closed: "Fermeture exceptionnelle",
-  library_capacity: "Capacité d'accueil",
-  library_current_occupancy: "Personnes présentes",
-  library_arrival_video_url: "Vidéo du trajet",
-  library_arrival_video_title: "Titre de la vidéo",
 };
 
 function formatSettingVal(key, val) {
@@ -118,15 +108,6 @@ function formatSettingVal(key, val) {
   if (key === "library_hours") return "(voir horaires)";
   return val || "(vide)";
 }
-
-const ACCENT_COLORS = [
-  { key: "indigo", label: "Indigo", hex: "#6366f1" },
-  { key: "violet", label: "Violet", hex: "#8b5cf6" },
-  { key: "cyan", label: "Cyan", hex: "#06b6d4" },
-  { key: "emerald", label: "Émeraude", hex: "#10b981" },
-  { key: "orange", label: "Orange", hex: "#f97316" },
-  { key: "rose", label: "Rose", hex: "#f43f5e" },
-];
 
 const JOURS = [
   { key: "lundi", label: "Lundi" },
@@ -154,14 +135,6 @@ export default function Parametres() {
   const [testError, setTestError] = useState("");
   const [dirty, setDirty] = useState(false);
   const [customHours, setCustomHours] = useState({ debut: "08:00", fin: "10:00" });
-  const [arrivalVideoFile, setArrivalVideoFile] = useState(null);
-  const [arrivalVideoPreview, setArrivalVideoPreview] = useState("");
-  const videoInputRef = useRef(null);
-
-  useEffect(() => () => {
-    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
-  }, [arrivalVideoPreview]);
-
   useEffect(() => {
     getSettings()
       .then((s) => {
@@ -195,53 +168,6 @@ export default function Parametres() {
   const set = (key, value) => {
     setDirty(true);
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const selectArrivalVideo = (file) => {
-    if (!file) return;
-    const validation = validateVideoFile(file);
-    if (validation) {
-      setError(validation);
-      return;
-    }
-    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
-    setArrivalVideoFile(file);
-    setArrivalVideoPreview(URL.createObjectURL(file));
-    setDirty(true);
-    setError("");
-  };
-
-  const clearArrivalVideo = () => {
-    if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
-    setArrivalVideoFile(null);
-    setArrivalVideoPreview("");
-    set("library_arrival_video_url", "");
-  };
-
-  const uploadArrivalVideo = async (file) => {
-    const validation = validateVideoFile(file);
-    if (validation) throw new Error(validation);
-    const filename = `arrival-${Date.now()}.${videoExtension(file)}`;
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from("bibli-route-videos")
-        .upload(filename, file, {
-          contentType: file.type || "video/mp4",
-          cacheControl: "86400",
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-    } catch (err) {
-      const rawMessage = err?.message || "";
-      if (/load failed|failed to fetch|network/i.test(rawMessage)) {
-        throw new Error(
-          "L'envoi de la vidéo a été coupé avant la fin. Vérifiez la connexion et utilisez une vidéo de moins de 80 Mo.",
-        );
-      }
-      throw err;
-    }
-    const { data } = supabase.storage.from("bibli-route-videos").getPublicUrl(filename);
-    return data.publicUrl;
   };
 
   const setHour = (jour, field, value) => {
@@ -318,13 +244,8 @@ export default function Parametres() {
         setError(validationError);
         return;
       }
-      let arrivalVideoUrl = form.library_arrival_video_url || "";
-      if (arrivalVideoFile) {
-        arrivalVideoUrl = await uploadArrivalVideo(arrivalVideoFile);
-      }
       const payload = {
         ...form,
-        library_arrival_video_url: arrivalVideoUrl,
         library_hours: JSON.stringify(hours),
       };
       await saveSettings(payload);
@@ -349,9 +270,6 @@ export default function Parametres() {
       }
       originalFormRef.current = { ...payload };
       setForm(payload);
-      setArrivalVideoFile(null);
-      if (arrivalVideoPreview) URL.revokeObjectURL(arrivalVideoPreview);
-      setArrivalVideoPreview("");
       setDirty(false);
 
       await logActivity({
@@ -662,114 +580,14 @@ export default function Parametres() {
 
       {/* Section : Apparence */}
       <Section icon={Palette} title="Apparence">
-        <Field label="Couleur d'accentuation">
-          <div className="flex flex-wrap gap-3 mt-1">
-            {ACCENT_COLORS.map(({ key, label, hex }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  set("accent_color", key);
-                  applyAccentColor(key);
-                }}
-                title={label}
-                className={`w-9 h-9 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-biblio-bg ${
-                  form.accent_color === key
-                    ? "ring-2 ring-offset-2 ring-offset-biblio-bg scale-110"
-                    : "hover:scale-105 opacity-80 hover:opacity-100"
-                }`}
-                style={{
-                  backgroundColor: hex,
-                  outlineColor: hex,
-                  "--tw-ring-color": hex,
-                }}
-              />
-            ))}
+        <Field label="Identité Bibl’ESI">
+          <div className="flex items-center gap-3 mt-2" aria-hidden="true">
+            {['#fbf9f5', '#7b2d3b', '#191718', '#e6a7b2'].map(color => <span key={color} className="w-9 h-9 rounded-full border border-white/10" style={{ background: color }} />)}
           </div>
-          <p className="text-xs text-biblio-muted mt-2">
-            Couleur sélectionnée :{" "}
-            <span className="text-biblio-text font-medium capitalize">
-              {ACCENT_COLORS.find((c) => c.key === form.accent_color)?.label ||
-                form.accent_color}
-            </span>
+          <p className="text-sm text-biblio-muted mt-3">
+            La palette et le logo s’adaptent au thème clair ou sombre, comme sur le catalogue public. Utilisez le bouton soleil ou lune en haut de la page pour changer de thème.
           </p>
         </Field>
-      </Section>
-
-      <Section icon={Video} title="Vidéo d'accès">
-        <Field
-          label="Titre affiché sur le site public"
-          hint="Ce titre apparaît au-dessus de la vidéo pour les élèves."
-        >
-          <input
-            type="text"
-            value={form.library_arrival_video_title || ""}
-            onChange={(e) => set("library_arrival_video_title", e.target.value)}
-            placeholder="Comment venir à la bibliothèque"
-            className={INPUT_CLASS}
-          />
-        </Field>
-
-        <input
-          ref={videoInputRef}
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime,video/x-m4v"
-          className="hidden"
-          onChange={(e) => selectArrivalVideo(e.target.files?.[0])}
-        />
-
-        <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-biblio-text">
-                Fichier vidéo
-              </p>
-              <p className="text-xs text-biblio-muted mt-0.5">
-                MP4, WebM ou MOV. Maximum 80 Mo.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => videoInputRef.current?.click()}
-                className="inline-flex items-center gap-2 rounded-lg bg-biblio-accent px-4 py-2 text-sm font-medium text-white hover:bg-biblio-accent-hover"
-              >
-                <Upload className="h-4 w-4" />
-                Importer la vidéo
-              </button>
-              {(arrivalVideoFile || form.library_arrival_video_url) && (
-                <button
-                  type="button"
-                  onClick={clearArrivalVideo}
-                  className="inline-flex items-center gap-2 rounded-lg bg-biblio-danger/15 px-4 py-2 text-sm font-medium text-biblio-danger hover:bg-biblio-danger/25"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Retirer
-                </button>
-              )}
-            </div>
-          </div>
-
-          {arrivalVideoFile && (
-            <p className="rounded-lg bg-biblio-accent/10 px-3 py-2 text-xs text-biblio-accent">
-              Nouvelle vidéo prête : {arrivalVideoFile.name} ({formatFileSize(arrivalVideoFile.size)})
-            </p>
-          )}
-
-          {(arrivalVideoPreview || form.library_arrival_video_url) ? (
-            <video
-              src={arrivalVideoPreview || form.library_arrival_video_url}
-              controls
-              playsInline
-              preload="metadata"
-              className="aspect-video w-full rounded-lg border border-white/10 bg-black object-contain"
-            />
-          ) : (
-            <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-white/20 text-sm text-biblio-muted">
-              Aucune vidéo importée pour le moment.
-            </div>
-          )}
-        </div>
       </Section>
 
       {/* Section : Horaires */}

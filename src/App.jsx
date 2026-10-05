@@ -34,7 +34,6 @@ const lazyWithUpdateRecovery = (importPage) =>
   });
 
 const Dashboard = lazyWithUpdateRecovery(() => import("./pages/Dashboard"));
-const Affluence = lazyWithUpdateRecovery(() => import("./pages/Affluence"));
 const Livres = lazyWithUpdateRecovery(() => import("./pages/Livres"));
 const Etudiants = lazyWithUpdateRecovery(() => import("./pages/Etudiants"));
 const EtudiantDetail = lazyWithUpdateRecovery(() => import("./pages/EtudiantDetail"));
@@ -146,14 +145,6 @@ function App() {
                     <Suspense fallback={<PageLoader />}>
                       <Routes>
                         <Route path="/" element={<Dashboard />} />
-                        <Route
-                          path="/affluence"
-                          element={
-                            <RoleRoute requiredRole="super_admin">
-                              <Affluence />
-                            </RoleRoute>
-                          }
-                        />
                         <Route path="/livres" element={<Livres />} />
                         <Route path="/etudiants" element={<Etudiants />} />
                         <Route
