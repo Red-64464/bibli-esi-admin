@@ -1,4 +1,4 @@
-import { Trash2, Pencil, History, QrCode, Copy, Plus } from "lucide-react";
+import { Trash2, Pencil, History, QrCode, Copy, Plus, BookOpen } from "lucide-react";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
@@ -71,6 +71,11 @@ export default function LivreCard({
         </p>
         {livre.emplacement && (
           <p className="text-xs text-biblio-muted">📍 {livre.emplacement}</p>
+        )}
+        {livre.nb_pages && (
+          <p className="flex items-center gap-1 text-xs text-biblio-muted">
+            <BookOpen className="w-3.5 h-3.5" /> {livre.nb_pages} pages
+          </p>
         )}
 
         {/* Badge statut + actions icônes */}

@@ -7,7 +7,8 @@ import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 export default function Login() {
   const { session, signIn } = useAuth();
   const { theme } = useTheme();
-  const [email, setEmail] = useState("");
+  const usernameLogin = import.meta.env.DEV && import.meta.env.VITE_AUTH_LOGIN_MODE === "username";
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -20,7 +21,7 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await signIn(email.trim(), password);
+      await signIn(identifier.trim(), password);
     } catch (err) {
       setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
     } finally {
@@ -51,15 +52,15 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-biblio-muted uppercase tracking-wider">
-                E-mail
+                {usernameLogin ? "Nom d’utilisateur" : "E-mail"}
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@exemple.com"
+                type={usernameLogin ? "text" : "email"}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder={usernameLogin ? "admin" : "admin@exemple.com"}
                 required
-                autoComplete="email"
+                autoComplete={usernameLogin ? "username" : "email"}
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent transition-colors"
               />
             </div>
@@ -101,7 +102,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !password}
+              disabled={loading || !identifier.trim() || !password}
               className="w-full py-3 bg-biblio-accent hover:bg-biblio-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (

@@ -38,7 +38,16 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const signIn = async (email, password) => {
+  const signIn = async (identifier, password) => {
+    const localUsernameLogin =
+      import.meta.env.DEV && import.meta.env.VITE_AUTH_LOGIN_MODE === "username";
+    const username = identifier.trim();
+    if (localUsernameLogin && !/^[a-zA-Z0-9._-]{3,80}$/.test(username)) {
+      throw new Error("Saisissez un nom d’utilisateur valide.");
+    }
+    const email = localUsernameLogin
+      ? `${username.toLowerCase()}@local.bibliesi.test`
+      : username;
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error("E-mail ou mot de passe incorrect.");
     await loadProfile(data.user);

@@ -24,6 +24,10 @@ export const bookSchema = z.object({
   categorie: optionalTrimmed,
   tags: z.array(z.string().trim().min(1)).default([]),
   emplacement: optionalTrimmed,
+  nb_pages: z.preprocess(
+    (value) => value === "" || value === null || value === undefined ? null : value,
+    z.coerce.number().int().min(1, "Le nombre de pages doit être positif.").nullable(),
+  ),
   nb_exemplaires: z.coerce.number().int().min(1, "Minimum 1 exemplaire.").max(500, "Nombre trop élevé."),
   statut: z.enum(["disponible", "emprunte", "reserve", "perdu", "en_reparation"]).default("disponible"),
   couverture_url: optionalTrimmed.refine(

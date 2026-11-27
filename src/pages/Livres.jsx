@@ -95,6 +95,7 @@ const emptyManualForm = {
   categorie: "",
   tags: "",
   emplacement: "",
+  nb_pages: "",
   nb_exemplaires: 1,
   statut: "disponible",
   couverture_url: "",
@@ -172,7 +173,7 @@ function ImageUploadZone({
 
 const CATALOG_COLUMNS = [
   "titre", "sous_titre", "auteur", "isbn", "editeur", "annee", "langue",
-  "categorie", "tags", "resume", "description", "emplacement", "nb_exemplaires",
+  "categorie", "tags", "resume", "description", "emplacement", "nb_pages", "nb_exemplaires",
   "statut", "disponible", "couverture_url",
 ];
 
@@ -480,9 +481,7 @@ export default function Livres() {
 
   const handleAddBook = async (bookData) => {
     try {
-      // Les catalogues externes peuvent renvoyer des champs supplémentaires
-      // (ex. nb_pages) absents du schéma local. On n'envoie que les colonnes
-      // réellement supportées par bibli_livres pour éviter un échec d'insertion.
+      // Ne transmettre que les colonnes prises en charge par bibli_livres.
       const { data: catalogBook, error: validationError } = parseOrMessage(externalBookSchema, {
         titre: bookData.titre?.trim() || "Livre sans titre",
         sous_titre: bookData.sous_titre || null,
@@ -496,6 +495,7 @@ export default function Livres() {
         resume: bookData.resume || null,
         description: bookData.description || null,
         emplacement: bookData.emplacement || null,
+        nb_pages: bookData.nb_pages ?? null,
         couverture_url: bookData.couverture_url || null,
       });
       if (validationError) {
@@ -575,6 +575,7 @@ export default function Livres() {
             resume: bookData.resume || null,
             description: bookData.description || null,
             emplacement: bookData.emplacement || null,
+            nb_pages: bookData.nb_pages ?? null,
             couverture_url: bookData.couverture_url || null,
             statut: "disponible",
             disponible: true,
@@ -825,6 +826,7 @@ export default function Livres() {
       resume: livre.resume || "",
       description: livre.description || "",
       emplacement: livre.emplacement || "",
+      nb_pages: livre.nb_pages ?? "",
       nb_exemplaires: livre.nb_exemplaires ?? 1,
       statut: normaliseStatut(
         livre.statut || (livre.disponible ? "disponible" : "emprunte"),
@@ -1696,6 +1698,17 @@ export default function Livres() {
                     className={INPUT_CLASS}
                   />
                 </Field>
+                <Field label="Nombre de pages">
+                  <input
+                    type="number"
+                    min="1"
+                    value={manualForm.nb_pages}
+                    onChange={(e) =>
+                      setManualForm({ ...manualForm, nb_pages: e.target.value })
+                    }
+                    className={INPUT_CLASS}
+                  />
+                </Field>
                 <Field label="Statut initial" col2>
                   <select
                     value={manualForm.statut}
@@ -1954,6 +1967,17 @@ export default function Livres() {
                         ...editForm,
                         nb_exemplaires: e.target.value,
                       })
+                    }
+                    className={INPUT_CLASS}
+                  />
+                </Field>
+                <Field label="Nombre de pages">
+                  <input
+                    type="number"
+                    min="1"
+                    value={editForm.nb_pages}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, nb_pages: e.target.value })
                     }
                     className={INPUT_CLASS}
                   />

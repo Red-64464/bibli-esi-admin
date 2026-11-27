@@ -38,6 +38,15 @@ function normalizeIsbn(value: string) {
   return null;
 }
 
+function isbn13(value: string) {
+  const isbn = normalizeIsbn(value);
+  if (!isbn) return null;
+  if (isbn.length === 13) return isbn;
+  const base = `978${isbn.slice(0, 9)}`;
+  const sum = [...base].reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
+  return `${base}${(10 - sum % 10) % 10}`;
+}
+
 function language(code = "") {
   const labels: Record<string, string> = { fr: "Français", fre: "Français", fra: "Français", en: "Anglais", eng: "Anglais", nl: "Néerlandais", nld: "Néerlandais", de: "Allemand", deu: "Allemand", es: "Espagnol", spa: "Espagnol", it: "Italien", ita: "Italien", ar: "Arabe", ara: "Arabe" };
   return labels[code.toLowerCase()] || code;
@@ -49,12 +58,11 @@ function stripXml(value: string) {
 
 async function safeFetch(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3500);
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
-    return response.ok ? response : null;
-  } catch {
-    return null;
+    if (!response.ok) throw new Error(`Catalogue indisponible (HTTP ${response.status})`);
+    return response;
   } finally {
     clearTimeout(timer);
   }
@@ -75,8 +83,10 @@ function googleBook(item: any, fallbackIsbn = ""): Book | null {
 
 async function googleByIsbn(isbn: string) {
   const key = googleBooksApiKey ? `&key=${encodeURIComponent(googleBooksApiKey)}` : "";
-  const response = await safeFetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=1${key}`);
-  return googleBook(response ? (await response.json())?.items?.[0] : null, isbn);
+  const response = await safeFetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=5${key}`);
+  const items = (await response.json())?.items || [];
+  const matched = items.find((item: any) => item.volumeInfo?.industryIdentifiers?.some((id: any) => isbn13(id.identifier || "") === isbn13(isbn)));
+  return googleBook(matched, isbn);
 }
 
 async function googleByTitle(query: string): Promise<Book[]> {
@@ -114,14 +124,25 @@ async function bnfByIsbn(isbn: string): Promise<Book | null> {
   return { isbn, titre: first("title").split(/\s+[:/]\s+/)[0].trim(), auteur: author, editeur: first("publisher").replace(/\s*\([^)]+\)\s*$/, ""), couverture_url: ark ? `https://catalogue.bnf.fr/couverture?appName=NE&idArk=ark:/${ark.replace("ark:/", "")}&couverture=1` : "", annee: first("date").match(/\d{4}/)?.[0] || "", resume: "", langue: language(first("language")), categorie: all("subject")[0] || "Autre", nb_pages: null };
 }
 
+async function crossrefByIsbn(isbn: string): Promise<Book | null> {
+  const response = await safeFetch(`https://api.crossref.org/works?filter=${encodeURIComponent(`isbn:${isbn},type:book`)}&rows=5`, {
+    headers: { "User-Agent": contactEmail ? `BiblESI/1.0 (mailto:${contactEmail})` : "BiblESI/1.0" },
+  });
+  const items = (await response.json())?.message?.items || [];
+  const item = items.find((entry: any) => entry.type === "book" && entry.ISBN?.some((value: string) => isbn13(value) === isbn13(isbn)));
+  if (!item?.title?.[0]) return null;
+  const authors = (item.author || []).map((author: any) => [author.given, author.family].filter(Boolean).join(" ")).filter(Boolean).join(", ");
+  return { isbn, titre: item.title[0], auteur: authors, editeur: item.publisher || "", couverture_url: "", annee: "", resume: "", langue: language(item.language || ""), categorie: "Autre", nb_pages: null };
+}
+
 function pick(...values: Array<string | number | null | undefined>) {
   return values.find((value) => value !== null && value !== undefined && value !== "" && value !== "Autre") ?? values.find((value) => value !== null && value !== undefined) ?? "";
 }
 
-function merge(isbn: string, google: Book | null, openLibrary: Book | null, bnf: Book | null): Book | null {
-  if (!google && !openLibrary && !bnf) return null;
+function merge(isbn: string, google: Book | null, openLibrary: Book | null, bnf: Book | null, crossref: Book | null): Book | null {
+  if (!google && !openLibrary && !bnf && !crossref) return null;
   const descriptions = [google?.resume, openLibrary?.resume, bnf?.resume].map((value) => String(value || ""));
-  return { isbn: pick(google?.isbn, openLibrary?.isbn, bnf?.isbn, isbn), titre: pick(bnf?.titre, google?.titre, openLibrary?.titre), auteur: pick(google?.auteur, bnf?.auteur, openLibrary?.auteur), editeur: pick(bnf?.editeur, google?.editeur, openLibrary?.editeur), couverture_url: pick(google?.couverture_url, openLibrary?.couverture_url, bnf?.couverture_url), annee: pick(bnf?.annee, google?.annee, openLibrary?.annee), resume: descriptions.reduce((best, value) => value.length > best.length ? value : best, ""), langue: pick(bnf?.langue, google?.langue, openLibrary?.langue), categorie: pick(google?.categorie, bnf?.categorie, openLibrary?.categorie, "Autre"), nb_pages: pick(google?.nb_pages, openLibrary?.nb_pages) };
+  return { isbn, titre: pick(bnf?.titre, google?.titre, openLibrary?.titre, crossref?.titre), auteur: pick(google?.auteur, bnf?.auteur, openLibrary?.auteur, crossref?.auteur), editeur: pick(bnf?.editeur, google?.editeur, openLibrary?.editeur, crossref?.editeur), couverture_url: pick(google?.couverture_url, openLibrary?.couverture_url, bnf?.couverture_url), annee: pick(bnf?.annee, google?.annee, openLibrary?.annee), resume: descriptions.reduce((best, value) => value.length > best.length ? value : best, ""), langue: pick(bnf?.langue, google?.langue, openLibrary?.langue, crossref?.langue), categorie: pick(google?.categorie, bnf?.categorie, openLibrary?.categorie, "Autre"), nb_pages: pick(google?.nb_pages, openLibrary?.nb_pages) };
 }
 
 function uniqueResults(books: Book[]) {
@@ -163,11 +184,12 @@ Deno.serve(async (request) => {
   const query = rawQuery.trim().slice(0, 160);
   if (!query) return reply(request, 400, { error: "Entrez un ISBN ou un titre." });
   const looksLikeBarcode = /^[\d\s-]{9,17}$/.test(query) || /^\d{9}[\dXx]$/.test(query.replace(/[-\s]/g, ""));
-  const isbn = normalizeIsbn(query);
+  const isbn = looksLikeBarcode ? normalizeIsbn(query) : null;
   if (looksLikeBarcode && !isbn) return reply(request, 400, { error: "ISBN invalide. Vérifiez le code-barres du livre." });
   if (!isbn) {
     const [googleResult, openLibraryResult] = await Promise.allSettled([googleByTitle(query), openLibraryByTitle(query)]);
     const results = uniqueResults([...(googleResult.status === "fulfilled" ? googleResult.value : []), ...(openLibraryResult.status === "fulfilled" ? openLibraryResult.value : [])]);
+    if (!results.length && [googleResult, openLibraryResult].some((result) => result.status === "rejected")) return reply(request, 503, { error: "Un ou plusieurs catalogues sont momentanément indisponibles. Réessayez dans quelques instants." });
     return results.length ? reply(request, 200, { results, source: "catalogues", sources: ["Google Books", "Open Library"] }) : reply(request, 404, { error: "Aucun livre trouvé. Essayez l'ISBN ou envoyez deux photos." });
   }
   // Ne sélectionner que les colonnes présentes dans le schéma de production.
@@ -177,18 +199,21 @@ Deno.serve(async (request) => {
   if (localBook) return reply(request, 200, { book: localBook, source: "catalogue" });
   const { data: cached } = await admin.from("bibli_book_lookup_cache").select("metadata, sources, found, failure_reason").eq("isbn", isbn).gt("expires_at", new Date().toISOString()).maybeSingle();
   if (cached?.found && cached.metadata) return reply(request, 200, { book: cached.metadata, source: "cache", sources: cached.sources });
-  if (cached && !cached.found) return reply(request, 404, { error: cached.failure_reason || "Aucun livre trouvé. Envoyez deux photos pour l'identifier plus tard." });
-  const [googleResult, openLibraryResult, bnfResult] = await Promise.allSettled([googleByIsbn(isbn), openLibraryByIsbn(isbn), bnfByIsbn(isbn)]);
+  // Les anciens échecs pouvaient être causés par une panne de catalogue :
+  // on les vérifie à nouveau au lieu de les considérer comme une absence certaine.
+  const [googleResult, openLibraryResult, bnfResult, crossrefResult] = await Promise.allSettled([googleByIsbn(isbn), openLibraryByIsbn(isbn), bnfByIsbn(isbn), crossrefByIsbn(isbn)]);
   const google = googleResult.status === "fulfilled" ? googleResult.value : null;
   const openLibrary = openLibraryResult.status === "fulfilled" ? openLibraryResult.value : null;
   const bnf = bnfResult.status === "fulfilled" ? bnfResult.value : null;
-  const book = merge(isbn, google, openLibrary, bnf);
-  const sources = [google && "Google Books", openLibrary && "Open Library", bnf && "BnF"].filter(Boolean);
+  const crossref = crossrefResult.status === "fulfilled" ? crossrefResult.value : null;
+  const book = merge(isbn, google, openLibrary, bnf, crossref);
+  const sources = [google && "Google Books", openLibrary && "Open Library", bnf && "BnF", crossref && "Crossref"].filter(Boolean);
+  const unavailable = [googleResult, openLibraryResult, bnfResult, crossrefResult].some((result) => result.status === "rejected");
   const now = new Date().toISOString();
   if (!book) {
-    await admin.from("bibli_book_lookup_cache").upsert({ isbn, metadata: null, sources: [], found: false, failure_reason: "Aucun résultat dans Google Books, Open Library ou BnF.", last_checked_at: now, expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(), updated_at: now });
+    if (unavailable) return reply(request, 503, { error: "Un ou plusieurs catalogues sont momentanément indisponibles. Réessayez dans quelques instants." });
     return reply(request, 404, { error: "Aucun livre trouvé. Envoyez deux photos pour qu'il soit identifié plus tard." });
   }
-  await admin.from("bibli_book_lookup_cache").upsert({ isbn, metadata: book, sources, found: true, failure_reason: null, last_checked_at: now, expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(), updated_at: now });
+  await admin.from("bibli_book_lookup_cache").upsert({ isbn, metadata: book, sources, found: true, failure_reason: null, last_checked_at: now, expires_at: new Date(Date.now() + 1000 * 60 * 60 * (unavailable ? 1 : 24 * 30)).toISOString(), updated_at: now });
   return reply(request, 200, { book, source: "catalogues", sources });
 });
