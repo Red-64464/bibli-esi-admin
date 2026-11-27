@@ -73,6 +73,7 @@ export default function LivreCard({
         {livre.emplacement && (
           <p className="text-xs text-biblio-muted">📍 {formatShelfLocation(livre.emplacement)}</p>
         )}
+        <p className="text-xs text-biblio-muted">Quantité : {livre.nb_exemplaires || 1}</p>
         {livre.nb_pages && (
           <p className="flex items-center gap-1 text-xs text-biblio-muted">
             <BookOpen className="w-3.5 h-3.5" /> {livre.nb_pages} pages
