@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, FileText, ImagePlus, Loader2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { compressImage, imageExtension, validateImageFile } from "../lib/images";
@@ -6,7 +6,13 @@ import { enqueueOfflineAction, shouldQueueWriteError } from "../lib/offlineQueue
 
 function PhotoField({ label, help, file, onChange }) {
   const inputRef = useRef(null);
-  const preview = file ? URL.createObjectURL(file) : "";
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!file) { setPreview(""); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   return (
     <div className="space-y-2">
@@ -51,6 +57,9 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
   const [shelfLetter, setShelfLetter] = useState("");
   const [notes, setNotes] = useState("");
   const [ocrText, setOcrText] = useState("");
+  const [suggestedTitle, setSuggestedTitle] = useState("");
+  const [suggestedAuthor, setSuggestedAuthor] = useState("");
+  const [processingAi, setProcessingAi] = useState(false);
   const [processingOcr, setProcessingOcr] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -74,6 +83,30 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
     }
   };
 
+  const readPhotosWithAi = async () => {
+    if (validateFile(cover) || validateFile(evidence)) return setError("Ajoutez les deux photos avant de lancer la lecture IA.");
+    setProcessingAi(true); setError("");
+    try {
+      const toDataUrl = (blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Photo illisible."));
+        reader.readAsDataURL(blob);
+      });
+      const images = await Promise.all([cover, evidence].map(async (file) => toDataUrl(await compressImage(file, { maxInputSizeMb: 8, maxSizeMB: 0.8, maxWidthOrHeight: 1600 }))));
+      const { data, error: lookupError } = await supabase.functions.invoke("bibli-book-lookup", { body: { mode: "photo", images } });
+      if (lookupError) {
+        const details = await lookupError.context?.json?.().catch(() => null);
+        throw new Error(details?.error || "Lecture IA indisponible.");
+      }
+      setSuggestedTitle(data?.suggestion?.titre || "");
+      setSuggestedAuthor(data?.suggestion?.auteur || "");
+      if (!data?.suggestion?.titre && !data?.suggestion?.auteur) setError("L’IA n’a pas pu lire de titre ou d’auteur. Les photos peuvent quand même être enregistrées.");
+    } catch (err) {
+      setError(err.message || "Lecture IA indisponible. Vous pouvez conserver les photos.");
+    } finally { setProcessingAi(false); }
+  };
+
   const save = async (event) => {
     event.preventDefault();
     if (!shelfNumber || !shelfLetter) {
@@ -84,10 +117,12 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
     if (fileError) return setError(fileError);
     setSaving(true);
     setError("");
+    // Garder le même identifiant si une panne survient après l'envoi d'une photo.
+    const id = crypto.randomUUID();
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) throw new Error("Votre session a expiré. Reconnectez-vous.");
-      const id = crypto.randomUUID();
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Votre session a expiré. Reconnectez-vous.");
       const compressedCover = await compressImage(cover, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
       const compressedEvidence = await compressImage(evidence, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
       const coverPath = `${id}/cover.${imageExtension(compressedCover)}`;
@@ -96,6 +131,8 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
         id,
         raw_scan: rawScan || null,
         isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(rawScan.replace(/[^0-9Xx]/g, "").toUpperCase()) ? rawScan.replace(/[^0-9Xx]/g, "").toUpperCase() : null,
+        titre_suggere: suggestedTitle.trim() || null,
+        auteur_suggere: suggestedAuthor.trim() || null,
         emplacement: `${shelfNumber}${shelfLetter}`,
         notes: notes.trim() || null,
         cover_path: coverPath,
@@ -119,7 +156,6 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
     } catch (err) {
       if (shouldQueueWriteError(err)) {
         try {
-          const id = crypto.randomUUID();
           const compressedCover = await compressImage(cover, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
           const compressedEvidence = await compressImage(evidence, { maxInputSizeMb: 8, maxSizeMB: 0.9, maxWidthOrHeight: 1600 });
           const coverPath = `${id}/cover.${imageExtension(compressedCover)}`;
@@ -132,6 +168,8 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
               id,
               raw_scan: rawScan || null,
               isbn: /^(?:\d{9}[\dX]|\d{13})$/.test(isbn) ? isbn : null,
+              titre_suggere: suggestedTitle.trim() || null,
+              auteur_suggere: suggestedAuthor.trim() || null,
               emplacement: `${shelfNumber}${shelfLetter}`,
               notes: notes.trim() || null,
               cover_path: coverPath,
@@ -147,7 +185,7 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
               evidence: { path: evidencePath, blob: compressedEvidence },
             },
           });
-          onQueued?.();
+          onQueued?.({ offline: true });
           onClose();
           return;
         } catch (queueError) {
@@ -177,6 +215,12 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
           <div className="grid gap-5 sm:grid-cols-2">
             <PhotoField label="1. Recto : couverture du livre" help="Cadrez toute la couverture, nette et bien éclairée." file={cover} onChange={(file) => { setCover(file); setError(""); }} />
             <PhotoField label="2. Verso : dos du livre" help="Photographiez le dos avec son ISBN ; si besoin, utilisez la page de titre." file={evidence} onChange={(file) => { setEvidence(file); setError(""); }} />
+          </div>
+          <div className="space-y-3 rounded-lg border border-white/10 p-3">
+            <button type="button" disabled={processingAi || !cover || !evidence} onClick={readPhotosWithAi} className="flex items-center gap-2 text-sm text-biblio-accent disabled:opacity-50">{processingAi && <Loader2 className="h-4 w-4 animate-spin" />}{processingAi ? "Lecture IA en cours…" : "Proposer le titre et l’auteur avec l’IA"}</button>
+            <p className="text-xs text-biblio-muted">Les deux photos sont envoyées à OpenAI uniquement si tu utilises ce bouton. Vérifie les propositions avant de les enregistrer.</p>
+            <label className="block text-xs text-biblio-muted">Titre proposé (modifiable)<input value={suggestedTitle} onChange={(event) => setSuggestedTitle(event.target.value)} maxLength={220} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" /></label>
+            <label className="block text-xs text-biblio-muted">Auteur proposé (modifiable)<input value={suggestedAuthor} onChange={(event) => setSuggestedAuthor(event.target.value)} maxLength={220} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" /></label>
           </div>
           <button type="button" disabled={processingOcr || !cover || !evidence} onClick={runOcr} className="flex items-center gap-2 text-sm text-biblio-accent disabled:opacity-50">
             {processingOcr ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

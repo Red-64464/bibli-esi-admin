@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
 import { getPretStatut, joursRetard, formatDate } from "../lib/utils";
+import { formatShelfLocation } from "../lib/shelfLocation";
 import {
   LayoutDashboard,
   BookOpen,
@@ -473,7 +474,7 @@ export default function Dashboard() {
                       {l.categorie || "-"}
                     </td>
                     <td className="px-3 py-2 text-sm text-biblio-muted">
-                      {l.emplacement || "-"}
+                      {formatShelfLocation(l.emplacement) || "-"}
                     </td>
                   </tr>
                 ))}

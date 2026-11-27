@@ -1,4 +1,5 @@
 import { Trash2, Pencil, History, QrCode, Copy, Plus, BookOpen } from "lucide-react";
+import { formatShelfLocation } from "../lib/shelfLocation";
 
 const STATUT_STYLE = {
   disponible: "bg-biblio-success/20 text-biblio-success",
@@ -70,7 +71,7 @@ export default function LivreCard({
           ISBN : {livre.isbn}
         </p>
         {livre.emplacement && (
-          <p className="text-xs text-biblio-muted">📍 {livre.emplacement}</p>
+          <p className="text-xs text-biblio-muted">📍 {formatShelfLocation(livre.emplacement)}</p>
         )}
         {livre.nb_pages && (
           <p className="flex items-center gap-1 text-xs text-biblio-muted">

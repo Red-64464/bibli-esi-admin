@@ -2276,8 +2276,9 @@ export default function Livres() {
         <UnresolvedBookModal
           rawScan={unresolvedRawScan}
           onClose={() => setShowUnresolvedBook(false)}
-          onQueued={() => {
+          onQueued={(result) => {
             setShowUnresolvedBook(false);
+            if (result?.offline) setError("Livre enregistré sur cet appareil : il sera synchronisé au retour de la connexion. Ne videz pas les données du navigateur avant la synchronisation.");
             fetchPendingCount();
           }}
         />

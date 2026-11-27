@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { usePermissions } from "../contexts/PermissionsContext";
 import ConfirmModal from "./ConfirmModal";
 import Pagination from "./Pagination";
+import { formatShelfLocation } from "../lib/shelfLocation";
 
 const PAGE_SIZE = 20;
 const PHOTO_URL_LIFETIME = 1800;
@@ -230,7 +231,7 @@ export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
                 <BookPhoto key={`${book.id}-cover-${book.coverUrl}`} url={book.coverUrl} label="Couverture" onClick={() => openPreview(book, 0)} onRetry={retryPhotos} eager={index < 2} />
                 <BookPhoto key={`${book.id}-evidence-${book.evidenceUrl}`} url={book.evidenceUrl} label="Dos ou code-barres" onClick={() => openPreview(book, book.coverUrl ? 1 : 0)} onRetry={retryPhotos} eager={index < 2} />
               </div>
-              <div className="mt-3 space-y-1"><p className="font-medium">{book.titre_suggere || "Titre non encore identifié"}</p><p className="text-xs text-biblio-muted">{book.auteur_suggere || "Auteur inconnu"}{book.isbn ? ` · ISBN ${book.isbn}` : ""}</p>{book.emplacement && <p className="text-xs text-biblio-muted">Rangée : {book.emplacement.replace(/^([1-5])([A-E])$/, "$2$1")}</p>}<p className="text-xs text-biblio-accent">{STATUS[book.status] || book.status}</p>{book.notes && <p className="text-xs text-biblio-muted">Note : {book.notes}</p>}</div>
+              <div className="mt-3 space-y-1"><p className="font-medium">{book.titre_suggere || "Titre non encore identifié"}</p><p className="text-xs text-biblio-muted">{book.auteur_suggere || "Auteur inconnu"}{book.isbn ? ` · ISBN ${book.isbn}` : ""}</p>{book.emplacement && <p className="text-xs text-biblio-muted">Rangée : {formatShelfLocation(book.emplacement)}</p>}<p className="text-xs text-biblio-accent">{STATUS[book.status] || book.status}</p>{book.notes && <p className="text-xs text-biblio-muted">Note : {book.notes}</p>}</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {book.isbn && (
                   <button type="button" onClick={() => copyIsbn(book.isbn)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-biblio-text hover:bg-white/20">

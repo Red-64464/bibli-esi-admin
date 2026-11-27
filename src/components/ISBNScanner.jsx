@@ -171,19 +171,24 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    // Permet de réessayer la même photo après une erreur.
+    event.target.value = "";
     setStatus("loading"); setErrorMsg(""); await stopEverything();
+    let url;
     try {
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      const url = URL.createObjectURL(file);
+      url = URL.createObjectURL(file);
       const image = new Image();
       image.src = url;
       await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; });
       const result = await reader.decodeFromImageElement(image);
-      URL.revokeObjectURL(url);
+      if (mode === "isbn" && !normalizeISBN(result.getText())) throw new Error("invalid_isbn");
       handleDetected(result.getText());
     } catch {
       setStatus("error"); setErrorMsg("Aucun code valide détecté. Prenez une photo nette, sans reflet, en cadrant tout le code-barres.");
+    } finally {
+      if (url) URL.revokeObjectURL(url);
     }
   };
 

@@ -1,5 +1,6 @@
 import { CalendarDays, CircleUserRound, FileText, LibraryBig, Mail, X } from "lucide-react";
 import { formatDate, getPretStatut } from "../lib/utils";
+import { formatShelfLocation } from "../lib/shelfLocation";
 
 function Detail({ label, value, icon: Icon }) {
   return (
@@ -56,7 +57,7 @@ export default function PretDetailModal({ pret, onClose }) {
                 <Detail label="Éditeur" value={livre.editeur} />
                 <Detail label="Année" value={livre.annee} />
                 <Detail label="Catégorie" value={livre.categorie} />
-                <Detail label="Emplacement" value={livre.emplacement} />
+                <Detail label="Emplacement" value={formatShelfLocation(livre.emplacement)} />
               </div>
             </div>
           </div>

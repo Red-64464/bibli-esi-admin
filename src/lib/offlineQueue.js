@@ -40,13 +40,15 @@ export async function deleteOfflineAction(id) {
   emitQueueChange();
 }
 
-async function uploadBlob(bucketName, path, blob) {
+async function uploadBlob(bucketName, path, blob, { allowExisting = false } = {}) {
   const { error } = await supabase.storage.from(bucketName).upload(path, blob, {
     contentType: blob?.type || "image/jpeg",
     cacheControl: "86400",
     upsert: false,
   });
-  if (error) throw error;
+  // Un envoi précédent peut avoir réussi juste avant une coupure. Le chemin
+  // utilise un UUID propre à l'action : conserver alors le fichier existant.
+  if (error && !(allowExisting && String(error.statusCode || error.status) === "409")) throw error;
 }
 
 async function publicUrl(bucketName, path) {
@@ -70,9 +72,19 @@ async function replayAction(action) {
   }
 
   if (action.type === "pending-book:create") {
-    await uploadBlob("bibli-pending-books", action.files.cover.path, action.files.cover.blob);
-    await uploadBlob("bibli-pending-books", action.files.evidence.path, action.files.evidence.blob);
     const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) throw new Error("Reconnectez-vous pour synchroniser le livre.");
+    const { data: existing, error: checkError } = await supabase.from("bibli_pending_books")
+      .select("id, created_by, cover_path, evidence_path").eq("id", action.payload.id).maybeSingle();
+    if (checkError) throw checkError;
+    if (existing) {
+      if (existing.created_by !== authData.user.id || existing.cover_path !== action.files.cover.path || existing.evidence_path !== action.files.evidence.path) {
+        throw new Error("La fiche existante ne correspond pas à l'envoi en attente.");
+      }
+      return;
+    }
+    await uploadBlob("bibli-pending-books", action.files.cover.path, action.files.cover.blob, { allowExisting: true });
+    await uploadBlob("bibli-pending-books", action.files.evidence.path, action.files.evidence.blob, { allowExisting: true });
     const { error } = await supabase.from("bibli_pending_books").insert({
       ...action.payload,
       created_by: action.payload.created_by || authData?.user?.id || null,
