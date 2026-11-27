@@ -183,6 +183,41 @@ function allowAiRequest(userId: string) {
   return true;
 }
 
+// Une IA peut affirmer à tort qu'un ISBN est présent sur une page. Vérifier
+// indépendamment une page d'un domaine connu avant de montrer sa proposition.
+const bookSourceDomains = ["abebooks.com", "vitalsource.com", "agapea.com", "betterworldbooks.com", "worldcat.org", "openlibrary.org", "bnf.fr", "eyrolles.com", "decitre.fr", "fnac.com", "cultura.com", "bookshop.org"];
+async function verifyAiSource(url: string, isbn: string, title: string): Promise<{ title: string; url: string } | null> {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return null; }
+  const host = parsed.hostname.toLowerCase();
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || (parsed.port && parsed.port !== "443") || !bookSourceDomains.some((domain) => host === domain || host.endsWith(`.${domain}`))) return null;
+  if (!decodeURIComponent(parsed.pathname + parsed.search).includes(isbn)) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(parsed.toString(), { signal: controller.signal, redirect: "error", headers: { "User-Agent": "BiblESI/1.0" } });
+    if (!response.ok || !response.body) return null;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let page = "";
+    while (page.length < 1_000_000) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      page += decoder.decode(chunk.value, { stream: true });
+    }
+    await reader.cancel().catch(() => undefined);
+    const words = title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[a-z0-9]{3,}/g)?.slice(0, 4) || [];
+    const plainPage = page.replace(/<[^>]*>/g, " ").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const isbnPattern = new RegExp([...isbn].join("[\\s-]*"));
+    if (!isbnPattern.test(plainPage) || words.length === 0 || !words.every((word) => plainPage.includes(word))) return null;
+    return { title: host, url: parsed.toString() };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function aiWebBook(isbn: string, userId: string): Promise<{ book: Book; sources: { title: string; url: string }[] } | null> {
   if (!openaiApiKey || !allowAiRequest(userId)) return null;
   const names = ["titre", "auteur", "editeur", "annee", "isbn_source"];
@@ -208,9 +243,11 @@ async function aiWebBook(isbn: string, userId: string): Promise<{ book: Book; so
     if (!content?.text) return null;
     const fields = JSON.parse(content.text);
     if (typeof fields.titre !== "string" || !fields.titre.trim() || isbn13(fields.isbn_source || "") !== isbn13(isbn)) return null;
-    const sources = outputs.flatMap((item: any) => item.type === "web_search_call" ? item.action?.sources || [] : [])
+    const candidateSources = outputs.flatMap((item: any) => item.type === "web_search_call" ? item.action?.sources || [] : [])
       .filter((entry: any) => entry.type === "url" && typeof entry.url === "string" && /^https?:\/\//i.test(entry.url))
-      .slice(0, 8).map((entry: any) => ({ title: new URL(entry.url).hostname, url: entry.url }));
+      .slice(0, 12);
+    const verified = await Promise.all(candidateSources.map((entry: any) => verifyAiSource(entry.url, isbn13(isbn) || isbn, fields.titre)));
+    const sources = verified.filter((source): source is { title: string; url: string } => source !== null).slice(0, 5);
     if (!sources.length) return null;
     const safeText = (value: unknown, max = 220) => typeof value === "string" ? value.trim().slice(0, max) : "";
     return { book: { isbn, titre: safeText(fields.titre), auteur: safeText(fields.auteur), editeur: safeText(fields.editeur), annee: /^\d{4}$/.test(fields.annee || "") ? fields.annee : "", categorie: "Autre" }, sources };
