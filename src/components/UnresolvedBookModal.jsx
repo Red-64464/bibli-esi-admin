@@ -167,7 +167,7 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold"><Camera className="h-5 w-5 text-biblio-accent" /> {rawScan ? "Livre à identifier plus tard" : "Ajouter un livre à identifier"}</h2>
-            <p className="mt-1 text-sm text-biblio-muted">{rawScan ? "Aucun catalogue gratuit n'a reconnu ce livre." : "Ajoutez les deux photos du livre pour que l'équipe puisse l'identifier."} Les photos sont privées et visibles seulement par le personnel autorisé.</p>
+            <p className="mt-1 text-sm text-biblio-muted">{rawScan ? "Le livre n'a pas pu être identifié : il est peut-être absent des catalogues ou certains sont indisponibles." : "Ajoutez les deux photos du livre pour que l'équipe puisse l'identifier."} Les photos sont privées et visibles seulement par le personnel autorisé.</p>
           </div>
           <button type="button" onClick={onClose} className="text-biblio-muted hover:text-biblio-danger" aria-label="Fermer"><X className="h-5 w-5" /></button>
         </div>

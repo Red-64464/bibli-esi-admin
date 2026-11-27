@@ -30,6 +30,9 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
       if (lookupError) {
         const details = await lookupError.context?.json?.().catch(() => null);
         setError(details?.error || "Aucun livre trouvé avec ces informations.");
+        // Une absence ou une indisponibilité des catalogues permet de mettre
+        // le livre de côté, sans confondre une panne avec un ISBN absent.
+        if ([404, 503].includes(lookupError.context?.status)) onUnresolved?.(value);
       } else if (data?.book) {
         setBookData(data.book);
         setLookupSource(data.source || "catalogues");
@@ -37,6 +40,7 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
         setResults(data.results);
       } else {
         setError("Aucun livre trouvé. Envoyez deux photos pour l’identifier plus tard.");
+        onUnresolved?.(value);
       }
     } catch {
       setError("Erreur de connexion. Vérifiez votre connexion internet.");
