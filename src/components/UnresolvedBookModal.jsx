@@ -172,11 +172,11 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
           <button type="button" onClick={onClose} className="text-biblio-muted hover:text-biblio-danger" aria-label="Fermer"><X className="h-5 w-5" /></button>
         </div>
         <div className="space-y-5 p-6">
-          {rawScan && <p className="rounded-lg bg-white/5 p-3 font-mono text-xs text-biblio-muted">Code lu : {rawScan}</p>}
+          {rawScan && <p className="rounded-lg bg-white/5 p-3 font-mono text-xs text-biblio-muted">ISBN / code scanné (rempli automatiquement) : {rawScan}</p>}
           {error && <p className="flex gap-2 rounded-lg bg-biblio-danger/10 p-3 text-sm text-biblio-danger"><AlertCircle className="h-4 w-4 shrink-0" />{error}</p>}
           <div className="grid gap-5 sm:grid-cols-2">
-            <PhotoField label="1. Couverture du livre" help="Cadrez toute la couverture, nette et bien éclairée." file={cover} onChange={(file) => { setCover(file); setError(""); }} />
-            <PhotoField label="2. Dos, code ou page de titre" help="Prenez le code-barres ISBN ou la page qui indique le titre et l'auteur." file={evidence} onChange={(file) => { setEvidence(file); setError(""); }} />
+            <PhotoField label="1. Recto : couverture du livre" help="Cadrez toute la couverture, nette et bien éclairée." file={cover} onChange={(file) => { setCover(file); setError(""); }} />
+            <PhotoField label="2. Verso : dos du livre" help="Photographiez le dos avec son ISBN ; si besoin, utilisez la page de titre." file={evidence} onChange={(file) => { setEvidence(file); setError(""); }} />
           </div>
           <button type="button" disabled={processingOcr || !cover || !evidence} onClick={runOcr} className="flex items-center gap-2 text-sm text-biblio-accent disabled:opacity-50">
             {processingOcr ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

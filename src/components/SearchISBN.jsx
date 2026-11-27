@@ -12,6 +12,8 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
   const [error, setError] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
+  const [shelfLetter, setShelfLetter] = useState("");
+  const [shelfNumber, setShelfNumber] = useState("");
 
   const handleSearch = async (override) => {
     const value = (override ?? query).trim();
@@ -23,6 +25,8 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
     setLookupSource("");
     setSelectedCategory("");
     setCustomCategory("");
+    setShelfLetter("");
+    setShelfNumber("");
     try {
       // Les requêtes catalogues passent toutes par l'Edge Function : aucune
       // clé fournisseur et aucun appel externe ne sont exposés au navigateur.
@@ -62,13 +66,19 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
       setError("Choisissez une catégorie ou indiquez le nom de la nouvelle catégorie.");
       return;
     }
-    onBookFound({ ...(book || bookData), categorie });
+    if (Boolean(shelfLetter) !== Boolean(shelfNumber)) {
+      setError("Choisissez une lettre et un chiffre pour l'emplacement, ou laissez les deux vides.");
+      return;
+    }
+    onBookFound({ ...(book || bookData), categorie, emplacement: shelfLetter ? `${shelfNumber}${shelfLetter}` : null });
     setBookData(null);
     setResults([]);
     setLookupSource("");
     setQuery("");
     setSelectedCategory("");
     setCustomCategory("");
+    setShelfLetter("");
+    setShelfNumber("");
   };
 
   const selectResult = (book) => {
@@ -85,7 +95,7 @@ export default function SearchISBN({ onBookFound, categories = [], defaultIsbn, 
         <button onClick={() => handleSearch()} disabled={loading || !query.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-biblio-accent px-5 py-3 font-medium text-white transition-colors hover:bg-biblio-accent-hover disabled:opacity-50 sm:w-auto sm:px-6">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Rechercher</button>
       </div>
       {error && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-biblio-danger/10 p-3 text-sm text-biblio-danger"><AlertCircle className="h-4 w-4 shrink-0" /><span className="flex-1">{error}</span>{onUnresolved && <button type="button" onClick={() => onUnresolved(query)} className="rounded-md border border-biblio-danger/40 px-3 py-1.5 text-xs font-medium hover:bg-biblio-danger/10">Identifier avec 2 photos</button>}</div>}
-      {bookData && <BookResult book={bookData} source={lookupSource} categories={categories} selectedCategory={selectedCategory} customCategory={customCategory} onCategoryChange={(value) => { setSelectedCategory(value); if (value !== OTHER_CATEGORY) setCustomCategory(""); }} onCustomCategoryChange={setCustomCategory} onConfirm={() => confirm()} />}
+      {bookData && <><BookResult book={bookData} source={lookupSource} categories={categories} selectedCategory={selectedCategory} customCategory={customCategory} onCategoryChange={(value) => { setSelectedCategory(value); if (value !== OTHER_CATEGORY) setCustomCategory(""); }} onCustomCategoryChange={setCustomCategory} onConfirm={() => confirm()} />{lookupSource !== "catalogue" && <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm font-medium">Emplacement sur l'étagère (facultatif)</legend><label className="text-sm">Lettre<select aria-label="Lettre de l'emplacement" value={shelfLetter} onChange={(event) => setShelfLetter(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2"><option value="">Choisir A à E</option>{["A", "B", "C", "D", "E"].map((letter) => <option key={letter} value={letter}>{letter}</option>)}</select></label><label className="text-sm">Chiffre<select aria-label="Chiffre de l'emplacement" value={shelfNumber} onChange={(event) => setShelfNumber(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2"><option value="">Choisir 1 à 5</option>{[1, 2, 3, 4, 5].map((number) => <option key={number} value={number}>{number}</option>)}</select></label><p className="col-span-2 text-xs text-biblio-muted">{shelfLetter && shelfNumber ? `Emplacement : ${shelfNumber}${shelfLetter}` : "Exemple : 1A"}</p></fieldset>}</>}
       {results.length > 0 && <div className="space-y-2"><p className="text-xs text-biblio-muted">{results.length} résultat(s) : choisissez le bon livre, puis sa catégorie avant l&apos;ajout.</p>{results.map((book, index) => <button key={`${book.isbn}-${index}`} onClick={() => selectResult(book)} className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3 text-left transition-colors hover:bg-white/10">{book.couverture_url ? <img src={book.couverture_url} alt="" className="h-14 w-10 rounded object-contain" /> : <span className="h-14 w-10 rounded bg-white/10" />}<span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-biblio-text">{book.titre}</span><span className="block truncate text-xs text-biblio-muted">{book.auteur || "Auteur inconnu"}</span><span className="text-xs text-biblio-muted">{book.annee}{book.editeur ? ` · ${book.editeur}` : ""}</span></span><CheckCircle className="h-5 w-5 shrink-0 text-biblio-success" /></button>)}</div>}
     </div>
   );
