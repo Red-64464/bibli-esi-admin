@@ -284,13 +284,13 @@ export default function Layout({ children }) {
               </div>
             </div>
           )}
-          <button
+          {session?.username !== "acces-direct" && <button
             onClick={signOut}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-biblio-muted hover:bg-biblio-danger/10 hover:text-biblio-danger transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Déconnexion
-          </button>
+          </button>}
         </div>
       </aside>
 

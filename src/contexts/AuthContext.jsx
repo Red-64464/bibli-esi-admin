@@ -26,8 +26,18 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data: { session: authSession } }) => {
-      if (active) loadProfile(authSession?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session: authSession } }) => {
+      if (!active) return;
+      if (authSession?.user) { await loadProfile(authSession.user); return; }
+      try {
+        const response = await fetch('/direct-access.json', { cache: 'no-store' });
+        if (!response.ok) { setSession(null); return; }
+        const config = await response.json();
+        if (!config.email || !config.password) { setSession(null); return; }
+        const { data, error } = await supabase.auth.signInWithPassword(config);
+        if (error || !data.user) { setSession(null); return; }
+        if (active) await loadProfile(data.user);
+      } catch { if (active) setSession(null); }
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, authSession) => {
       if (active) loadProfile(authSession?.user ?? null);
