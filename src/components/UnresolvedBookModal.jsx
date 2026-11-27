@@ -199,7 +199,7 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
                 </select>
               </label>
             </div>
-            <p className="text-xs text-biblio-muted">Exemple : 1E</p>
+            <p className="text-xs text-biblio-muted">{shelfLetter && shelfNumber ? `Rangée choisie : ${shelfLetter}${shelfNumber}` : "Exemple : A1"}</p>
           </fieldset>
           <label className="block text-xs font-medium text-biblio-muted">Note pour l'équipe (optionnel)<textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 h-20 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-biblio-text" placeholder="Ex. Édition abîmée, titre difficile à lire…" /></label>
         </div>
