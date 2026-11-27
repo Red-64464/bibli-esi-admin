@@ -23,24 +23,22 @@ export const CATEGORIES = [
   "Littérature",
   "Sciences",
   "Technologie & Ingénierie",
-  "Autre",
 ];
 
-export const OTHER_CATEGORY = "Autre";
+export const CREATE_CATEGORY = "__create_category__";
 
-export const normaliseCategoryName = (value = "") =>
-  value.replace(/\s+/g, " ").trim();
+const categoryName = (value = "") => {
+  const name = value.replace(/\s+/g, " ").trim();
+  return /^autres?$/i.test(name) ? "" : name;
+};
 
 export const getSelectableCategories = (savedCategories = []) => {
-  const categories = [
-    ...CATEGORIES.filter((category) => category !== OTHER_CATEGORY),
-    ...savedCategories,
-  ];
+  const categories = [...CATEGORIES, ...savedCategories];
   const uniqueByName = new Map();
 
   categories.forEach((category) => {
-    const name = normaliseCategoryName(category);
-    if (name && name.localeCompare(OTHER_CATEGORY, "fr", { sensitivity: "accent" }) !== 0) {
+    const name = categoryName(category);
+    if (name) {
       const key = name.toLocaleLowerCase("fr-FR");
       if (!uniqueByName.has(key)) uniqueByName.set(key, name);
     }
@@ -49,17 +47,13 @@ export const getSelectableCategories = (savedCategories = []) => {
   return [...uniqueByName.values()].sort((left, right) => left.localeCompare(right, "fr"));
 };
 
-export const resolveCategorySelection = (selection, customCategory = "") => {
-  if (selection !== OTHER_CATEGORY) return normaliseCategoryName(selection);
-
-  const category = normaliseCategoryName(customCategory);
-  return category.toLocaleLowerCase("fr-FR") === OTHER_CATEGORY.toLocaleLowerCase("fr-FR") ? "" : category;
-};
+export const resolveCategorySelection = (selection, customCategory = "") =>
+  categoryName(selection === CREATE_CATEGORY ? customCategory : selection);
 
 /**
  * Convertit une catégorie brute (souvent en anglais, issue de Google Books
  * ou d'un import CSV) vers la catégorie française normalisée la plus proche.
- * Retourne une chaîne vide si raw est vide (l'admin choisira manuellement).
+ * Retourne une chaîne vide si aucune catégorie ne correspond.
  */
 export const normalizeCategory = (raw) => {
   if (!raw || !raw.trim()) return "";
@@ -242,5 +236,5 @@ export const normalizeCategory = (raw) => {
 
   if (lower.includes("science")) return "Sciences";
 
-  return "Autre";
+  return "";
 };

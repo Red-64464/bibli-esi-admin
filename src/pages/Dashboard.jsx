@@ -265,21 +265,38 @@ export default function Dashboard() {
       count,
     }));
 
-  const categoriesMap = {};
-  livres.forEach((l) => {
-    const cat = l.categorie || "Non classe";
-    categoriesMap[cat] = (categoriesMap[cat] || 0) + 1;
+  const categoriesMap = new Map();
+  livres.forEach(({ categorie }) => {
+    const name = categorie?.trim() || "Non classé";
+    categoriesMap.set(name, (categoriesMap.get(name) || 0) + 1);
   });
-  const categoriesData = Object.entries(categoriesMap)
-    .sort((a, b) => b[1] - a[1])
+  const categoriesData = [...categoriesMap]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"))
     .map(([name, value]) => ({ name, value }));
-  const categoryChartData = categoriesData.slice(0, 6);
-  if (categoriesData.length > 6) {
-    categoryChartData.push({
-      name: "Autres",
-      value: categoriesData.slice(6).reduce((total, category) => total + category.value, 0),
-    });
-  }
+  const categoryBreakdown = categoriesData.length ? (
+    <ul
+      aria-label="Répartition des livres par catégorie"
+      tabIndex={0}
+      className="max-h-72 space-y-3 overflow-y-auto pr-2"
+    >
+      {categoriesData.map(({ name, value }) => (
+        <li key={name} className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="min-w-0 break-words">{name}</span>
+            <span className="shrink-0 tabular-nums text-biblio-muted">{value}</span>
+          </div>
+          <div aria-hidden="true" className="h-1.5 rounded-full bg-biblio-accent/10">
+            <div
+              className="h-full rounded-full bg-biblio-accent/70"
+              style={{ width: `${(value / categoriesData[0].value) * 100}%` }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p className="text-sm text-biblio-muted">Aucune catégorie définie</p>
+  );
 
   const lecteurMap = {};
   prets.forEach((p) => {
@@ -375,34 +392,9 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <p className="text-sm font-medium text-biblio-muted mb-3 flex items-center gap-1">
-                <Tag className="w-4 h-4" /> Par categorie
+                <Tag className="w-4 h-4" /> Par catégorie
               </p>
-              <div className="space-y-2">
-                {categoriesData.slice(0, 8).map((c) => (
-                  <div
-                    key={c.name}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="text-sm truncate">{c.name}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div
-                        className="h-1.5 bg-biblio-accent/60 rounded-full"
-                        style={{
-                          width: `${(c.value / (categoriesData[0]?.value || 1)) * 80}px`,
-                        }}
-                      />
-                      <span className="text-sm text-biblio-muted w-6 text-right">
-                        {c.value}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {categoriesData.length === 0 && (
-                  <p className="text-sm text-biblio-muted">
-                    Aucune categorie definie
-                  </p>
-                )}
-              </div>
+              {categoryBreakdown}
             </div>
             <div>
               <p className="text-sm font-medium text-biblio-muted mb-3">
@@ -966,45 +958,10 @@ export default function Dashboard() {
         </div>
 
         <div className="min-w-0 bg-biblio-card rounded-xl border border-white/10 p-5 sm:p-6">
-          <h2 className="dashboard-chart-title mb-1 flex items-center gap-2">
+          <h2 className="dashboard-chart-title mb-4 flex items-center gap-2">
             <Tag className="w-4 h-4 shrink-0 text-biblio-accent" /> Livres par catégorie
           </h2>
-          <p className="mb-4 text-xs text-biblio-muted">
-            {categoriesData.length > 6 ? "6 principales et les autres" : "Répartition du catalogue"}
-          </p>
-          {categoriesData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(190, categoryChartData.length * 34 + 28)}>
-              <BarChart
-                layout="vertical"
-                data={categoryChartData}
-                margin={{ top: 2, right: 8, bottom: 0, left: 0 }}
-                barCategoryGap="28%"
-              >
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={112}
-                  tickFormatter={(name) => name.length > 17 ? `${name.slice(0, 16)}…` : name}
-                  tick={{ fill: "var(--color-biblio-muted)", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<DarkTooltip />} cursor={{ fill: "var(--library-soft)" }} />
-                <Bar dataKey="value" fill="var(--color-biblio-accent)" radius={[0, 5, 5, 0]} maxBarSize={19} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-48 flex items-center justify-center text-sm text-biblio-muted">
-              Aucune categorie definie
-            </div>
-          )}
+          {categoryBreakdown}
         </div>
       </div>
 

@@ -29,7 +29,7 @@ import SearchISBN from "../components/SearchISBN";
 import UnresolvedBookModal from "../components/UnresolvedBookModal";
 import PendingBooksModal from "../components/PendingBooksModal";
 import {
-  OTHER_CATEGORY,
+  CREATE_CATEGORY,
   getSelectableCategories,
   normalizeCategory,
   resolveCategorySelection,
@@ -1000,7 +1000,16 @@ export default function Livres() {
     setError("");
     try {
       const invalidRows = [];
+      const categoriesByName = new Map(
+        getSelectableCategories(allCategories).map((name) => [name.toLocaleLowerCase("fr-FR"), name]),
+      );
       const candidates = csvRows.flatMap((row, index) => {
+        const originalCategory = row.categorie?.trim() || "";
+        const category = resolveCategorySelection(originalCategory);
+        if (originalCategory && !category) {
+          invalidRows.push(`ligne ${index + 2} : indiquez une catégorie précise`);
+          return [];
+        }
         const { data, error: validationError } = parseOrMessage(bookSchema, {
           titre: row.titre || "",
           auteur: row.auteur || null,
@@ -1009,8 +1018,9 @@ export default function Livres() {
           annee: row.annee || null,
           langue: row.langue || null,
           categorie:
-            normalizeCategory(row.categorie?.trim() || "") ||
-            row.categorie?.trim() ||
+            categoriesByName.get(category.toLocaleLowerCase("fr-FR")) ||
+            normalizeCategory(category) ||
+            category ||
             null,
           emplacement: row.emplacement || null,
           tags: [],
@@ -1690,7 +1700,7 @@ export default function Livres() {
                     value={manualForm.categorie}
                     onChange={(e) => {
                       setManualForm({ ...manualForm, categorie: e.target.value });
-                      if (e.target.value !== OTHER_CATEGORY) setManualCustomCategory("");
+                      if (e.target.value !== CREATE_CATEGORY) setManualCustomCategory("");
                     }}
                     className={INPUT_CLASS}
                     style={{ colorScheme: "dark" }}
@@ -1701,9 +1711,9 @@ export default function Livres() {
                         {c}
                       </option>
                     ))}
-                    <option value={OTHER_CATEGORY}>Autre (créer une catégorie)</option>
+                    <option value={CREATE_CATEGORY}>Créer une catégorie…</option>
                   </select>
-                  {manualForm.categorie === OTHER_CATEGORY && (
+                  {manualForm.categorie === CREATE_CATEGORY && (
                     <input
                       value={manualCustomCategory}
                       onChange={(e) => setManualCustomCategory(e.target.value)}
@@ -1966,7 +1976,7 @@ export default function Livres() {
                     value={editForm.categorie}
                     onChange={(e) => {
                       setEditForm({ ...editForm, categorie: e.target.value });
-                      if (e.target.value !== OTHER_CATEGORY) setEditCustomCategory("");
+                      if (e.target.value !== CREATE_CATEGORY) setEditCustomCategory("");
                     }}
                     className={INPUT_CLASS}
                     style={{ colorScheme: "dark" }}
@@ -1977,9 +1987,9 @@ export default function Livres() {
                         {c}
                       </option>
                     ))}
-                    <option value={OTHER_CATEGORY}>Autre (créer une catégorie)</option>
+                    <option value={CREATE_CATEGORY}>Créer une catégorie…</option>
                   </select>
-                  {editForm.categorie === OTHER_CATEGORY && (
+                  {editForm.categorie === CREATE_CATEGORY && (
                     <input
                       value={editCustomCategory}
                       onChange={(e) => setEditCustomCategory(e.target.value)}
