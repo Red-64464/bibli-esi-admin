@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import { LazyMotion, domAnimation } from "motion/react";
+import { AdminMotionProvider } from "./contexts/MotionContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./index.css";
 import "./design.css";
@@ -12,11 +13,11 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <MotionConfig reducedMotion="user">
+        <AdminMotionProvider>
           <LazyMotion features={domAnimation} strict>
             <App />
           </LazyMotion>
-        </MotionConfig>
+        </AdminMotionProvider>
       </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,

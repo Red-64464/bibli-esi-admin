@@ -1,4 +1,4 @@
-import { useReducedMotion } from "motion/react";
+import { useAdminMotion } from "../contexts/MotionContext";
 import { AnimatePresence } from "motion/react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
@@ -68,7 +68,8 @@ const DarkTooltip = ({ active, payload, label }) => {
 };
 
 export default function Dashboard() {
-  const chartAnimation = { isAnimationActive: !useReducedMotion(), animationDuration: 450, animationBegin: 0 };
+  const { reduceMotion } = useAdminMotion();
+  const chartAnimation = { isAnimationActive: !reduceMotion, animationDuration: 450, animationBegin: 0 };
   const [livres, setLivres] = useState([]);
   const [etudiants, setEtudiants] = useState([]);
   const [prets, setPrets] = useState([]);

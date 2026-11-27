@@ -103,29 +103,8 @@ async function replayAction(action) {
   }
 
   if (action.type === "loan:create") {
-    const { data: currentBook, error: bookError } = await supabase
-      .from("bibli_livres")
-      .select("id, disponible")
-      .eq("id", action.payload.livre_id)
-      .maybeSingle();
-    if (bookError) throw bookError;
-    if (!currentBook?.disponible) {
-      throw new Error("Livre indisponible au moment de la synchronisation.");
-    }
-    const { data: createdLoan, error: loanError } = await supabase
-      .from("bibli_prets")
-      .insert([action.payload])
-      .select("id")
-      .single();
-    if (loanError) throw loanError;
-    const { error: bookUpdateError } = await supabase
-      .from("bibli_livres")
-      .update({ disponible: false, statut: "emprunte" })
-      .eq("id", action.payload.livre_id);
-    if (bookUpdateError) {
-      await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
-      throw bookUpdateError;
-    }
+    const { error } = await supabase.from("bibli_prets").insert(action.payload);
+    if (error) throw error;
     return;
   }
 

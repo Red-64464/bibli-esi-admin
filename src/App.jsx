@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
-import { AnimatePresence, useIsPresent, useReducedMotion } from "motion/react";
+import { AnimatePresence, useIsPresent } from "motion/react";
+import { useAdminMotion } from "./contexts/MotionContext";
 import * as m from "motion/react-m";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -109,7 +110,7 @@ function PwaUpdateNotice() {
 function RouteContent({ pathname, navigationType, children }) {
   const content = useRef(null);
   const isPresent = useIsPresent();
-  const reduceMotion = useReducedMotion();
+  const { reduceMotion } = useAdminMotion();
 
   useEffect(() => {
     if (navigationType !== "POP") {

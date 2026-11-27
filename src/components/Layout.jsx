@@ -5,6 +5,7 @@ import * as m from "motion/react-m";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionsContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useAdminMotion } from "../contexts/MotionContext";
 import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
 import { applyAccentColor } from "../lib/settings";
@@ -113,6 +114,7 @@ export default function Layout({ children }) {
   const { signOut, session } = useAuth();
   const { can } = usePermissions();
   const { theme, toggleTheme } = useTheme();
+  const { reduceMotion, setReduceMotion } = useAdminMotion();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [overdueCount, setOverdueCount] = useState(0);
@@ -293,6 +295,14 @@ export default function Layout({ children }) {
               </div>
             </div>
           )}
+          <button
+            type="button"
+            aria-pressed={reduceMotion}
+            onClick={() => setReduceMotion((current) => !current)}
+            className="w-full rounded-lg px-4 py-2.5 text-left text-sm font-medium text-biblio-muted hover:bg-white/10 hover:text-biblio-text"
+          >
+            Réduire les animations
+          </button>
           {session?.username !== "acces-direct" && <button
             onClick={signOut}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-biblio-muted hover:bg-biblio-danger/10 hover:text-biblio-danger transition-colors"

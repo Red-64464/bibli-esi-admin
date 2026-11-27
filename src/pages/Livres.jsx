@@ -827,6 +827,7 @@ export default function Livres() {
   };
 
   const openEdit = (livre) => {
+    setError("");
     setEditLivre(livre);
     setEditImageFile(null);
     setEditImagePreview(null);
@@ -1180,6 +1181,7 @@ export default function Livres() {
           <button
             onClick={() => {
               setPendingToAdd(null);
+              setError("");
               setShowManualForm(true);
             }}
             className="col-span-2 min-h-12 justify-center px-6 py-3 bg-biblio-accent hover:bg-biblio-accent-hover text-white rounded-xl font-semibold transition-colors flex items-center gap-2 text-base sm:col-span-1"
@@ -1201,8 +1203,8 @@ export default function Livres() {
         }}
       />
 
-      {error && (
-        <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
+      {error && !showManualForm && !editLivre && (
+        <div role="alert" className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
@@ -1802,6 +1804,7 @@ export default function Livres() {
                 </Field>
               </div>
 
+              {error && <p role="alert" className="rounded-lg bg-biblio-danger/10 p-3 text-sm text-biblio-danger">{error}</p>}
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
@@ -2086,6 +2089,7 @@ export default function Livres() {
                 </Field>
               </div>
 
+              {error && <p role="alert" className="rounded-lg bg-biblio-danger/10 p-3 text-sm text-biblio-danger">{error}</p>}
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
@@ -2377,6 +2381,7 @@ export default function Livres() {
                 description: book.ocr_text || "",
               });
               setShowPendingBooks(false);
+              setError("");
               setShowManualForm(true);
             }}
           />

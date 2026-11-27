@@ -325,6 +325,7 @@ export default function Calendrier() {
         {/* Navigation mois */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <button
+            aria-label="Mois précédent"
             onClick={prevMonth}
             className="p-2 rounded-lg hover:bg-white/10 text-biblio-muted hover:text-biblio-text transition-colors"
           >
@@ -334,6 +335,7 @@ export default function Calendrier() {
             {MONTH_NAMES[month]} {year}
           </h2>
           <button
+            aria-label="Mois suivant"
             onClick={nextMonth}
             className="p-2 rounded-lg hover:bg-white/10 text-biblio-muted hover:text-biblio-text transition-colors"
           >

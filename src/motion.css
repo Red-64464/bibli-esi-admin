@@ -13,10 +13,8 @@ button,
     scale var(--motion-control) var(--motion-ease);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  :where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href], summary, select):active {
-    scale: .975;
-  }
+:root[data-admin-motion="full"] :where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href], summary, select):active {
+  scale: .975;
 }
 
 [data-motion-card] {
@@ -26,8 +24,8 @@ button,
     box-shadow 230ms var(--motion-ease);
 }
 
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  [data-motion-card]:hover {
+@media (hover: hover) and (pointer: fine) {
+  :root[data-admin-motion="full"] [data-motion-card]:hover {
     translate: 0 -2px;
   }
 }
@@ -51,20 +49,14 @@ details[open] > :not(summary),
   animation: biblio-appear 330ms var(--motion-ease) both;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  details[open] > :not(summary),
-  [data-motion-reveal],
-  [data-motion-results] {
-    animation: none;
-  }
-}
-
 [data-motion-overlay] > [data-motion-panel] {
   animation: biblio-reveal 360ms var(--motion-ease) both;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  [data-motion-overlay] > [data-motion-panel] {
-    animation: none;
-  }
+:root[data-admin-motion="reduced"] *,
+:root[data-admin-motion="reduced"] *::before,
+:root[data-admin-motion="reduced"] *::after {
+  transition-duration: 0s !important;
+  animation-duration: .01ms !important;
+  scroll-behavior: auto !important;
 }

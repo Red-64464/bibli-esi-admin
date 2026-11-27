@@ -94,5 +94,4 @@ nav { scrollbar-width: thin; scrollbar-color: var(--library-line) transparent; }
   .overflow-y-auto { scrollbar-width: none; overscroll-behavior: contain; }
   .overflow-y-auto::-webkit-scrollbar { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; animation-duration: .01ms !important; scroll-behavior: auto !important; } }
 @media print { body { background: white !important; color: black !important; } main { padding: 0 !important; } }

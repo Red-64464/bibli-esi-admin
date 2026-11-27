@@ -1,4 +1,4 @@
-import { useReducedMotion } from "motion/react";
+import { useAdminMotion } from "../contexts/MotionContext";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -109,7 +109,8 @@ function getLastNMonths(n) {
 }
 
 export default function Statistiques() {
-  const chartAnimation = { isAnimationActive: !useReducedMotion(), animationDuration: 450, animationBegin: 0 };
+  const { reduceMotion } = useAdminMotion();
+  const chartAnimation = { isAnimationActive: !reduceMotion, animationDuration: 450, animationBegin: 0 };
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -117,53 +117,14 @@ export default function Reservations() {
 
   const handleConvertToPret = async (res) => {
     try {
-      const { data: previousBook, error: previousBookError } = await supabase
-        .from("bibli_livres")
-        .select("disponible, statut")
-        .eq("id", res.livre_id)
-        .maybeSingle();
-      if (previousBookError) throw previousBookError;
-      // Créer le prêt
       const defaultRetour = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
-      const { data: createdLoan, error: err1 } = await supabase.from("bibli_prets").insert([
-        {
-          livre_id: res.livre_id,
-          etudiant_id: res.etudiant_id,
-          date_pret: today,
-          date_retour_prevue: defaultRetour,
-          statut: "en_cours",
-          rendu: false,
-        },
-      ]).select("id").single();
-      if (err1) throw err1;
-
-      // Marquer le livre comme emprunté
-      const { error: bookError } = await supabase
-        .from("bibli_livres")
-        .update({ disponible: false, statut: "emprunte" })
-        .eq("id", res.livre_id);
-      if (bookError) {
-        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
-        throw bookError;
-      }
-
-      // Marquer la réservation comme convertie
-      const { error: err2 } = await supabase
-        .from("bibli_reservations")
-        .update({ statut: "honorée" })
-        .eq("id", res.id);
-      if (err2) {
-        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
-        if (previousBook) {
-          await supabase
-            .from("bibli_livres")
-            .update({ disponible: previousBook.disponible, statut: previousBook.statut })
-            .eq("id", res.livre_id);
-        }
-        throw err2;
-      }
+      const { error: convertError } = await supabase.rpc("bibli_convert_reservation", {
+        reservation_id: res.id,
+        expected_return: defaultRetour,
+      });
+      if (convertError) throw convertError;
 
       await logActivity({
         action_type: "reservation_convertie",

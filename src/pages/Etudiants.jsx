@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect, useRef } from "react";
@@ -295,6 +296,7 @@ const FILTER_OPTIONS = [
 ];
 
 export default function Etudiants() {
+  const navigate = useNavigate();
   const { session } = useAuth();
   const [etudiants, setEtudiants] = useState([]);
   const [prets, setPrets] = useState([]);
@@ -317,9 +319,6 @@ export default function Etudiants() {
   const [filterMode, setFilterMode] = useState("tous");
   const [sortMode, setSortMode] = useState("nom_az");
   const [page, setPage] = useState(1);
-
-  // Nouveau prêt pre-filled
-  const [pretEtudiant, setPretEtudiant] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -693,35 +692,6 @@ export default function Etudiants() {
         </form>
       )}
 
-      {/* Nouveau prêt pré-rempli */}
-      {pretEtudiant && (
-        <div className="bg-biblio-card rounded-xl border border-biblio-accent/40 p-4 flex items-center justify-between gap-4">
-          <p className="text-sm text-biblio-text">
-            <span className="font-semibold text-biblio-accent">
-              Nouveau prêt
-            </span>{" "}
-            pour{" "}
-            <span className="font-medium">
-              {pretEtudiant.prenom} {pretEtudiant.nom}
-            </span>{" "}
-            — rendez-vous sur la page{" "}
-            <a
-              href="/prets/nouveau"
-              className="underline text-biblio-accent hover:text-biblio-accent-hover"
-            >
-              Nouveau prêt
-            </a>{" "}
-            (étudiant pré-sélectionné dans la session).
-          </p>
-          <button
-            onClick={() => setPretEtudiant(null)}
-            className="text-biblio-muted hover:text-biblio-text shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {error && (
         <div className="bg-biblio-danger/10 text-biblio-danger p-4 rounded-lg text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -808,15 +778,7 @@ export default function Etudiants() {
                 hasRetard={hasRetard(etudiant.id)}
                 onDelete={(id) => setConfirmDelete(id)}
                 onEdit={openEdit}
-                onNouveauPret={(e) => {
-                  setPretEtudiant(e);
-                  // Store in sessionStorage so Prets page can read it
-                  sessionStorage.setItem(
-                    "pretEtudiantPrefill",
-                    JSON.stringify({ id: e.id, nom: e.nom, prenom: e.prenom }),
-                  );
-                  window.dispatchEvent(new Event("pretPrefillUpdated"));
-                }}
+                onNouveauPret={(student) => navigate("/prets", { state: { etudiantId: student.id } })}
               />
             ))}
           </div>

@@ -6,7 +6,6 @@ import { supabase } from "../lib/supabase";
 import { logActivity } from "../lib/activityLog";
 import { useAuth } from "../contexts/AuthContext";
 import { getPretStatut, useDebounce, formatDate } from "../lib/utils";
-import { getSettings } from "../lib/settings";
 import { sendEmail, buildLoanConfirmationEmail } from "../lib/email";
 import { useRealtimeTables } from "../lib/realtime";
 import {
@@ -43,13 +42,13 @@ export default function Prets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [filtre, setFiltre] = useState("en_cours");
   const [showExportModal, setShowExportModal] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);
   const [confirmReturn, setConfirmReturn] = useState(null); // {pretId, livreId}
-  const [maxBooks, setMaxBooks] = useState(3);
   const [viewPret, setViewPret] = useState(null);
   const [showStudentScanner, setShowStudentScanner] = useState(false);
   const [studentSearch, setStudentSearch] = useState("");
@@ -76,17 +75,18 @@ export default function Prets() {
 
   useEffect(() => {
     fetchData();
-    getSettings().then((s) =>
-      setMaxBooks(parseInt(s.max_books_per_student) || 3),
-    );
   }, []);
 
   useEffect(() => {
-    const livreId = location.state?.livreId;
-    if (!livreId) return;
-    setForm((current) => ({ ...current, livre_id: livreId }));
+    const { livreId, etudiantId } = location.state || {};
+    if (!livreId && !etudiantId) return;
+    setForm((current) => ({
+      ...current,
+      livre_id: livreId || current.livre_id,
+      etudiant_id: etudiantId || current.etudiant_id,
+    }));
     setShowForm(true);
-  }, [location.state?.livreId]);
+  }, [location.key, location.state]);
 
   useRealtimeTables(["bibli_prets", "bibli_livres", "bibli_etudiants", "bibli_settings"], () => fetchData());
 
@@ -152,54 +152,16 @@ export default function Prets() {
 
   const handleCreatePret = async (e) => {
     e.preventDefault();
-    if (!form.livre_id || !form.etudiant_id) return;
+    if (creating || !form.livre_id || !form.etudiant_id) return;
+    setCreating(true);
     try {
       const { data: validatedLoan, error: validationError } = parseOrMessage(loanSchema, form);
       if (validationError) {
         setError(validationError);
         return;
       }
-      const { data: currentBook, error: bookCheckError } = await supabase
-        .from("bibli_livres")
-        .select("id, titre, disponible")
-        .eq("id", validatedLoan.livre_id)
-        .maybeSingle();
-      if (bookCheckError) throw bookCheckError;
-      if (!currentBook || !currentBook.disponible) {
-        setError("Ce livre vient d'être emprunté. Actualisez la liste et choisissez un autre livre.");
-        await fetchData();
-        return;
-      }
-      // Vérifier le quota max_books_per_student
-      const { count } = await supabase
-        .from("bibli_prets")
-        .select("id", { count: "exact", head: true })
-        .eq("etudiant_id", validatedLoan.etudiant_id)
-        .eq("rendu", false);
-      if (maxBooks > 0 && (count || 0) >= maxBooks) {
-        setError(
-          `Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`,
-        );
-        return;
-      }
-
-      const { data: createdLoan, error: err1 } = await supabase.from("bibli_prets").insert([
-        {
-          ...validatedLoan,
-          statut: "en_cours",
-          rendu: false,
-        },
-      ]).select("id").single();
-      if (err1) throw err1;
-
-      const { error: err2 } = await supabase
-        .from("bibli_livres")
-        .update({ disponible: false, statut: "emprunte" })
-        .eq("id", validatedLoan.livre_id);
-      if (err2) {
-        await supabase.from("bibli_prets").delete().eq("id", createdLoan.id);
-        throw err2;
-      }
+      const { error: insertError } = await supabase.from("bibli_prets").insert(validatedLoan);
+      if (insertError) throw insertError;
 
       // Journaliser l'activité
       const livreNom =
@@ -261,6 +223,8 @@ export default function Prets() {
         }
       }
       setError("Erreur lors du prêt : " + err.message);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -270,62 +234,17 @@ export default function Prets() {
     setEditLoading(true);
     setError("");
     try {
-      const oldLivreId = editPret.livre_id;
-      const isActivePret = getPretStatut(editPret) !== "retourné";
       const { data: validatedLoan, error: validationError } = parseOrMessage(loanSchema, editForm);
       if (validationError) {
         setError(validationError);
         return;
       }
       const newLivreId = validatedLoan.livre_id;
-      if (isActivePret && oldLivreId !== newLivreId) {
-        const { data: replacementBook, error: replacementError } = await supabase
-          .from("bibli_livres")
-          .select("id, titre, disponible")
-          .eq("id", newLivreId)
-          .maybeSingle();
-        if (replacementError) throw replacementError;
-        if (!replacementBook || !replacementBook.disponible) {
-          setError("Le nouveau livre n'est plus disponible. Choisissez un livre disponible.");
-          await fetchData();
-          return;
-        }
-      }
-      if (isActivePret && validatedLoan.etudiant_id !== editPret.etudiant_id && maxBooks > 0) {
-        const { count, error: countError } = await supabase
-          .from("bibli_prets")
-          .select("id", { count: "exact", head: true })
-          .eq("etudiant_id", validatedLoan.etudiant_id)
-          .eq("rendu", false)
-          .neq("id", editPret.id);
-        if (countError) throw countError;
-        if ((count || 0) >= maxBooks) {
-          setError(`Cet étudiant a déjà ${count} prêt(s) en cours. Le maximum autorisé est ${maxBooks}.`);
-          return;
-        }
-      }
-      const payload = {
-        ...validatedLoan,
-      };
-
       const { error: updateError } = await supabase
         .from("bibli_prets")
-        .update(payload)
+        .update(validatedLoan)
         .eq("id", editPret.id);
       if (updateError) throw updateError;
-
-      if (isActivePret && oldLivreId !== newLivreId) {
-        const { error: oldBookError } = await supabase
-          .from("bibli_livres")
-          .update({ disponible: true, statut: "disponible" })
-          .eq("id", oldLivreId);
-        if (oldBookError) throw oldBookError;
-        const { error: newBookError } = await supabase
-          .from("bibli_livres")
-          .update({ disponible: false, statut: "emprunte" })
-          .eq("id", newLivreId);
-        if (newBookError) throw newBookError;
-      }
 
       const livreNom = livres.find((l) => l.id === newLivreId)?.titre || editPret.livres?.titre || editPret.bibli_livres?.titre || "Livre";
       const etudiant = etudiants.find((item) => item.id === validatedLoan.etudiant_id);
@@ -350,7 +269,7 @@ export default function Prets() {
     setConfirmReturn({ pretId, livreId });
   };
 
-  const doReturn = async (pretId, livreId) => {
+  const doReturn = async (pretId) => {
     try {
       const { error: err1 } = await supabase
         .from("bibli_prets")
@@ -361,12 +280,6 @@ export default function Prets() {
         })
         .eq("id", pretId);
       if (err1) throw err1;
-      const { error: err2 } = await supabase
-        .from("bibli_livres")
-        .update({ disponible: true, statut: "disponible" })
-        .eq("id", livreId);
-      if (err2) throw err2;
-
       // Journaliser le retour
       const pret = prets.find((p) => p.id === pretId);
       await logActivity({
@@ -615,9 +528,10 @@ export default function Prets() {
           <div className="flex gap-3">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors"
+              disabled={creating}
+              className="px-5 py-2.5 bg-biblio-success hover:bg-biblio-success/80 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
             >
-              Confirmer le prêt
+              {creating ? "Enregistrement…" : "Confirmer le prêt"}
             </button>
             <button
               type="button"
@@ -902,7 +816,7 @@ export default function Prets() {
             title="Confirmer le retour"
             message="Marquer ce prêt comme retourné ?"
             onConfirm={() =>
-              doReturn(confirmReturn.pretId, confirmReturn.livreId)
+              doReturn(confirmReturn.pretId)
             }
             onCancel={() => setConfirmReturn(null)}
           />

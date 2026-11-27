@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -34,45 +34,28 @@ export default function RechercheGlobale() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const searchRequest = useRef(0);
   const doSearch = useCallback(async (q) => {
+    const requestId = ++searchRequest.current;
     if (!q || q.trim().length < 2) {
       setResults({ livres: [], etudiants: [], prets: [] });
       setHasSearched(false);
+      setError("");
+      setLoading(false);
       return;
     }
     try {
       setLoading(true);
       setError("");
-      const term = q.trim();
-
-      const [livresRes, etudRes, pretsRes] = await Promise.all([
-        supabase
-          .from("bibli_livres")
-          .select("id, titre, auteur, isbn, statut, disponible")
-          .or(`titre.ilike.%${term}%,auteur.ilike.%${term}%,isbn.ilike.%${term}%`)
-          .limit(10),
-        supabase
-          .from("bibli_etudiants")
-          .select("id, nom, prenom, email, numero_etudiant")
-          .or(`nom.ilike.%${term}%,prenom.ilike.%${term}%,email.ilike.%${term}%,numero_etudiant.ilike.%${term}%`)
-          .limit(10),
-        supabase
-          .from("bibli_prets")
-          .select("id, date_pret, rendu, statut, date_retour_prevue, livres:bibli_livres(titre), etudiants:bibli_etudiants(nom, prenom)")
-          .or(`livres.titre.ilike.%${term}%,etudiants.nom.ilike.%${term}%,etudiants.prenom.ilike.%${term}%`)
-          .limit(10),
-      ]);
-
-      setResults({
-        livres: livresRes.data || [],
-        etudiants: etudRes.data || [],
-        prets: pretsRes.data || [],
-      });
+      const { data, error: searchError } = await supabase.rpc("bibli_search_admin", { search_term: q });
+      if (requestId !== searchRequest.current) return;
+      if (searchError) throw searchError;
+      setResults(data);
       setHasSearched(true);
     } catch (err) {
-      setError("Erreur de recherche : " + err.message);
+      if (requestId === searchRequest.current) setError("Erreur de recherche : " + err.message);
     } finally {
-      setLoading(false);
+      if (requestId === searchRequest.current) setLoading(false);
     }
   }, []);
 
@@ -81,16 +64,11 @@ export default function RechercheGlobale() {
   useEffect(() => {
     doSearch(debouncedQuery);
     if (debouncedQuery) {
-      setSearchParams({ q: debouncedQuery });
+      setSearchParams({ q: debouncedQuery }, { replace: true });
     } else {
-      setSearchParams({});
+      setSearchParams({}, { replace: true });
     }
   }, [debouncedQuery, doSearch, setSearchParams]);
-
-  // Sync avec query param initial
-  useEffect(() => {
-    if (initialQ) doSearch(initialQ);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalResults =
     results.livres.length + results.etudiants.length + results.prets.length;
