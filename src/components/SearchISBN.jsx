@@ -16,6 +16,7 @@ export default function SearchISBN({ onBookFound, onCopyAdded, categories = [], 
   const [customCategory, setCustomCategory] = useState("");
   const [shelfLetter, setShelfLetter] = useState("");
   const [shelfNumber, setShelfNumber] = useState("");
+  const [letterKeyboard, setLetterKeyboard] = useState(false);
 
   const handleSearch = async (override) => {
     const value = (override ?? query).trim();
@@ -110,9 +111,10 @@ export default function SearchISBN({ onBookFound, onCopyAdded, categories = [], 
     <div className="w-full min-w-0 space-y-4 rounded-xl border border-white/10 bg-biblio-card p-4 sm:p-6">
       <h2 className="flex min-w-0 items-center gap-2 text-lg font-semibold leading-tight"><Search className="h-5 w-5 shrink-0 text-biblio-accent" /> <span className="min-w-0">Ajouter un livre par ISBN ou titre</span></h2>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && handleSearch()} placeholder="ISBN (ex. 9782070360024) ou titre du livre" className="min-w-0 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent sm:flex-1" />
+        <input type="text" inputMode={letterKeyboard ? "text" : "numeric"} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && handleSearch()} placeholder="ISBN (ex. 9782070360024) ou titre du livre" className="min-w-0 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-biblio-text placeholder-biblio-muted focus:outline-none focus:ring-2 focus:ring-biblio-accent sm:flex-1" />
         <button onClick={() => handleSearch()} disabled={loading || !query.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-biblio-accent px-5 py-3 font-medium text-white transition-colors hover:bg-biblio-accent-hover disabled:opacity-50 sm:w-auto sm:px-6">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Rechercher</button>
       </div>
+      <button type="button" onClick={() => setLetterKeyboard((value) => !value)} className="text-xs text-biblio-accent underline">{letterKeyboard ? "Utiliser le clavier numérique pour l’ISBN" : "Utiliser les lettres pour un titre ou un ISBN avec X"}</button>
       {loading && <p className="text-xs text-biblio-muted">Recherche dans les catalogues ; si nécessaire, l’ISBN peut aussi être recherché sur le web avec l’IA.</p>}
       {error && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-biblio-danger/10 p-3 text-sm text-biblio-danger"><AlertCircle className="h-4 w-4 shrink-0" /><span className="flex-1">{error}</span>{onUnresolved && <button type="button" onClick={() => onUnresolved(query)} className="rounded-md border border-biblio-danger/40 px-3 py-1.5 text-xs font-medium hover:bg-biblio-danger/10">Identifier avec 2 photos</button>}</div>}
       {message && <p role="status" className="rounded-lg bg-biblio-success/10 p-3 text-sm text-biblio-success">{message}</p>}
