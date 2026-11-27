@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Papa from "papaparse";
 import { supabase } from "../lib/supabase";
@@ -206,6 +206,11 @@ export default function Livres() {
   const [error, setError] = useState("");
   const [filtreStatut, setFiltreStatut] = useState("tous");
   const [filtreCategorie, setFiltreCategorie] = useState("");
+  const [filtreEtagere, setFiltreEtagere] = useState("");
+  const [shelves, setShelves] = useState(null);
+  const [shelvesError, setShelvesError] = useState(false);
+  const activeShelf = shelves?.find(({ shelf }) => shelf === filtreEtagere);
+  const bookRequest = useRef(0);
 
   // Search with debounce
   const [searchInput, setSearchInput] = useState("");
@@ -338,24 +343,30 @@ export default function Livres() {
 
   useEffect(() => {
     fetchLivres();
+  }, [recherche, filtreStatut, filtreCategorie, activeShelf, vue, tri, page]);
+
+  useEffect(() => {
     fetchBorrowCounts();
     fetchPendingCount();
     fetchCategories();
-  }, [recherche, filtreStatut, filtreCategorie, vue, tri, page]);
+    fetchShelves();
+  }, []);
 
   useRealtimeTables(["bibli_livres", "bibli_categories", "bibli_prets", "bibli_pending_books"], () => {
     fetchLivres();
     fetchBorrowCounts();
     fetchPendingCount();
     fetchCategories();
+    fetchShelves();
   });
 
   // Reset page when filters/search/view change
   useEffect(() => {
     setPage(1);
-  }, [recherche, filtreStatut, filtreCategorie, vue, tri]);
+  }, [recherche, filtreStatut, filtreCategorie, filtreEtagere, vue, tri]);
 
   const fetchLivres = async () => {
+    const request = ++bookRequest.current;
     try {
       setLoading(true);
       const pageSize = vue === "grille" ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
@@ -381,6 +392,10 @@ export default function Livres() {
         query = query.eq("categorie", filtreCategorie);
       }
 
+      if (activeShelf) {
+        query = query.in("emplacement", activeShelf.locations);
+      }
+
       // Server-side sort
       switch (tri) {
         case "titre_az":
@@ -402,13 +417,16 @@ export default function Livres() {
       query = query.range(from, to);
 
       const { data, error: err, count } = await query;
+      if (request !== bookRequest.current) return;
       if (err) throw err;
       setLivres(data || []);
       setTotalCount(count || 0);
     } catch (err) {
-      setError("Impossible de charger les livres : " + err.message);
+      if (request === bookRequest.current) {
+        setError("Impossible de charger les livres : " + err.message);
+      }
     } finally {
-      setLoading(false);
+      if (request === bookRequest.current) setLoading(false);
     }
   };
 
@@ -1077,7 +1095,26 @@ export default function Livres() {
     }
   };
 
-  const categories = allCategories;
+  const fetchShelves = async () => {
+    const { data, error: shelfError } = await supabase.rpc("bibli_used_book_shelves");
+    if (shelfError) {
+      setShelvesError(true);
+      return;
+    }
+
+    const usedShelves = data || [];
+    setShelves(usedShelves);
+    setShelvesError(false);
+    setFiltreEtagere((current) =>
+      usedShelves.some(({ shelf }) => shelf === current) ? current : "",
+    );
+  };
+
+  let allShelvesLabel = "Chargement…";
+  if (shelves?.length) allShelvesLabel = "Toutes";
+  else if (shelvesError) allShelvesLabel = "Indisponibles";
+  else if (shelves) allShelvesLabel = "Aucune étagère";
+
   const selectableCategories = getSelectableCategories(allCategories);
 
   // Server-side: livres IS the current page already
@@ -1190,36 +1227,50 @@ export default function Livres() {
         </div>
       </div>
 
-      {/* ── Category pill filters ── */}
-      {categories.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setFiltreCategorie("")}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-              filtreCategorie === ""
-                ? "bg-biblio-accent/20 text-biblio-accent border-biblio-accent/30"
-                : "bg-white/5 text-biblio-muted border-white/10 hover:bg-white/10"
-            }`}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:max-w-xl sm:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]">
+        <label className="block min-w-0 text-sm font-medium text-biblio-muted">
+          Catégorie
+          <select
+            value={filtreCategorie}
+            onChange={(event) => {
+              setFiltreCategorie(event.target.value);
+              setPage(1);
+            }}
+            className="mt-1 block h-11 w-full min-w-0 truncate rounded-lg border border-white/10 bg-biblio-card px-3 text-base font-normal text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent sm:text-sm"
           >
-            Toutes catégories
+            <option value="">Toutes</option>
+            {allCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block min-w-0 text-sm font-medium text-biblio-muted">
+          Étagère
+          <select
+            value={filtreEtagere}
+            onChange={(event) => {
+              setFiltreEtagere(event.target.value);
+              setPage(1);
+            }}
+            disabled={!shelves?.length}
+            className="mt-1 block h-11 w-full min-w-0 truncate rounded-lg border border-white/10 bg-biblio-card px-3 text-base font-normal text-biblio-text focus:outline-none focus:ring-2 focus:ring-biblio-accent disabled:opacity-70 sm:text-sm"
+          >
+            <option value="">{allShelvesLabel}</option>
+            {shelves?.map(({ shelf }) => (
+              <option key={shelf} value={shelf}>{shelf}</option>
+            ))}
+          </select>
+        </label>
+        {shelvesError && (
+          <button
+            type="button"
+            onClick={fetchShelves}
+            className="col-span-2 justify-self-start text-sm text-biblio-accent underline"
+          >
+            Réessayer de charger les étagères
           </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() =>
-                setFiltreCategorie(filtreCategorie === cat ? "" : cat)
-              }
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                filtreCategorie === cat
-                  ? "bg-biblio-accent/20 text-biblio-accent border-biblio-accent/30"
-                  : "bg-white/5 text-biblio-muted border-white/10 hover:bg-white/10"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Tri + Vue toggle ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1330,7 +1381,7 @@ export default function Livres() {
         </div>
       ) : livresFiltres.length === 0 ? (
         <div className="text-center py-12 text-biblio-muted">
-          {searchInput || filtreStatut !== "tous" || filtreCategorie
+          {searchInput || filtreStatut !== "tous" || filtreCategorie || filtreEtagere
             ? "Aucun livre ne correspond à votre recherche."
             : "Aucun livre dans le catalogue. Ajoutez-en un par ISBN ou manuellement !"}
         </div>
