@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -97,35 +97,10 @@ function PageLoader() {
 }
 
 function PwaUpdateNotice() {
-  const [needRefresh, setNeedRefresh] = useState(false);
-  const [updateServiceWorker, setUpdateServiceWorker] = useState(null);
-
   useEffect(() => {
-    const update = registerSW({
-      onNeedRefresh() {
-        setNeedRefresh(true);
-      },
-    });
-    setUpdateServiceWorker(() => update);
+    registerSW({ immediate: true });
   }, []);
-
-  if (!needRefresh || !updateServiceWorker) return null;
-
-  return (
-    <div className="fixed inset-x-4 bottom-4 z-[100] mx-auto max-w-md rounded-2xl bg-slate-900 p-4 text-white shadow-2xl">
-      <p className="font-semibold">Une mise à jour est prête</p>
-      <p className="mt-1 text-sm text-slate-200">
-        Mettez l&apos;application à jour quand vous avez terminé votre action en cours.
-      </p>
-      <button
-        type="button"
-        onClick={() => updateServiceWorker(true)}
-        className="mt-3 rounded-xl bg-biblio-accent px-4 py-2 font-semibold text-white"
-      >
-        Mettre à jour
-      </button>
-    </div>
-  );
+  return null;
 }
 
 function App() {
