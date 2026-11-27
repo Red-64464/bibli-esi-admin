@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 /* eslint-disable react/prop-types */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
@@ -232,8 +233,8 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto p-4 sm:py-8">
-      <div className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-5 sm:p-6 space-y-5">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto p-4 sm:py-8">
+      <div data-motion-panel className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-5 sm:p-6 space-y-5">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-biblio-muted hover:text-biblio-text"><X /></button>
         <div className="pr-8"><h2 className="text-xl font-semibold flex items-center gap-2"><ScanLine className="text-biblio-accent" /> Ajouter par carte étudiante</h2><p className="text-sm text-biblio-muted mt-1">Une photo du recto suffit : le matricule est détecté automatiquement.</p></div>
         <div className="flex items-center gap-2 text-xs text-biblio-muted"><ShieldCheck className="w-4 h-4 text-biblio-success" /> OCR effectué localement dans votre navigateur · aucune photo envoyée à un service OCR externe</div>
@@ -250,6 +251,6 @@ export default function StudentCardOCRModal({ onClose, onComplete }) {
         </>}
         {error && <div className="bg-biblio-danger/10 text-biblio-danger p-3 rounded-lg text-sm flex gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
       </div>
-    </div>
+    </MotionOverlay>
   );
 }

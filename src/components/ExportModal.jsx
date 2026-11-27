@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 import { X, FileText, FileCode, Table } from "lucide-react";
 
 const formats = [
@@ -30,8 +31,8 @@ export default function ExportModal({
   title = "Exporter les données",
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-biblio-card rounded-2xl border border-white/10 p-6 w-80 space-y-4 shadow-2xl">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 p-6 w-80 space-y-4 shadow-2xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{title}</h2>
           <button
@@ -67,6 +68,6 @@ export default function ExportModal({
           ))}
         </div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }

@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 import { CalendarDays, CircleUserRound, FileText, LibraryBig, Mail, X } from "lucide-react";
 import { formatDate, getPretStatut } from "../lib/utils";
 import { formatShelfLocation } from "../lib/shelfLocation";
@@ -21,9 +22,9 @@ export default function PretDetailModal({ pret, onClose }) {
   const statut = getPretStatut(pret);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pret-detail-title">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pret-detail-title">
       <button aria-label="Fermer" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
+      <div data-motion-panel className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-biblio-card px-5 py-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-biblio-muted">Fiche du prêt</p>
@@ -84,6 +85,6 @@ export default function PretDetailModal({ pret, onClose }) {
           {pret.notes && <Detail label="Notes" value={pret.notes} icon={FileText} />}
         </div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }

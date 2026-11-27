@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect, useRef } from "react";
 import Papa from "papaparse";
 import { supabase } from "../lib/supabase";
@@ -139,12 +141,12 @@ function ImportCSVModal({ onClose, onImported }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-xl p-6 w-full max-w-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div data-motion-panel className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-xl p-6 w-full max-w-2xl space-y-5 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-biblio-muted hover:text-biblio-text transition-colors"
@@ -266,7 +268,7 @@ function ImportCSVModal({ onClose, onImported }) {
           )}
         </div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }
 
@@ -651,6 +653,7 @@ export default function Etudiants() {
       {/* Formulaire d'ajout */}
       {showForm && (
         <form
+          data-motion-reveal
           onSubmit={handleAdd}
           className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-5"
         >
@@ -796,7 +799,7 @@ export default function Etudiants() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div data-motion-results key={etudiantsFiltres.map(({ id }) => id).join("|")} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {etudiantsFiltres.map((etudiant) => (
               <EtudiantCard
                 key={etudiant.id}
@@ -828,9 +831,9 @@ export default function Etudiants() {
       )}
 
       {/* Modal édition étudiant */}
-      {editEtudiant && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-xl shadow-2xl">
+      <AnimatePresence>{editEtudiant && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-biblio-accent" /> Modifier
@@ -944,36 +947,42 @@ export default function Etudiants() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
       {/* Confirm delete modal */}
-      {confirmDelete !== null && (
-        <ConfirmModal
-          title="Supprimer l'étudiant"
-          message="Supprimer cet étudiant ? Ses prêts associés seront également supprimés. Cette action est irréversible."
-          danger
-          onConfirm={() => handleDeleteConfirmed(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      <AnimatePresence>
+        {confirmDelete !== null && (
+          <ConfirmModal
+            title="Supprimer l'étudiant"
+            message="Supprimer cet étudiant ? Ses prêts associés seront également supprimés. Cette action est irréversible."
+            danger
+            onConfirm={() => handleDeleteConfirmed(confirmDelete)}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        )}
+      </AnimatePresence>
 
-      {showExportModal && (
-        <ExportModal
-          title="Exporter les étudiants"
-          onClose={() => setShowExportModal(false)}
-          onExport={handleExport}
-        />
-      )}
+      <AnimatePresence>
+        {showExportModal && (
+          <ExportModal
+            title="Exporter les étudiants"
+            onClose={() => setShowExportModal(false)}
+            onExport={handleExport}
+          />
+        )}
+      </AnimatePresence>
 
-      {showImportModal && (
-        <ImportCSVModal
-          onClose={() => setShowImportModal(false)}
-          onImported={() => {
-            fetchData();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportCSVModal
+            onClose={() => setShowImportModal(false)}
+            onImported={() => {
+              fetchData();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

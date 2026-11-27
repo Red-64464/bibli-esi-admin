@@ -6,10 +6,14 @@ export default function StatCard({
   onClick,
   active = false,
 }) {
+  const Card = onClick ? "button" : "div";
   return (
-    <div
+    <Card
       onClick={onClick}
-      className={`bg-biblio-card rounded-xl p-6 border flex items-center gap-4 transition-all
+      type={onClick ? "button" : undefined}
+      aria-pressed={onClick ? active : undefined}
+      data-motion-card={onClick ? "" : undefined}
+      className={`bg-biblio-card rounded-xl p-6 border flex items-center gap-4 text-left
         ${onClick ? "cursor-pointer hover:border-biblio-accent/50 hover:bg-white/[0.03]" : ""}
         ${active ? "border-biblio-accent bg-biblio-accent/5" : "border-white/10"}
       `}
@@ -19,11 +23,11 @@ export default function StatCard({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-biblio-muted">{label}</p>
-        <p className="text-2xl font-bold">{value}</p>
+        <p key={String(value)} data-motion-results className="text-2xl font-bold tabular-nums">{value}</p>
       </div>
       {active && (
-        <div className="w-2 h-2 rounded-full bg-biblio-accent shrink-0" />
+        <div data-motion-reveal className="w-2 h-2 rounded-full bg-biblio-accent shrink-0" />
       )}
-    </div>
+    </Card>
   );
 }

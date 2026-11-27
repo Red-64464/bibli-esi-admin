@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 import { X, AlertTriangle } from "lucide-react";
 
 /**
@@ -18,7 +19,7 @@ export default function ConfirmModal({
   danger = false,
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -26,7 +27,7 @@ export default function ConfirmModal({
       />
 
       {/* Modale */}
-      <div className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
+      <div data-motion-panel className="relative bg-biblio-card border border-white/10 rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
         {/* Close */}
         <button
           onClick={onCancel}
@@ -70,6 +71,6 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }

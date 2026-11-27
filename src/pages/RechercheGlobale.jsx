@@ -282,7 +282,7 @@ function ResultSection({ label, icon: Icon, count, children }) {
         <h3 className="text-sm font-semibold text-biblio-text">{label}</h3>
         <span className="text-xs text-biblio-muted ml-1">({count})</span>
       </div>
-      <div className="divide-y divide-white/5">{children}</div>
+      <div data-motion-results className="divide-y divide-white/5">{children}</div>
     </div>
   );
 }

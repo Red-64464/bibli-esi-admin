@@ -36,7 +36,7 @@ export default function LivreCard({
   const isDisponible = livre.disponible !== false && statut === "disponible";
 
   return (
-    <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden flex flex-col transition-all hover:border-white/20">
+    <div data-motion-card className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden flex flex-col hover:border-white/20">
       {/* Couverture */}
       <div className="h-48 bg-white/5 flex items-center justify-center overflow-hidden relative">
         {livre.couverture_url ? (

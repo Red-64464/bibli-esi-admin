@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 import { CheckCircle, XCircle, AlertTriangle, X } from "lucide-react";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
+import { noticeMotion } from "../lib/motion";
 
 const ICONS = {
   success: <CheckCircle className="w-5 h-5 text-biblio-success shrink-0" />,
@@ -24,18 +27,22 @@ export function Toast({ id, type = "success", message, onClose }) {
   }, [id, onClose]);
 
   return (
-    <div
-      className={`flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg max-w-sm w-full animate-in slide-in-from-right-5 fade-in duration-200 ${BG[type]}`}
+    <m.div
+      {...noticeMotion}
+      role={type === "error" ? "alert" : "status"}
+      className={`flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg max-w-sm w-full ${BG[type]}`}
     >
       {ICONS[type]}
       <p className="text-sm text-biblio-text flex-1 leading-snug">{message}</p>
       <button
+        type="button"
+        aria-label="Fermer le message"
         onClick={() => onClose(id)}
         className="text-biblio-muted hover:text-biblio-text transition-colors shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
-    </div>
+    </m.div>
   );
 }
 
@@ -46,9 +53,11 @@ export function Toast({ id, type = "success", message, onClose }) {
 export function ToastContainer({ toasts, onClose }) {
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 items-end">
-      {toasts.map((t) => (
-        <Toast key={t.id} {...t} onClose={onClose} />
-      ))}
+      <AnimatePresence initial={false}>
+        {toasts.map((t) => (
+          <Toast key={t.id} {...t} onClose={onClose} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

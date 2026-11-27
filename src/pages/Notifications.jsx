@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -506,9 +508,9 @@ export default function Notifications() {
 
 
       {/* Composer modal */}
-      {showComposer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-lg p-6 space-y-4 shadow-2xl">
+      <AnimatePresence>{showComposer && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-lg p-6 space-y-4 shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold flex items-center gap-2">
@@ -684,8 +686,8 @@ export default function Notifications() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
     </div>
   );
 }

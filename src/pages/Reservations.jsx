@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/utils";
@@ -224,6 +225,7 @@ export default function Reservations() {
       {/* Formulaire */}
       {showForm && (
         <form
+          data-motion-reveal
           onSubmit={handleCreate}
           className="bg-biblio-card rounded-xl border border-white/10 p-6 space-y-5"
         >
@@ -340,7 +342,7 @@ export default function Reservations() {
                 Aucune réservation active.
               </div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div data-motion-results key={activeReservations.map(({ id }) => id).join("|")} className="divide-y divide-white/5">
                 {activeReservations.map((r) => (
                   <div
                     key={r.id}
@@ -400,7 +402,7 @@ export default function Reservations() {
                   Historique ({doneReservations.length})
                 </h2>
               </div>
-              <div className="divide-y divide-white/5">
+              <div data-motion-results key={doneReservations.map(({ id }) => id).join("|")} className="divide-y divide-white/5">
                 {doneReservations.map((r) => (
                   <div
                     key={r.id}
@@ -430,15 +432,17 @@ export default function Reservations() {
         </>
       )}
 
-      {confirmDelete && (
-        <ConfirmModal
-          title="Annuler la réservation"
-          message="Êtes-vous sûr de vouloir annuler cette réservation ?"
-          danger
-          onConfirm={() => handleCancel(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmModal
+            title="Annuler la réservation"
+            message="Êtes-vous sûr de vouloir annuler cette réservation ?"
+            danger
+            onConfirm={() => handleCancel(confirmDelete)}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

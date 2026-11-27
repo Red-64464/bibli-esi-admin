@@ -360,7 +360,7 @@ export default function Calendrier() {
             </div>
 
             {/* Grille jours */}
-            <div className="grid grid-cols-7 gap-1">
+            <div key={`${year}-${month}`} data-motion-results className="grid grid-cols-7 gap-1">
               {/* Cases vides au début */}
               {Array.from({ length: firstDay }).map((_, i) => (
                 <div key={`empty-${i}`} className="h-14" />
@@ -379,6 +379,7 @@ export default function Calendrier() {
                 return (
                   <button
                     key={day}
+                    aria-pressed={isSelected}
                     onClick={() =>
                       setSelectedDay(selectedDay === day ? null : day)
                     }
@@ -428,7 +429,7 @@ export default function Calendrier() {
 
       {/* Détail du jour sélectionné */}
       {selectedDay && (
-        <div className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
+        <div key={selectedDay} data-motion-reveal className="bg-biblio-card rounded-xl border border-white/10 overflow-hidden">
           <div className="px-6 py-4 border-b border-white/10">
             <h3 className="font-semibold text-biblio-text">
               Prêts du {selectedDay} {MONTH_NAMES[month]} {year}

@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 import { useRef } from "react";
 import QRCode from "react-qr-code";
 import { X, Download, QrCode } from "lucide-react";
@@ -53,8 +54,8 @@ export default function QRCodeModal({ livre, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-biblio-card rounded-xl border border-white/10 w-full max-w-xs space-y-5">
+    <MotionOverlay className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div data-motion-panel className="bg-biblio-card rounded-xl border border-white/10 w-full max-w-xs space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5">
           <h2 className="text-base font-semibold flex items-center gap-2">
@@ -106,6 +107,6 @@ export default function QRCodeModal({ livre, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }

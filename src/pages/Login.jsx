@@ -32,7 +32,7 @@ export default function Login() {
   return (
     <div className="admin-login min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <div className="bg-biblio-card rounded-2xl border border-white/10 p-8 space-y-7 shadow-2xl">
+        <div data-motion-reveal className="bg-biblio-card rounded-2xl border border-white/10 p-8 space-y-7 shadow-2xl">
           {/* Logo */}
           <div className="flex flex-col items-center gap-3">
             <img

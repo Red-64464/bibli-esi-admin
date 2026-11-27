@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState, useEffect, useRef } from "react";
 import {
   getSettings,
@@ -751,15 +752,17 @@ export default function Parametres() {
         )}
       </div>
 
-      {showConfirmReset && (
-        <ConfirmModal
-          title="Réinitialiser les paramètres"
-          message="Tous les paramètres seront remis à leurs valeurs par défaut. Cette action est irréversible."
-          danger
-          onConfirm={handleReset}
-          onCancel={() => setShowConfirmReset(false)}
-        />
-      )}
+      <AnimatePresence>
+        {showConfirmReset && (
+          <ConfirmModal
+            title="Réinitialiser les paramètres"
+            message="Tous les paramètres seront remis à leurs valeurs par défaut. Cette action est irréversible."
+            danger
+            onConfirm={handleReset}
+            onCancel={() => setShowConfirmReset(false)}
+          />
+        )}
+      </AnimatePresence>
     </form>
   );
 }

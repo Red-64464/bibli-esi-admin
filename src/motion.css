@@ -1,0 +1,70 @@
+:root {
+  --motion-control: 180ms;
+  --motion-ease: cubic-bezier(.22, .78, .24, 1);
+}
+
+button,
+:where([role="button"], a[href], summary, input, select, textarea) {
+  transition: background-color var(--motion-control) var(--motion-ease),
+    border-color var(--motion-control) var(--motion-ease),
+    color var(--motion-control) var(--motion-ease),
+    box-shadow var(--motion-control) var(--motion-ease),
+    opacity var(--motion-control) var(--motion-ease),
+    scale var(--motion-control) var(--motion-ease);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href], summary, select):active {
+    scale: .975;
+  }
+}
+
+[data-motion-card] {
+  transition: translate 230ms var(--motion-ease),
+    border-color 230ms var(--motion-ease),
+    background-color 230ms var(--motion-ease),
+    box-shadow 230ms var(--motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-motion-card]:hover {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes biblio-appear {
+  from { opacity: .2; }
+  to { opacity: 1; }
+}
+
+@keyframes biblio-reveal {
+  from { opacity: 0; translate: 0 7px; }
+  to { opacity: 1; translate: none; }
+}
+
+details[open] > :not(summary),
+[data-motion-reveal] {
+  animation: biblio-reveal 300ms var(--motion-ease) both;
+}
+
+[data-motion-results] {
+  animation: biblio-appear 330ms var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  details[open] > :not(summary),
+  [data-motion-reveal],
+  [data-motion-results] {
+    animation: none;
+  }
+}
+
+[data-motion-overlay] > [data-motion-panel] {
+  animation: biblio-reveal 360ms var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-overlay] > [data-motion-panel] {
+    animation: none;
+  }
+}

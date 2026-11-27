@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -450,7 +452,7 @@ export default function Historique() {
           )}
         </div>
       ) : (
-        <div className="space-y-1">
+        <div data-motion-results key={logs.map(({ id }) => id).join("|")} className="space-y-1">
           {logs.map((log, idx) => {
             const conf =
               ACTION_CONFIG[log.action_type] ||
@@ -531,7 +533,7 @@ export default function Historique() {
       )}
 
       {/* ── MODAL : Détails d'un log ── */}
-      {selectedLog &&
+      <AnimatePresence>{selectedLog &&
         (() => {
           const conf =
             ACTION_CONFIG[selectedLog.action_type] ||
@@ -558,11 +560,11 @@ export default function Historique() {
             : [];
 
           return (
-            <div
+            <MotionOverlay
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
               onClick={() => setSelectedLog(null)}
             >
-              <div
+              <div data-motion-panel
                 className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-md shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -646,9 +648,9 @@ export default function Historique() {
                   </div>
                 </div>
               </div>
-            </div>
+            </MotionOverlay>
           );
-        })()}
+        })()}</AnimatePresence>
     </div>
   );
 }

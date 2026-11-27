@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -559,15 +560,17 @@ export default function Admins() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       {/* Confirm modal */}
-      {confirmModal.open && (
-        <ConfirmModal
-          title={confirmModal.title}
-          message={confirmModal.message}
-          danger={confirmModal.danger}
-          onConfirm={confirmModal.onConfirm}
-          onCancel={closeConfirm}
-        />
-      )}
+      <AnimatePresence>
+        {confirmModal.open && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            danger={confirmModal.danger}
+            onConfirm={confirmModal.onConfirm}
+            onCancel={closeConfirm}
+          />
+        )}
+      </AnimatePresence>
       {/* En-tête */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
@@ -774,7 +777,7 @@ export default function Admins() {
           <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
         </div>
       ) : (
-        <div className="bg-biblio-card rounded-xl border border-white/10 divide-y divide-white/5">
+        <div data-motion-results key={filteredAdmins.map(({ id }) => id).join("|")} className="bg-biblio-card rounded-xl border border-white/10 divide-y divide-white/5">
           {filteredAdmins.map((admin) => (
             <div key={admin.id} className="p-4 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-3">

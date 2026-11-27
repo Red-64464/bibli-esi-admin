@@ -1,3 +1,4 @@
+import { useReducedMotion } from "motion/react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -108,6 +109,7 @@ function getLastNMonths(n) {
 }
 
 export default function Statistiques() {
+  const chartAnimation = { isAnimationActive: !useReducedMotion(), animationDuration: 450, animationBegin: 0 };
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -468,7 +470,7 @@ export default function Statistiques() {
               content={<DarkTooltip />}
               cursor={{ fill: "rgba(255,255,255,0.04)" }}
             />
-            <Bar dataKey="prêts" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
+            <Bar {...chartAnimation} dataKey="prêts" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
         <ChartSummary>
@@ -516,7 +518,7 @@ export default function Statistiques() {
                 <span style={{ color: "var(--color-biblio-muted)", fontSize: "11px" }}>{v}</span>
               )}
             />
-            <Line
+            <Line {...chartAnimation}
               type="monotone"
               dataKey="prêts"
               stroke="var(--color-biblio-accent)"
@@ -524,7 +526,7 @@ export default function Statistiques() {
               dot={false}
               activeDot={{ r: 4 }}
             />
-            <Line
+            <Line {...chartAnimation}
               type="monotone"
               dataKey="retours"
               stroke="var(--color-biblio-success)"
@@ -577,7 +579,7 @@ export default function Statistiques() {
                   content={<DarkTooltip />}
                   cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 />
-                <Bar dataKey="prêts" fill="var(--color-biblio-accent)" radius={[0, 4, 4, 0]} />
+                <Bar {...chartAnimation} dataKey="prêts" fill="var(--color-biblio-accent)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -601,7 +603,7 @@ export default function Statistiques() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie
+                <Pie {...chartAnimation}
                   data={categories}
                   dataKey="value"
                   nameKey="name"
@@ -701,7 +703,7 @@ export default function Statistiques() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="prêts" radius={[4, 4, 0, 0]}>
+              <Bar {...chartAnimation} dataKey="prêts" radius={[4, 4, 0, 0]}>
                 {heatmapJours.map((entry, i) => {
                   const max = Math.max(...heatmapJours.map((d) => d.prêts), 1);
                   const intensity = entry.prêts / max;
@@ -741,7 +743,7 @@ export default function Statistiques() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="prêts" fill="#b88791" radius={[4, 4, 0, 0]} />
+              <Bar {...chartAnimation} dataKey="prêts" fill="#b88791" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           <ChartSummary>

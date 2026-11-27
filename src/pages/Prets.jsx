@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -708,7 +710,7 @@ export default function Prets() {
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody data-motion-results key={pretsPaged.map(({ id }) => id).join("|")}>
                   {pretsPaged.map((pret) => (
                     <PretRow
                       key={pret.id}
@@ -724,7 +726,7 @@ export default function Prets() {
           </div>
 
           {/* Mobile : cartes */}
-          <div className="md:hidden space-y-3">
+          <div data-motion-results key={pretsPaged.map(({ id }) => id).join("|")} className="md:hidden space-y-3">
             {pretsPaged.map((pret) => (
               <PretCard
                 key={pret.id}
@@ -743,9 +745,9 @@ export default function Prets() {
         </>
       )}
 
-      {editPret && editForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
+      <AnimatePresence>{editPret && editForm && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <ArrowLeftRight className="w-5 h-5 text-biblio-accent" />
@@ -881,29 +883,35 @@ export default function Prets() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
-      {showExportModal && (
-        <ExportModal
-          title="Exporter les prêts"
-          onClose={() => setShowExportModal(false)}
-          onExport={handleExport}
-        />
-      )}
+      <AnimatePresence>
+        {showExportModal && (
+          <ExportModal
+            title="Exporter les prêts"
+            onClose={() => setShowExportModal(false)}
+            onExport={handleExport}
+          />
+        )}
+      </AnimatePresence>
 
-      {confirmReturn && (
-        <ConfirmModal
-          title="Confirmer le retour"
-          message="Marquer ce prêt comme retourné ?"
-          onConfirm={() =>
-            doReturn(confirmReturn.pretId, confirmReturn.livreId)
-          }
-          onCancel={() => setConfirmReturn(null)}
-        />
-      )}
+      <AnimatePresence>
+        {confirmReturn && (
+          <ConfirmModal
+            title="Confirmer le retour"
+            message="Marquer ce prêt comme retourné ?"
+            onConfirm={() =>
+              doReturn(confirmReturn.pretId, confirmReturn.livreId)
+            }
+            onCancel={() => setConfirmReturn(null)}
+          />
+        )}
+      </AnimatePresence>
 
-      {viewPret && <PretDetailModal pret={viewPret} onClose={() => setViewPret(null)} />}
+      <AnimatePresence>
+        {viewPret && <PretDetailModal pret={viewPret} onClose={() => setViewPret(null)} />}
+      </AnimatePresence>
 
       {showStudentScanner && (
         <ISBNScanner

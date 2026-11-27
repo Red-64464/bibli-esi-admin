@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "./MotionOverlay";
 /* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, BookOpen, Camera, ChevronLeft, ChevronRight, Copy, ExternalLink, ImageOff, Loader2, PlusCircle, Search, Trash2, X } from "lucide-react";
@@ -207,8 +209,8 @@ export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
   };
 
   return (
-    <div ref={scrollRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-3 py-5 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pending-books-title">
-      <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
+    <MotionOverlay ref={scrollRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-3 py-5 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="pending-books-title">
+      <div data-motion-panel className="w-full max-w-4xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
         <div className="relative border-b border-white/10 px-4 py-5 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:px-6">
           <div className="pr-9"><h2 id="pending-books-title" className="flex items-center gap-2 text-lg font-semibold"><BookOpen className="h-5 w-5 shrink-0 text-biblio-accent" /> Livres à identifier</h2><p className="mt-1 text-sm text-biblio-muted">Deux photos privées sont conservées pour chaque livre non reconnu.</p></div>
           <button type="button" onClick={onCreate} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-biblio-accent px-3 py-2 text-sm font-medium text-white hover:bg-biblio-accent-hover sm:mr-7 sm:mt-0 sm:w-auto sm:shrink-0"><Camera className="h-4 w-4" /> Ajouter des photos</button>
@@ -257,43 +259,47 @@ export default function PendingBooksModal({ onClose, onAdd, onCreate }) {
           {!loading && !error && totalPages > 1 && <nav aria-label="Pages des livres à identifier, bas de liste" className="mt-6 border-t border-[var(--library-line)] pt-5"><Pagination page={page} totalPages={totalPages} onPage={changePage} /></nav>}
         </div>
       </div>
-      {preview && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setPreview(null)}>
-          <div className="relative flex h-full max-h-[92vh] w-full max-w-5xl flex-col" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between gap-3 text-white">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{preview.book.titre_suggere || "Livre à identifier"}</p>
-                <p className="text-xs text-white/70">{preview.photos[preview.index].label} · {preview.index + 1}/{preview.photos.length}</p>
+      <AnimatePresence>
+        {preview && (
+          <MotionOverlay className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" onClick={() => setPreview(null)}>
+            <div data-motion-panel className="relative flex h-full max-h-[92vh] w-full max-w-5xl flex-col" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{preview.book.titre_suggere || "Livre à identifier"}</p>
+                  <p className="text-xs text-white/70">{preview.photos[preview.index].label} · {preview.index + 1}/{preview.photos.length}</p>
+                </div>
+                <button type="button" onClick={() => setPreview(null)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-slate-950 shadow-xl hover:bg-slate-200" aria-label="Fermer la photo agrandie">
+                  <X className="h-7 w-7" />
+                </button>
               </div>
-              <button type="button" onClick={() => setPreview(null)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-slate-950 shadow-xl hover:bg-slate-200" aria-label="Fermer la photo agrandie">
-                <X className="h-7 w-7" />
-              </button>
+              <div className="relative flex min-h-0 flex-1 items-center justify-center rounded-xl bg-black/40">
+                {preview.photos.length > 1 && (
+                  <button type="button" onClick={() => movePreview(-1)} className="absolute left-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo précédente">
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                )}
+                <img src={preview.photos[preview.index].url} alt={preview.photos[preview.index].label} className="max-h-full max-w-full rounded-lg object-contain" />
+                {preview.photos.length > 1 && (
+                  <button type="button" onClick={() => movePreview(1)} className="absolute right-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo suivante">
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="relative flex min-h-0 flex-1 items-center justify-center rounded-xl bg-black/40">
-              {preview.photos.length > 1 && (
-                <button type="button" onClick={() => movePreview(-1)} className="absolute left-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo précédente">
-                  <ChevronLeft className="h-6 w-6" />
-                </button>
-              )}
-              <img src={preview.photos[preview.index].url} alt={preview.photos[preview.index].label} className="max-h-full max-w-full rounded-lg object-contain" />
-              {preview.photos.length > 1 && (
-                <button type="button" onClick={() => movePreview(1)} className="absolute right-2 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Photo suivante">
-                  <ChevronRight className="h-6 w-6" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {bookToDelete && (
-        <ConfirmModal
-          title="Supprimer ce livre à identifier"
-          message="Les deux photos privées et la fiche seront supprimées définitivement."
-          danger
-          onConfirm={deleteBook}
-          onCancel={() => setBookToDelete(null)}
-        />
-      )}
-    </div>
+          </MotionOverlay>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {bookToDelete && (
+          <ConfirmModal
+            title="Supprimer ce livre à identifier"
+            message="Les deux photos privées et la fiche seront supprimées définitivement."
+            danger
+            onConfirm={deleteBook}
+            onCancel={() => setBookToDelete(null)}
+          />
+        )}
+      </AnimatePresence>
+    </MotionOverlay>
   );
 }

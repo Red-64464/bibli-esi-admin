@@ -22,7 +22,7 @@ export default function EtudiantCard({
     (etudiant.nom?.[0] || "").toUpperCase();
 
   return (
-    <div className="bg-biblio-card rounded-xl border border-white/10 p-5 space-y-3 transition-all hover:border-white/20">
+    <div data-motion-card className="bg-biblio-card rounded-xl border border-white/10 p-5 space-y-3 hover:border-white/20">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-3 min-w-0">
           {/* Avatar */}

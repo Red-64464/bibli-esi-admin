@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionsContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -7,6 +9,7 @@ import { supabase } from "../lib/supabase";
 import { getPretStatut } from "../lib/utils";
 import { applyAccentColor } from "../lib/settings";
 import { useRealtimeTables } from "../lib/realtime";
+import { backdropMotion, popoverMotion } from "../lib/motion";
 import OfflineSyncStatus from "./OfflineSyncStatus";
 import {
   LayoutDashboard,
@@ -190,12 +193,15 @@ export default function Layout({ children }) {
   return (
     <div className="flex min-h-screen relative w-full max-w-full overflow-x-hidden">
       {/* Backdrop mobile */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-          onClick={closeSidebar}
-        />
-      )}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <m.div
+            {...backdropMotion}
+            className="fixed inset-0 bg-black/60 z-30 lg:hidden"
+            onClick={closeSidebar}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Fermer dropdown cloche si clic ailleurs */}
       {bellOpen && (
@@ -207,11 +213,12 @@ export default function Layout({ children }) {
 
       {/* Sidebar */}
       <aside
+        id="navigation-admin"
         className={`
           fixed h-full z-40 w-64 bg-biblio-card border-r border-white/10 flex flex-col
-          transition-transform duration-300
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
+          transition-[translate,visibility] duration-350 ease-[cubic-bezier(.22,.78,.24,1)]
+          ${sidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
+          lg:visible lg:translate-x-0
         `}
       >
         {/* Logo */}
@@ -224,7 +231,9 @@ export default function Layout({ children }) {
             />
           </div>
           <button
+            type="button"
             onClick={closeSidebar}
+            aria-label="Fermer le menu"
             className="lg:hidden text-biblio-muted hover:text-biblio-text transition-colors"
           >
             <X className="w-5 h-5" />
@@ -300,7 +309,11 @@ export default function Layout({ children }) {
         <header className="sticky top-0 z-20 bg-biblio-card border-b border-white/10 px-4 py-3 flex items-center gap-3 min-w-0 max-w-full relative">
           {/* Burger mobile */}
           <button
+            type="button"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Ouvrir le menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="navigation-admin"
             className="lg:hidden text-biblio-muted hover:text-biblio-text transition-colors z-10"
           >
             <Menu className="w-6 h-6" />
@@ -348,6 +361,7 @@ export default function Layout({ children }) {
                 onClick={() => setBellOpen((v) => !v)}
                 className="relative p-2 rounded-lg text-biblio-muted hover:text-biblio-text hover:bg-white/10 transition-colors"
                 title="Notifications"
+                aria-expanded={bellOpen}
               >
                 <Bell className="w-5 h-5" />
                 {overdueCount > 0 && (
@@ -358,54 +372,57 @@ export default function Layout({ children }) {
               </button>
 
               {/* Dropdown */}
-              {bellOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-biblio-card border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-biblio-text">
-                      Alertes
-                    </span>
-                    {overdueCount > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
-                        {overdueCount} en retard
-                      </span>
-                    )}
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {overdueList.length === 0 ? (
-                      <p className="text-xs text-biblio-muted text-center py-4">
-                        Aucun retard en cours 🎉
-                      </p>
-                    ) : (
-                      overdueList.map((p) => (
-                        <div
-                          key={p.id}
-                          className="px-4 py-2.5 border-b border-white/5 last:border-0 hover:bg-white/5"
-                        >
-                          <p className="text-xs font-medium text-biblio-text line-clamp-1">
-                            {p.livres?.titre || "—"}
-                          </p>
-                          <p className="text-xs text-biblio-muted">
-                            {p.etudiants
-                              ? `${p.etudiants.prenom} ${p.etudiants.nom}`
-                              : "—"}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
+              <AnimatePresence>{bellOpen && (
+              <m.div
+                {...popoverMotion}
+                className="absolute right-0 top-full mt-2 w-72 bg-biblio-card border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-biblio-text">
+                    Alertes
+                  </span>
                   {overdueCount > 0 && (
-                    <div className="px-4 py-2.5 border-t border-white/10">
-                      <NavLink
-                        to="/prets"
-                        onClick={() => setBellOpen(false)}
-                        className="text-xs text-biblio-accent hover:underline"
-                      >
-                        Voir tous les retards →
-                      </NavLink>
-                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-biblio-danger/20 text-biblio-danger font-medium">
+                      {overdueCount} en retard
+                    </span>
                   )}
                 </div>
-              )}
+                <div className="max-h-64 overflow-y-auto">
+                  {overdueList.length === 0 ? (
+                    <p className="text-xs text-biblio-muted text-center py-4">
+                      Aucun retard en cours 🎉
+                    </p>
+                  ) : (
+                    overdueList.map((p) => (
+                      <div
+                        key={p.id}
+                        className="px-4 py-2.5 border-b border-white/5 last:border-0 hover:bg-white/5"
+                      >
+                        <p className="text-xs font-medium text-biblio-text line-clamp-1">
+                          {p.livres?.titre || "—"}
+                        </p>
+                        <p className="text-xs text-biblio-muted">
+                          {p.etudiants
+                            ? `${p.etudiants.prenom} ${p.etudiants.nom}`
+                            : "—"}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {overdueCount > 0 && (
+                  <div className="px-4 py-2.5 border-t border-white/10">
+                    <NavLink
+                      to="/prets"
+                      onClick={() => setBellOpen(false)}
+                      className="text-xs text-biblio-accent hover:underline"
+                    >
+                      Voir tous les retards →
+                    </NavLink>
+                  </div>
+                )}
+              </m.div>
+            )}</AnimatePresence>
             </div>
           </div>
         </header>

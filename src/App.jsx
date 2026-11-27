@@ -1,5 +1,7 @@
-import { Component, lazy, Suspense, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Component, lazy, Suspense, useEffect, useRef } from "react";
+import { Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
+import { AnimatePresence, useIsPresent, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { PermissionsProvider } from "./contexts/PermissionsContext";
@@ -8,6 +10,7 @@ import RoleRoute from "./components/RoleRoute";
 import Layout from "./components/Layout";
 import { Loader2 } from "lucide-react";
 import { registerSW } from "virtual:pwa-register";
+import { pageMotion } from "./lib/motion";
 
 // Chargement synchrone pour la page de login (critique)
 import Login from "./pages/Login";
@@ -90,7 +93,7 @@ class AppErrorBoundary extends Component {
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center h-64">
+    <div className="flex items-center justify-center h-64" role="status" aria-label="Chargement de la page">
       <Loader2 className="w-8 h-8 animate-spin text-biblio-accent" />
     </div>
   );
@@ -101,6 +104,43 @@ function PwaUpdateNotice() {
     registerSW({ immediate: true });
   }, []);
   return null;
+}
+
+function RouteContent({ pathname, navigationType, children }) {
+  const content = useRef(null);
+  const isPresent = useIsPresent();
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (navigationType !== "POP") {
+      content.current?.closest("main")?.scrollTo(0, 0);
+      window.scrollTo(0, 0);
+    }
+  }, [pathname, navigationType]);
+
+  return (
+    <m.div
+      ref={content}
+      data-page-motion={pathname}
+      inert={isPresent ? undefined : ""}
+      {...(reduceMotion ? {} : pageMotion)}
+    >
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </m.div>
+  );
+}
+
+function AnimatedPages({ children }) {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <RouteContent key={location.pathname} pathname={location.pathname} navigationType={navigationType}>
+        {children(location)}
+      </RouteContent>
+    </AnimatePresence>
+  );
 }
 
 function App() {
@@ -117,8 +157,8 @@ function App() {
               <ProtectedRoute>
                 <PermissionsProvider>
                   <Layout>
-                    <Suspense fallback={<PageLoader />}>
-                      <Routes>
+                    <AnimatedPages>
+                      {(location) => <Routes location={location}>
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/livres" element={<Livres />} />
                         <Route path="/etudiants" element={<Etudiants />} />
@@ -162,8 +202,8 @@ function App() {
                           }
                         />
                         <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </Suspense>
+                      </Routes>}
+                    </AnimatedPages>
                   </Layout>
                 </PermissionsProvider>
               </ProtectedRoute>

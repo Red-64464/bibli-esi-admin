@@ -1,3 +1,5 @@
+import { useReducedMotion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useRealtimeTables } from "../lib/realtime";
@@ -66,6 +68,7 @@ const DarkTooltip = ({ active, payload, label }) => {
 };
 
 export default function Dashboard() {
+  const chartAnimation = { isAnimationActive: !useReducedMotion(), animationDuration: 450, animationBegin: 0 };
   const [livres, setLivres] = useState([]);
   const [etudiants, setEtudiants] = useState([]);
   const [prets, setPrets] = useState([]);
@@ -952,7 +955,7 @@ export default function Dashboard() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="count" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
+              <Bar {...chartAnimation} dataKey="count" fill="var(--color-biblio-accent)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1002,7 +1005,7 @@ export default function Dashboard() {
                 content={<DarkTooltip />}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
-              <Bar dataKey="count" fill="var(--color-biblio-success)" radius={[0, 4, 4, 0]} />
+              <Bar {...chartAnimation} dataKey="count" fill="var(--color-biblio-success)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1143,13 +1146,15 @@ export default function Dashboard() {
         </div>
       )}
 
-      {showExportModal && (
-        <ExportModal
-          title={`Exporter - ${exportType === "bibli_livres" ? "Catalogue" : "Prets en cours"}`}
-          onClose={() => setShowExportModal(false)}
-          onExport={handleExport}
-        />
-      )}
+      <AnimatePresence>
+        {showExportModal && (
+          <ExportModal
+            title={`Exporter - ${exportType === "bibli_livres" ? "Catalogue" : "Prets en cours"}`}
+            onClose={() => setShowExportModal(false)}
+            onExport={handleExport}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

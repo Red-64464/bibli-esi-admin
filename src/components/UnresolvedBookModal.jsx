@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, FileText, ImagePlus, Loader2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -200,8 +201,8 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 py-8">
-      <form onSubmit={save} className="w-full max-w-2xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 py-8">
+      <form data-motion-panel onSubmit={save} className="w-full max-w-2xl rounded-2xl border border-white/10 bg-biblio-card shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold"><Camera className="h-5 w-5 text-biblio-accent" /> {rawScan ? "Livre à identifier plus tard" : "Ajouter un livre à identifier"}</h2>
@@ -249,6 +250,6 @@ export default function UnresolvedBookModal({ rawScan = "", onClose, onQueued })
         </div>
         <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4"><button type="button" onClick={onClose} className="rounded-lg bg-white/10 px-4 py-2.5 text-sm">Annuler</button><button disabled={saving} className="flex items-center gap-2 rounded-lg bg-biblio-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Envoyer dans « À identifier »</button></div>
       </form>
-    </div>
+    </MotionOverlay>
   );
 }

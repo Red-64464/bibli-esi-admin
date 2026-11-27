@@ -1,3 +1,5 @@
+import { AnimatePresence } from "motion/react";
+import MotionOverlay from "../components/MotionOverlay";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Papa from "papaparse";
@@ -1397,7 +1399,7 @@ export default function Livres() {
         </div>
       ) : vue === "grille" ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div data-motion-results key={livresPage.map(({ id }) => id).join("|")} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {livresPage.map((livre) => (
               <LivreCard
                 key={livre.id}
@@ -1455,7 +1457,7 @@ export default function Livres() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody data-motion-results key={livresPage.map(({ id }) => id).join("|")}>
                   {livresPage.map((livre) => {
                     const statut = normaliseStatut(
                       livre.statut ||
@@ -1574,9 +1576,9 @@ export default function Livres() {
       )}
 
       {/* ── MODAL : Ajout manuel ── */}
-      {showManualForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
+      <AnimatePresence>{showManualForm && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <PlusCircle className="w-5 h-5 text-biblio-accent" /> Ajouter un
@@ -1828,13 +1830,13 @@ export default function Livres() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
       {/* ── MODAL : Édition livre ── */}
-      {editLivre && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
+      <AnimatePresence>{editLivre && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-2xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-biblio-accent" /> Modifier le
@@ -2107,13 +2109,13 @@ export default function Livres() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
       {/* ── MODAL : Historique ── */}
-      {historique && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-xl shadow-2xl">
+      <AnimatePresence>{historique && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-base font-semibold">
                 Historique — {historique.livre.titre}
@@ -2158,13 +2160,13 @@ export default function Livres() {
               )}
             </div>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
       {/* ── MODAL : Import CSV ── */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
-          <div className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-3xl shadow-2xl">
+      <AnimatePresence>{showImportModal && (
+        <MotionOverlay className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8 px-4">
+          <div data-motion-panel className="bg-biblio-card rounded-2xl border border-white/10 w-full max-w-3xl shadow-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Upload className="w-5 h-5 text-biblio-accent" /> Import CSV
@@ -2304,27 +2306,31 @@ export default function Livres() {
               )}
             </div>
           </div>
-        </div>
-      )}
+        </MotionOverlay>
+      )}</AnimatePresence>
 
       {/* ── Confirm delete ── */}
-      {confirmDelete && (
-        <ConfirmModal
-          title="Supprimer le livre"
-          message="Êtes-vous sûr de vouloir supprimer ce livre ? Cette action est irréversible."
-          danger
-          onConfirm={handleDeleteConfirmed}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmModal
+            title="Supprimer le livre"
+            message="Êtes-vous sûr de vouloir supprimer ce livre ? Cette action est irréversible."
+            danger
+            onConfirm={handleDeleteConfirmed}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        )}
+      </AnimatePresence>
 
-      {showExportModal && (
-        <ExportModal
-          title="Exporter le catalogue"
-          onClose={() => setShowExportModal(false)}
-          onExport={handleExport}
-        />
-      )}
+      <AnimatePresence>
+        {showExportModal && (
+          <ExportModal
+            title="Exporter le catalogue"
+            onClose={() => setShowExportModal(false)}
+            onExport={handleExport}
+          />
+        )}
+      </AnimatePresence>
 
       {showCameraScanner && (
         <ISBNScanner
@@ -2334,48 +2340,54 @@ export default function Livres() {
         />
       )}
 
-      {showUnresolvedBook && (
-        <UnresolvedBookModal
-          rawScan={unresolvedRawScan}
-          onClose={() => setShowUnresolvedBook(false)}
-          onQueued={(result) => {
-            setShowUnresolvedBook(false);
-            if (result?.offline) setError("Livre enregistré sur cet appareil : il sera synchronisé au retour de la connexion. Ne videz pas les données du navigateur avant la synchronisation.");
-            fetchPendingCount();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showUnresolvedBook && (
+          <UnresolvedBookModal
+            rawScan={unresolvedRawScan}
+            onClose={() => setShowUnresolvedBook(false)}
+            onQueued={(result) => {
+              setShowUnresolvedBook(false);
+              if (result?.offline) setError("Livre enregistré sur cet appareil : il sera synchronisé au retour de la connexion. Ne videz pas les données du navigateur avant la synchronisation.");
+              fetchPendingCount();
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {showPendingBooks && (
-        <PendingBooksModal
-          onClose={() => {
-            setShowPendingBooks(false);
-            fetchPendingCount();
-          }}
-          onCreate={() => {
-            setShowPendingBooks(false);
-            setUnresolvedRawScan("");
-            setShowUnresolvedBook(true);
-          }}
-          onAdd={(book) => {
-            setPendingToAdd(book);
-            setManualForm({
-              ...emptyManualForm,
-              titre: book.titre_suggere || "",
-              auteur: book.auteur_suggere || "",
-              isbn: book.isbn || "",
-              emplacement: book.emplacement || "",
-              description: book.ocr_text || "",
-            });
-            setShowPendingBooks(false);
-            setShowManualForm(true);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showPendingBooks && (
+          <PendingBooksModal
+            onClose={() => {
+              setShowPendingBooks(false);
+              fetchPendingCount();
+            }}
+            onCreate={() => {
+              setShowPendingBooks(false);
+              setUnresolvedRawScan("");
+              setShowUnresolvedBook(true);
+            }}
+            onAdd={(book) => {
+              setPendingToAdd(book);
+              setManualForm({
+                ...emptyManualForm,
+                titre: book.titre_suggere || "",
+                auteur: book.auteur_suggere || "",
+                isbn: book.isbn || "",
+                emplacement: book.emplacement || "",
+                description: book.ocr_text || "",
+              });
+              setShowPendingBooks(false);
+              setShowManualForm(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {qrLivre && (
-        <QRCodeModal livre={qrLivre} onClose={() => setQrLivre(null)} />
-      )}
+      <AnimatePresence>
+        {qrLivre && (
+          <QRCodeModal livre={qrLivre} onClose={() => setQrLivre(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

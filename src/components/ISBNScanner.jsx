@@ -1,3 +1,4 @@
+import MotionOverlay from "./MotionOverlay";
 /* eslint-disable react/prop-types */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Camera, ImagePlus, Lightbulb, Loader2, RefreshCw, Volume2, VolumeX, X } from "lucide-react";
@@ -206,8 +207,8 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="w-full max-w-sm space-y-4 overflow-hidden rounded-xl border border-white/10 bg-biblio-card">
+    <MotionOverlay className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div data-motion-panel className="w-full max-w-sm space-y-4 overflow-hidden rounded-xl border border-white/10 bg-biblio-card">
         <div className="flex items-center justify-between px-5 pt-5"><h2 className="flex items-center gap-2 text-base font-semibold"><Camera className="h-5 w-5 text-biblio-accent" />{mode === "isbn" ? "Scanner un ISBN" : "Scanner un QR code"}</h2><button onClick={onClose} aria-label="Fermer" className="rounded-full p-2 text-biblio-muted hover:bg-white/10"><X className="h-5 w-5" /></button></div>
         <div className="space-y-4 px-5">
           {status === "loading" && <div className="flex flex-col items-center gap-3 py-10"><Loader2 className="h-8 w-8 animate-spin text-biblio-accent" /><span className="text-center text-sm text-biblio-muted">{cameraPermissionPending ? "Autorisez la caméra dans le navigateur ou utilisez une photo." : "Préparation du scanner…"}</span></div>}
@@ -222,6 +223,6 @@ export default function ISBNScanner({ onScan, onClose, mode = "isbn" }) {
         </div>
         <div className="px-5 pb-5"><button onClick={onClose} className="w-full rounded-lg bg-white/10 py-2.5 text-sm font-medium text-biblio-text hover:bg-white/20">Annuler</button></div>
       </div>
-    </div>
+    </MotionOverlay>
   );
 }
