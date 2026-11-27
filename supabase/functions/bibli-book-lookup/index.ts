@@ -332,7 +332,17 @@ Deno.serve(async (request) => {
   // Ne sélectionner que les colonnes présentes dans le schéma de production.
   // Les catalogues externes peuvent toutefois continuer à fournir nb_pages
   // dans leurs métadonnées : le front filtre ces champs avant insertion.
-  const { data: localBook } = await admin.from("bibli_livres").select("isbn, titre, auteur, editeur, couverture_url, annee, resume, langue, categorie").eq("isbn", isbn).maybeSingle();
+  const converted = isbn13(isbn);
+  let isbn10 = "";
+  if (converted?.startsWith("978")) {
+    const base = converted.slice(3, 12);
+    const sum = [...base].reduce((total, digit, index) => total + Number(digit) * (10 - index), 0);
+    const digit = (11 - sum % 11) % 11;
+    isbn10 = base + (digit === 10 ? "X" : String(digit));
+  }
+  const candidates = [...new Set([isbn, converted, isbn10].filter(Boolean))];
+  const { data: matches } = await admin.from("bibli_livres").select("id, isbn, titre, auteur, editeur, couverture_url, annee, resume, langue, categorie, emplacement, nb_exemplaires").in("isbn", candidates).limit(1);
+  const localBook = matches?.[0];
   if (localBook) return reply(request, 200, { book: localBook, source: "catalogue" });
   const { data: cached } = await admin.from("bibli_book_lookup_cache").select("metadata, sources, found, failure_reason").eq("isbn", isbn).gt("expires_at", new Date().toISOString()).maybeSingle();
   if (cached?.found && cached.metadata) return reply(request, 200, { book: cached.metadata, source: "cache", sources: cached.sources });

@@ -1142,6 +1142,7 @@ export default function Livres() {
 
       <SearchISBN
         onBookFound={handleAddBook}
+        onCopyAdded={fetchLivres}
         categories={selectableCategories}
         defaultIsbn={scannedIsbn}
         onDefaultIsbnUsed={() => setScannedIsbn(null)}
